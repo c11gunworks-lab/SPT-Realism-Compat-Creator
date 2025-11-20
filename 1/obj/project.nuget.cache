@@ -1,0 +1,45 @@
+{
+  "version": 2,
+  "dgSpecHash": "XmdkSmGP0j0=",
+  "success": false,
+  "projectFilePath": "C:\\Users\\ngerwing\\Documents\\SPTMOD\\Development\\Programs\\SPT-Realism-Compat-Creator\\1\\1.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\ngerwing\\.nuget\\packages\\bepinex.analyzers\\1.0.8\\bepinex.analyzers.1.0.8.nupkg.sha512",
+    "C:\\Users\\ngerwing\\.nuget\\packages\\bepinex.baselib\\5.4.20\\bepinex.baselib.5.4.20.nupkg.sha512",
+    "C:\\Users\\ngerwing\\.nuget\\packages\\bepinex.core\\5.4.21\\bepinex.core.5.4.21.nupkg.sha512",
+    "C:\\Users\\ngerwing\\.nuget\\packages\\bepinex.plugininfoprops\\2.1.0\\bepinex.plugininfoprops.2.1.0.nupkg.sha512",
+    "C:\\Users\\ngerwing\\.nuget\\packages\\harmonyx\\2.7.0\\harmonyx.2.7.0.nupkg.sha512",
+    "C:\\Users\\ngerwing\\.nuget\\packages\\microsoft.netframework.referenceassemblies\\1.0.2\\microsoft.netframework.referenceassemblies.1.0.2.nupkg.sha512",
+    "C:\\Users\\ngerwing\\.nuget\\packages\\microsoft.netframework.referenceassemblies.net35\\1.0.2\\microsoft.netframework.referenceassemblies.net35.1.0.2.nupkg.sha512",
+    "C:\\Users\\ngerwing\\.nuget\\packages\\mono.cecil\\0.10.4\\mono.cecil.0.10.4.nupkg.sha512",
+    "C:\\Users\\ngerwing\\.nuget\\packages\\monomod.runtimedetour\\21.12.13.1\\monomod.runtimedetour.21.12.13.1.nupkg.sha512",
+    "C:\\Users\\ngerwing\\.nuget\\packages\\monomod.utils\\21.12.13.1\\monomod.utils.21.12.13.1.nupkg.sha512",
+    "C:\\Users\\ngerwing\\.nuget\\packages\\unityengine.modules\\5.6.0\\unityengine.modules.5.6.0.nupkg.sha512",
+    "C:\\Users\\ngerwing\\.nuget\\packages\\wtt-clientcommonlib\\2.0.0\\wtt-clientcommonlib.2.0.0.nupkg.sha512",
+    "C:\\Users\\ngerwing\\.nuget\\packages\\wtt-servercommonlib\\2.0.0\\wtt-servercommonlib.2.0.0.nupkg.sha512"
+  ],
+  "logs": [
+    {
+      "code": "NU1202",
+      "level": "Error",
+      "message": "Package WTT-ClientCommonLib 2.0.0 is not compatible with net35 (.NETFramework,Version=v3.5). Package WTT-ClientCommonLib 2.0.0 supports: net472 (.NETFramework,Version=v4.7.2)",
+      "projectPath": "C:\\Users\\ngerwing\\Documents\\SPTMOD\\Development\\Programs\\SPT-Realism-Compat-Creator\\1\\1.csproj",
+      "filePath": "C:\\Users\\ngerwing\\Documents\\SPTMOD\\Development\\Programs\\SPT-Realism-Compat-Creator\\1\\1.csproj",
+      "libraryId": "WTT-ClientCommonLib",
+      "targetGraphs": [
+        ".NETFramework,Version=v3.5"
+      ]
+    },
+    {
+      "code": "NU1202",
+      "level": "Error",
+      "message": "Package WTT-ServerCommonLib 2.0.0 is not compatible with net35 (.NETFramework,Version=v3.5). Package WTT-ServerCommonLib 2.0.0 supports: net9.0 (.NETCoreApp,Version=v9.0)",
+      "projectPath": "C:\\Users\\ngerwing\\Documents\\SPTMOD\\Development\\Programs\\SPT-Realism-Compat-Creator\\1\\1.csproj",
+      "filePath": "C:\\Users\\ngerwing\\Documents\\SPTMOD\\Development\\Programs\\SPT-Realism-Compat-Creator\\1\\1.csproj",
+      "libraryId": "WTT-ServerCommonLib",
+      "targetGraphs": [
+        ".NETFramework,Version=v3.5"
+      ]
+    }
+  ]
+}
