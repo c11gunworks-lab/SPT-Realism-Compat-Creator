@@ -2141,7 +2141,48 @@ class MainWindow(QWidget):
 
         return "Unknown"
     
+    def _ensure_identity_fields(self, base: dict, compat: dict, template: dict = None) -> dict:
+        """
+        Make sure compat has $type, ItemID, Name in the canonical shapes.
+        - $type -> "RealismMod.<Bucket>, RealismMod" where <Bucket> ∈ {WeaponMod, Gun, Gear, Ammo}
+        - ItemID -> base.newId/_guid/id/_id (stringified)
+        - Name   -> display name of base (fallback: ItemID)
+        """
+        if not isinstance(compat, dict):
+            return compat or {}
 
+        # ---- ItemID
+        iid = compat.get("ItemID")
+        if not isinstance(iid, str) or not iid.strip():
+            iid = str(
+                base.get("newId")
+                or base.get("_guid")
+                or base.get("id")
+                or base.get("_id")
+                or "compat"
+            )
+            compat["ItemID"] = iid
+
+        # ---- Name
+        nm = compat.get("Name")
+        if not isinstance(nm, str) or not nm.strip():
+            # Prefer the index's name resolver; fallback to on-the-fly
+            nm = self.index.display_name_for(base) if base else ""
+            if not nm:
+                nm = get_display_name(base) if base else ""
+            compat["Name"] = nm or iid
+
+        # ---- $type
+        t = compat.get("$type")
+        if not isinstance(t, str) or not t.strip():
+            bucket = guess_type_bucket(compat, base or {}, template)
+            if not bucket:
+                # heuristics if formula result didn't hint a bucket
+                bucket = "WeaponMod" if isinstance(compat.get("ModType"), str) else ""
+            if bucket:
+                compat["$type"] = f"RealismMod.{bucket}, RealismMod"
+
+        return compat
 
     def render_realism_panel(self, base):
         """
@@ -3214,16 +3255,18 @@ class MainWindow(QWidget):
                 effective_base = self._build_effective_base_for_formula(base)
                 out = call_formula(func, {}, effective_base, template, context)
                 if not isinstance(out, dict):
-                    return {"_formula_error": "Formula did not return a dict."}
-                return out
+                    out = {"_formula_error": "Formula did not return a dict."}
+                # >>> Ensure identity fields even for formula results <<<
+                return self._ensure_identity_fields(base or {}, out, template)
             except Exception as e:
-                # STRICT: no merge; produce clean shell and report error
                 minimal = self._fallback_merge(base, template)
                 minimal["_formula_error"] = f"{type(e).__name__}: {e}"
-                return minimal
+                # >>> Ensure identity on fallback too (harmless if already present) <<<
+                return self._ensure_identity_fields(base or {}, minimal, template)
 
-        # No formula: produce strict minimal shell rather than dumping raw keys
-        return self._fallback_merge(base, template)
+        # No formula
+        out = self._fallback_merge(base, template)
+        return self._ensure_identity_fields(base or {}, out, template)
 
     def _fallback_merge(self, base, template):
         """
@@ -3305,9 +3348,6 @@ class MainWindow(QWidget):
         }
         allowed = {alias_norm.get(k, k) for k in allowed}
 
-        # Ensure $type shows up in the editor for clarity
-        if "$type" not in compat and ctype:
-            compat["$type"] = f"RealismMod.{ctype}, RealismMod"
 
         # ---- create the form with the always-available allowed set ----
         form = CompatForm(compat, editable=True, schema_for_type=allowed)
@@ -3376,13 +3416,11 @@ class MainWindow(QWidget):
 
             # Compute compat (uses formulas.py if wired; else simple merge)
             compat = self.compute_compat(base, t)
+            compat = self._ensure_identity_fields(base or {}, compat, t)
 
-            # Build filename
-            key  = str(compat.get("ItemID") or compat.get("id") or compat.get("_guid") or "compat")
+            key = str(compat.get("ItemID"))  # guaranteed
             name = self.index.display_name_for(base).replace("/", "_")
             fname = os.path.join(out_dir, f"{key}_{name}_compat.json")
-
-            # Write envelope { key: compat }
             with open(fname, "w", encoding="utf-8") as f:
                 json.dump({key: compat}, f, indent=2, ensure_ascii=False)
             exported += 1
@@ -3395,10 +3433,18 @@ class MainWindow(QWidget):
         if not self.compat_forms:
             return
         compat = self.compat_forms[0].value()
+        # Try to locate a base record for better Name/$type inference
+        base = None
+        iid_for_lookup = str(compat.get("ItemID") or compat.get("_guid") or "")
+        if iid_for_lookup:
+            for rec in self.index.items:
+                if str(rec.get("newId") or rec.get("_guid") or rec.get("id") or rec.get("_id") or "") == iid_for_lookup:
+                    base = rec
+                    break
+        compat = self._ensure_identity_fields(base or {}, compat)
         fname, _ = QFileDialog.getSaveFileName(self, "Export Compat JSON", "", "JSON Files (*.json)")
         if not fname: return
-        # Envelope as { ItemID(or id): {...} }
-        key = str(compat.get("ItemID") or compat.get("id") or "compat")
+        key = str(compat.get("ItemID"))  # must exist now
         with open(fname, "w", encoding="utf-8") as f:
             json.dump({key: compat}, f, indent=2, ensure_ascii=False)
         QMessageBox.information(self, "Exported", f"Exported to {fname}")
