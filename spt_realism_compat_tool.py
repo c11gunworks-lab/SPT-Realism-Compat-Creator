@@ -1,7 +1,7 @@
 # spt_realism_compat_tool.py
 import sys, os, json, re
 from glob import iglob
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 import importlib, inspect, traceback
 import uuid
 import itertools
@@ -24,9 +24,15 @@ formulas_mod = None
 
 
 
+# --- REGEX & PARSERS ---
 COMPACT_ID_RE = re.compile(r"(?m)^\s*([0-9a-fA-F]{24})\s+(?:clone\s+\S+\s+)?enable\b")
-GUID24_RE = re.compile(r"^[0-9a-fA-F]{24}$")     # Mongo-like
+GUID24_RE = re.compile(r"^[0-9a-fA-F]{24}$") 
 UUID_RE    = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$")
+BASE_HIDE_KEYS = {
+    "Width", "Height", "BackgroundColor", "RagfairType", "ExamineTime",
+    "StackMaxSize",  "Prefab", "PrefabPath", "AnimationVariantsNumber",
+    "RepairCost", "RepairSpeed"
+}
 
 def is_guid_like(s: str) -> bool:
     if not isinstance(s, str) or len(s) < 8:
@@ -407,31 +413,60 @@ def call_formula(func, item_entry: dict, base: dict, template: dict, context: di
             def get_formula_func(_cat):
                 return None
 
-APP_ID = "Nate/SPT-Realism-Compat-Tool"
+
+# --- CONSTANTS & CONFIG ---
+APP_ID = "SPT-Realism-Compat-Tool"
 CONFIG_FILE = "spt_compat_tool.ini"
 
 KNOWN_IGNORE_DIRS = { 'bundles','CustomAssortSchemes','CustomBotLoadouts','CustomLootspawnService',
                       'CustomWeaponPresets','images','src','res','locales','quests','traders',
                       '.git','.github','node_modules','dist','build','__pycache__'}
 
-# Path substrings to skip (case-insensitive)
-DEFAULT_EXCLUDE_DIR_CONTAINS = [
-    "spt-realism",     # prevent duplicates in list; still available for 'realism stats' panel via separate load
-    ".git",
-    "__pycache__"
-]
-
-
-
+DEFAULT_EXCLUDE_DIR_CONTAINS = ["spt-realism", ".git", "__pycache__"]
 JSON_EXT = (".json",)
-# JS support
 JS_EXT = (".js",)
-# Which basegame fields to suppress in the Base Game stats block (case-sensitive exact keys)
-BASE_HIDE_KEYS = {
-    # noise / UI / shop metadata you usually don’t want in a stat preview:
-    "Width", "Height", "BackgroundColor", "RagfairType", "ExamineTime",
-    "StackMaxSize",  "Prefab", "PrefabPath", "AnimationVariantsNumber",
-    "RepairCost", "RepairSpeed"
+
+# Explicit boolean fields to force True/False dropdowns
+KNOWN_BOOLS = {
+    "AllowADS", "StockAllowADS", "HasShoulderContact", "WeaponAllowADS", 
+    "AllowOverheat", "IsManuallyOperated", "CanCycleSubs", 
+    "ExaminedByDefault", "NoFiremodeOnBoltcatch", "IsAnimated", 
+    "CompactHandling", "AllowFeed", "AllowJam", "AllowMisfire", 
+    "AllowSlide", "BlockFolding", "BlocksFolding"
+}
+
+# The canonical order from example.json
+CANONICAL_ORDER = {
+    "Ammo": [
+        "$type", "ItemID", "Name", "Damage", "PenetrationPower", "LoyaltyLevel", "BasePriceModifier"
+    ],
+    "Gear": [
+        "$type", "ItemID", "Name", "AllowADS", "LoyaltyLevel", "ReloadSpeedMulti", 
+        "Comfort", "speedPenaltyPercent", "mousePenalty", "weaponErgonomicPenalty"
+    ],
+    "WeaponMod": [
+        "$type", "ItemID", "Name", "ModType", "VerticalRecoil", "HorizontalRecoil", 
+        "Dispersion", "CameraRecoil", "AutoROF", "SemiROF", "ModMalfunctionChance", 
+        "CanCycleSubs", "Accuracy", "HeatFactor", "CoolFactor", "DurabilityBurnModificator", 
+        "Velocity", "RecoilAngle", "ConflictingItems", "Ergonomics", "Weight", 
+        "Loudness", "Convergence", "LoyaltyLevel", "Flash", "Handling", 
+        "AimStability", "AimSpeed", "StockAllowADS", "HasShoulderContact", 
+        "CenterOfImpact", "ModShotDispersion"
+    ],
+    "Gun": [
+        "$type", "ItemID", "Name", "WeapType", "OperationType", "WeapAccuracy", 
+        "BaseTorque", "HasShoulderContact", "Ergonomics", "VerticalRecoil", 
+        "HorizontalRecoil", "Dispersion", "CameraRecoil", "VisualMulti", 
+        "Convergence", "RecoilAngle", "BaseMalfunctionChance", "HeatFactorGun", 
+        "HeatFactorByShot", "CoolFactorGun", "CoolFactorGunMods", "AllowOverheat", 
+        "CenterOfImpact", "HipAccuracyRestorationDelay", "HipAccuracyRestorationSpeed", 
+        "HipInnaccuracyGain", "ShotgunDispersion", "Velocity", "RecoilDamping", 
+        "RecoilHandDamping", "WeaponAllowADS", "Weight", "DurabilityBurnRatio", 
+        "AutoROF", "SemiROF", "LoyaltyLevel", "BaseReloadSpeedMulti", 
+        "BaseChamberSpeedMulti", "MinChamberSpeed", "MaxChamberSpeed", 
+        "IsManuallyOperated", "BaseChamberCheckSpeed", "BaseFixSpeed", 
+        "OffsetRotation", "RecoilIntensity"
+    ]
 }
 
 # -------------------------
@@ -1281,7 +1316,39 @@ def map_parent_to_formula_category(parent: str) -> str:
             return cat.strip()
 
     return ""
+def reorder_fields(record: dict) -> dict:
+    """
+    Reorders a dictionary based on CANONICAL_ORDER and its $type.
+    """
+    if not isinstance(record, dict):
+        return record
+    
+    # Determine type bucket
+    type_str = record.get("$type", "")
+    bucket = classify_realism_type(type_str)
+    
+    # Map 'Weapon' to 'Gun' for the schema lookups if needed
+    if bucket == "Weapon": bucket = "Gun"
+    
+    order_list = CANONICAL_ORDER.get(bucket, [])
+    
+    # If no specific order found, return as is (or sort alphabetically)
+    if not order_list:
+        return record
 
+    ordered = OrderedDict()
+    
+    # 1. Add keys present in the canonical list
+    for key in order_list:
+        if key in record:
+            ordered[key] = record[key]
+            
+    # 2. Add any remaining keys at the bottom
+    for key, val in record.items():
+        if key not in ordered:
+            ordered[key] = val
+            
+    return dict(ordered)
 # -------------------------
 # Template index
 # -------------------------
@@ -1348,49 +1415,6 @@ class CompatTemplateIndex:
 
         return uniq, candidate_ids
 
-def normalize_json_style_record(rec: dict):
-    """
-    Mutate `rec` in-place so your UI always sees a consistent shape.
-
-    - Promote item/_props → rec["_props"]
-    - Flatten handbook: set rec["parent"] and surface Price into overrideProperties
-    - Flatten Prefab path: overrideProperties.Prefab.path + overrideProperties.PrefabPath
-    - Keep locales as-is (get_display_name already uses it)
-    """
-    if not isinstance(rec, dict):
-        return
-
-    # 1) Promote nested _props (supports 'item' or 'items')
-    base_props = get_base_props_dict(rec)
-    if base_props and "_props" not in rec:
-        rec["_props"] = base_props  # promote for downstream code
-
-    # 2) Flatten Prefab path if present in _props
-    try:
-        pf = base_props.get("Prefab", {})
-        if isinstance(pf, dict):
-            ppath = pf.get("path")
-            if isinstance(ppath, str) and ppath.strip():
-                rec.setdefault("overrideProperties", {}).setdefault("Prefab", {})["path"] = ppath
-                rec["overrideProperties"].setdefault("PrefabPath", ppath)
-    except Exception:
-        pass
-
-    # 3) Flatten handbook -> parent + price
-    hb = rec.get("handbook") or rec.get("Handbook")
-    if isinstance(hb, dict):
-        pid = (hb.get("ParentId") or hb.get("parentId") or
-               hb.get("Parent")   or hb.get("parent"))
-        if isinstance(pid, str) and pid.strip():
-            # Let mod's handbook parent take precedence
-            rec["parent"] = pid.strip()
-        price = hb.get("Price")
-        if isinstance(price, (int, float)):
-            rec.setdefault("overrideProperties", {})["Price"] = int(price)
-
-    # 4) $type hint for UI (optional)
-    if "isweapon" in rec and isinstance(rec["isweapon"], bool):
-        rec["$type"] = "Gun" if rec["isweapon"] else "WeaponMod"
 # -------------------------
 # Build full index from SPT path
 # -------------------------
@@ -1749,7 +1773,7 @@ class UserTemplatesDB:
 # UI pieces
 # -------------------------
 class CompatForm(QWidget):
-    """Editable form that renders a dict with smart widgets, with schema-driven add-field support."""
+    """Editable form that renders a dict with smart widgets."""
     MODTYPE_OPTIONS = [
         "", "bipod", "short_barrel", "booster", "762x39", "300", "556", "366TKM", "308", "277",
         "sight", "mount", "shotTube", "foregrip_adapter", "shot_pump_grip_adapt", "counterWeight",
@@ -1767,245 +1791,114 @@ class CompatForm(QWidget):
         self.schema_for_type = schema_for_type or set()
         self._ctype = classify_realism_type(self.compat_dict.get("$type", ""))
 
-        # Layout with an optional schema-based adder on top
         outer = QVBoxLayout(self)
-        
-        # --- Main form FIRST (so self._form always exists before add-row) ---
         form = QFormLayout()
-        for k, v in sorted(self.compat_dict.items(), key=lambda kv: kv[0].lower()):
-            if k.startswith("_"):  # hide internal
-                continue
+        
+        # Sort keys for UI: Priority keys first, then alphabetical
+        keys = list(self.compat_dict.keys())
+        priority = ["$type", "ItemID", "Name", "ModType", "WeapType", "OperationType"]
+        keys.sort(key=lambda k: (0 if k in priority else 1, priority.index(k) if k in priority else k.lower()))
+
+        for k in keys:
+            if k.startswith("_"): continue
+            v = self.compat_dict[k]
             w = self._widget_for(k, v)
             self.fields[k] = w
             form.addRow(QLabel(k), w)
         outer.addLayout(form)
         self._form = form
 
-
-        # --- Add Field row: ALWAYS show a dropdown with allowed keys ---
-        
         self.add_row = None
         if editable:
             self.add_row = QHBoxLayout()
             self.add_row.addWidget(QLabel("+ Add Field:"))
-
             self.cb_add = QComboBox()
             self.add_row.addWidget(self.cb_add)
-            self.cb_add.activated.connect(lambda _: self._on_add_field())
-
             self.btn_add = QPushButton("Add")
             self.btn_add.clicked.connect(self._on_add_field)
             self.add_row.addWidget(self.btn_add)
-
-            # keep the full allowed catalog and build initial list of missing keys
             self._all_allowed = sorted(set(self.schema_for_type))
             self._refresh_add_dropdown()
-
             outer.addLayout(self.add_row)
 
-
-
-        
-    def _on_add_field_generic(self):
-        key = (self.tb_add_key.text() or "").strip()
-        if not key:
-            QMessageBox.information(self, "Missing", "Enter a field name.")
-            return
-        if key in self.compat_dict:
-            QMessageBox.information(self, "Exists", f"Field '{key}' already exists.")
-            return
-
-        # Heuristic default
-        default = ""
-        if re.search(r"(Allow|Has|Can|Is)[A-Z_]", key):
-            default = "False"
-        if re.search(r"(Speed|Velocity|Recoil|Angle|Dispersion|Accuracy|Heat|Cool|Weight|Ergonomics|"
-                    r"Convergence|Torque|Chance|Intensity|Penalty|Modifier|Loudness|Handling|Stability)",
-                    key, re.I):
-            default = "0"
-
-        self.compat_dict[key] = default
-        w = self._widget_for(key, default)
-        self.fields[key] = w
-        self._form.addRow(QLabel(key), w)
-        self.tb_add_key.clear()
-
-
-    # Smart field widgets
-    # --- in class CompatForm(QWidget) ---
-
     def _widget_for(self, key, val):
-        # --- Make ModType ALWAYS a dropdown, regardless of when it's added ---
+        # 1. Enforce ModType Dropdown
         if key.lower() == "modtype":
-            # Prefer WeaponMod-specific list if we can infer it; otherwise still a dropdown
-            # Re-detect bucket from current dict instead of relying only on stale self._ctype
-            bucket_now = classify_realism_type(self.compat_dict.get("$type", "")) or self._ctype
             cb = QComboBox()
+            bucket_now = classify_realism_type(self.compat_dict.get("$type", "")) or self._ctype
             if bucket_now == "WeaponMod":
                 cb.addItems(self.MODTYPE_OPTIONS)
             else:
-                # Generic set remains available when type is unknown/non-WeaponMod
-                cb.addItems([
-                    "", "barrel", "muzzle", "muzzle_supp_adapter", "handguard", "stock",
-                    "grip", "scope", "mount", "magazine", "laser", "flashlight",
-                    "bipod", "pistol_grip", "buttpad", "buffer_tube"
-                ])
+                cb.addItems(["", "barrel", "muzzle", "muzzle_supp_adapter", "handguard", "stock", "grip", "scope", "mount", "magazine"])
             idx = cb.findText(str(val))
-            if idx >= 0:
-                cb.setCurrentIndex(idx)
+            if idx >= 0: cb.setCurrentIndex(idx)
+            else: cb.setEditText(str(val))
             return cb
 
-        # Special dropdowns gated by $type
-        if key == "WeapType" and self._ctype == "Gun":
+        if key == "WeapType":
             cb = QComboBox(); cb.addItems(self.WEAPTYPE_OPTIONS)
             idx = cb.findText(str(val))
             if idx >= 0: cb.setCurrentIndex(idx)
             return cb
 
-        if key == "OperationType" and self._ctype == "Gun":
+        if key == "OperationType":
             cb = QComboBox(); cb.addItems(self.OPERATION_OPTIONS)
             idx = cb.findText(str(val))
             if idx >= 0: cb.setCurrentIndex(idx)
             return cb
 
-        # Generic renderers
-        if isinstance(val, bool):
+        # 2. Strict Boolean Handling
+        # Check if it's a known boolean key OR if the value is explicitly a python bool
+        if key in KNOWN_BOOLS or isinstance(val, bool):
             box = QComboBox()
-            box.addItems(["True", "False"])
-            box.setCurrentIndex(0 if val else 1)
+            box.addItems(["False", "True"])
+            # Handle 0/1 integer inputs for booleans gracefully
+            is_true = str(val).lower() == "true" or val == 1 or val == 1.0
+            box.setCurrentIndex(1 if is_true else 0)
             return box
 
+        # 3. Numeric Handling
         if isinstance(val, int):
             sp = QSpinBox()
             sp.setRange(-1_000_000, 1_000_000)
-            sp.setSingleStep(1)
             sp.setValue(val)
             return sp
 
         if isinstance(val, float):
             dsp = QDoubleSpinBox()
-            dsp.setDecimals(6)
+            dsp.setDecimals(4) # Increased precision
             dsp.setRange(-1_000_000.0, 1_000_000.0)
             dsp.setSingleStep(0.1)
             dsp.setValue(val)
             return dsp
 
-        # Keep existing fallback behavior for other string fields
         return QLineEdit(str(val))
-
-
-    def _missing_allowed_keys(self):
-        """Return the allowed keys not yet present in the compat dict."""
-        have = set(k for k in self.compat_dict.keys() if not k.startswith("_"))
-        # Only offer keys we don't already have
-        return [k for k in self._all_allowed if k not in have]
-
-    def _refresh_add_dropdown(self):
-        """Repopulate the dropdown and enable/disable Add button accordingly."""
-        if not hasattr(self, "cb_add"):
-            return
-        missing = self._missing_allowed_keys()
-        self.cb_add.blockSignals(True)
-        self.cb_add.clear()
-        self.cb_add.addItems(missing)
-        if missing:
-            self.cb_add.setCurrentIndex(0)
-        self.cb_add.blockSignals(False)
-        # disable Add button if nothing left to add
-        if hasattr(self, "btn_add"):
-            self.btn_add.setEnabled(bool(missing))
-
-
-    # --- in class CompatForm(QWidget) ---
 
     def _on_add_field(self):
         key = self.cb_add.currentText().strip() if hasattr(self, "cb_add") else ""
-        if not key:
-            return
-        if key in self.compat_dict:
-            QMessageBox.information(self, "Exists", f"Field '{key}' already exists.")
-            self._refresh_add_dropdown()
-            return
-
-        # Heuristic default: numbers -> "0", booleans -> "False", else ""
+        if not key or key in self.compat_dict: return
+        
         default = ""
-        if re.search(r"(Allow|Has|Can|Is)[A-Z_]", key):
-            default = "False"
-        if re.search(
-            r"(Speed|Velocity|Recoil|Angle|Dispersion|Accuracy|Heat|Cool|Weight|Ergonomics|"
-            r"Convergence|Torque|Chance|Intensity|Penalty|Modifier|Loudness|Handling|Stability)",
-            key, re.I
-        ):
-            default = "0"
-
-        # Insert into backing dict
+        if key in KNOWN_BOOLS or re.search(r"(Allow|Has|Can|Is)[A-Z_]", key):
+            default = False # Use actual bool
+        elif re.search(r"(Speed|Velocity|Recoil|Angle|Dispersion|Accuracy|Heat|Cool|Weight|Ergonomics)", key, re.I):
+            default = 0
+            
         self.compat_dict[key] = default
-
-        # If user just added $type, recompute type bucket immediately
-        if key == "$type":
-            self._ctype = classify_realism_type(self.compat_dict.get("$type", ""))
-
-        # Add a proper editor row to the form
+        if key == "$type": self._ctype = classify_realism_type(self.compat_dict.get("$type", ""))
+        
         w = self._widget_for(key, default)
         self.fields[key] = w
         self._form.addRow(QLabel(key), w)
-
-        # (Optional) If $type changed and ModType already exists, upgrade that widget
-        if key == "$type" and "ModType" in self.fields:
-            self._refresh_widget_for("ModType")
-
-        # Focus the new control for feedback
-        try:
-            if hasattr(w, "setFocus"):
-                w.setFocus()
-        except Exception:
-            pass
-
-        # Rebuild the dropdown list of missing keys
         self._refresh_add_dropdown()
 
-
-    def _refresh_widget_for(self, key: str):
-        """
-        Rebuild JUST one field's widget (e.g. 'ModType') based on the current state,
-        preserving its current value and replacing the row in the form.
-        """
-        if key not in self.fields:
-            return
-
-        old_widget = self.fields[key]
-
-        # Read existing value from the current widget
-        if isinstance(old_widget, (QSpinBox, QDoubleSpinBox)):
-            current_val = old_widget.value()
-        elif isinstance(old_widget, QComboBox):
-            current_val = old_widget.currentText()
-        else:
-            current_val = old_widget.text()
-
-        # Build a new widget with correct logic (e.g., now that _ctype is updated)
-        new_widget = self._widget_for(key, current_val)
-
-        # Locate the row index where the old widget lives
-        row_idx = None
-        for i in range(self._form.rowCount()):
-            # column 1 is the field widget
-            if self._form.itemAt(i, QFormLayout.FieldRole) is not None:
-                item = self._form.itemAt(i, QFormLayout.FieldRole)
-                if item is not None and item.widget() is old_widget:
-                    row_idx = i
-                    break
-
-        # Replace in the form layout
-        if row_idx is not None:
-            # Remove old widget from layout
-            self._form.removeRow(row_idx)
-            # Re-add the row with same label text and new widget
-            label_text = key
-            self._form.insertRow(row_idx, QLabel(label_text), new_widget)
-
-        # Update internal map
-        self.fields[key] = new_widget
+    def _refresh_add_dropdown(self):
+        if not hasattr(self, "cb_add"): return
+        have = set(k for k in self.compat_dict.keys() if not k.startswith("_"))
+        missing = [k for k in self._all_allowed if k not in have]
+        self.cb_add.clear()
+        self.cb_add.addItems(missing)
+        if hasattr(self, "btn_add"): self.btn_add.setEnabled(bool(missing))
 
     def value(self):
         out = {}
@@ -2013,13 +1906,18 @@ class CompatForm(QWidget):
             if isinstance(w, QSpinBox) or isinstance(w, QDoubleSpinBox):
                 out[k] = w.value()
             elif isinstance(w, QComboBox):
-                t = w.currentText()
-                out[k] = True if t == "True" else False if t == "False" else t
+                # Check if it was a boolean combo
+                if w.itemText(0) == "False" and w.itemText(1) == "True":
+                    out[k] = (w.currentIndex() == 1)
+                else:
+                    out[k] = w.currentText()
             else:
                 txt = w.text()
-                if re.fullmatch(r"-?\d+", txt): out[k] = int(txt)
+                # Try to preserve types
+                if k in KNOWN_BOOLS:
+                    out[k] = (txt.lower() == "true")
+                elif re.fullmatch(r"-?\d+", txt): out[k] = int(txt)
                 elif re.fullmatch(r"-?\d+(\.\d+)?", txt): out[k] = float(txt)
-                elif txt in ("True","False"): out[k] = (txt == "True")
                 else: out[k] = txt
         return out
 
@@ -2059,6 +1957,8 @@ class MainWindow(QWidget):
         #  load example.json schema for +Add Field dropdowns
         script_dir = os.path.dirname(os.path.abspath(__file__))
         self.example_schema = load_example_schema(os.path.join(script_dir, "example.json"))
+        self.export_queue = []  # List of (compat dict, base dict) tuples
+
 
 
 
@@ -2101,6 +2001,94 @@ class MainWindow(QWidget):
         rec = self.base_db.by_id.get(tpl) if tpl else None
         return tpl, rec
 
+
+    # --- export queue support -------------------------------------------------
+
+    def _ensure_identity_fields(self, base: dict, compat: dict, template: dict = None) -> dict:
+        """
+        Ensure compat has canonical identity keys and $type:
+        - ItemID (string) <- base.newId/_guid/id/_id
+        - Name            <- display name of base (fallback: ItemID)
+        - $type           <- RealismMod.<Bucket>, RealismMod
+        """
+        if not isinstance(compat, dict):
+            return compat or {}
+
+        # ItemID
+        iid = compat.get("ItemID")
+        if not isinstance(iid, str) or not iid.strip():
+            iid = str(
+                (base or {}).get("newId")
+                or (base or {}).get("_guid")
+                or (base or {}).get("id")
+                or (base or {}).get("_id")
+                or "compat"
+            )
+            compat["ItemID"] = iid
+
+        # Name
+        nm = compat.get("Name")
+        if not isinstance(nm, str) or not nm.strip():
+            nm = self.index.display_name_for(base) if base else ""
+            if not nm and base:
+                nm = get_display_name(base)
+            compat["Name"] = nm or iid
+
+        # $type
+        t = compat.get("$type")
+        if not isinstance(t, str) or not t.strip():
+            bucket = guess_type_bucket(compat, base or {}, template)
+            if not bucket:
+                if isinstance(compat.get("ModType"), str):
+                    bucket = "WeaponMod"
+            if bucket:
+                compat["$type"] = f"RealismMod.{bucket}, RealismMod"
+
+        return compat
+
+
+    def queue_current_compat(self):
+        if not self.compat_forms: return
+        compat = self.compat_forms[0].value()
+        
+        # Find base
+        base = None
+        iid_for_lookup = str(compat.get("ItemID") or compat.get("_guid") or "")
+        if iid_for_lookup:
+            for rec in self.index.items:
+                if str(rec.get("newId") or rec.get("_guid") or rec.get("id") or rec.get("_id") or "") == iid_for_lookup:
+                    base = rec; break
+                    
+        compat = self._ensure_identity_fields(base or {}, compat)
+        
+        # *** REORDER HERE ***
+        compat = reorder_fields(compat)
+        
+        # Add to queue (dedupe)
+        item_id = str(compat.get("ItemID"))
+        self.export_queue = [x for x in getattr(self, "export_queue", []) if str(x[0].get("ItemID")) != item_id]
+        self.export_queue.append((compat, base))
+        QMessageBox.information(self, "Queued", f"Queued compat: {compat.get('Name')} [{item_id}]")
+
+
+    def export_all_queued(self):
+        q = getattr(self, "export_queue", [])
+        if not q: return
+        fname, _ = QFileDialog.getSaveFileName(self, "Export All", "", "JSON Files (*.json)")
+        if not fname: return
+
+        out_dict = {}
+        for compat, base in q:
+            compat = self._ensure_identity_fields(base or {}, compat)
+            compat = reorder_fields(compat) # Ensure order
+            key = str(compat.get("ItemID"))
+            out_dict[key] = compat
+
+        with open(fname, "w", encoding="utf-8") as f:
+            json.dump(out_dict, f, indent=4, ensure_ascii=False) # indent 4 matches example better
+        QMessageBox.information(self, "Exported", f"Exported {len(out_dict)} items.")
+        self.export_queue.clear()
+
     def _handbook_parent_name(self, base: dict) -> str:
         def norm(cat: str) -> str:
             if not isinstance(cat, str) or not cat.strip():
@@ -2112,6 +2100,7 @@ class MainWindow(QWidget):
         # 1) Prefer handbook parent from the record (text or GUID)
         pid = base.get("parent") or base.get("Parent") or base.get("parentId")
         if isinstance(pid, str) and pid.strip():
+            # GUID -> translate via formulas.PARENT_CLASSES to a textual class first
             if re.fullmatch(r"[0-9a-fA-F]{24}", pid):
                 if formulas_mod and hasattr(formulas_mod, "PARENT_CLASSES"):
                     raw = formulas_mod.PARENT_CLASSES.get(pid, "")
@@ -2120,10 +2109,15 @@ class MainWindow(QWidget):
             else:
                 return norm(pid)
 
-        # 2) Fallback: basegame parent from cloned template
+        # 2) Fallback: basegame parent from cloned template (via items_master.json)
         tpl, vanilla = self._base_tpl_and_record(base)
         if isinstance(vanilla, dict):
-            vpid = vanilla.get("_parent") or vanilla.get("parent") or vanilla.get("Parent") or vanilla.get("parentId")
+            vpid = (
+                vanilla.get("_parent")
+                or vanilla.get("parent")
+                or vanilla.get("Parent")
+                or vanilla.get("parentId")
+            )
             if isinstance(vpid, str) and vpid.strip():
                 if re.fullmatch(r"[0-9a-fA-F]{24}", vpid):
                     if formulas_mod and hasattr(formulas_mod, "PARENT_CLASSES"):
@@ -2140,6 +2134,7 @@ class MainWindow(QWidget):
                 return norm(val)
 
         return "Unknown"
+
     
     def _ensure_identity_fields(self, base: dict, compat: dict, template: dict = None) -> dict:
         """
@@ -2525,10 +2520,18 @@ class MainWindow(QWidget):
         self.btn_compute = QPushButton("Recompute from Formula")
         self.btn_compute.clicked.connect(self.recompute_current)
         export_row.addWidget(self.btn_compute)
-        self.btn_export_one = QPushButton("Export This")
-        self.btn_export_one.clicked.connect(self.export_current)
+        
+        self.btn_export_one = QPushButton("Queue This")
+        self.btn_export_one.clicked.connect(self.queue_current_compat)
         export_row.addWidget(self.btn_export_one)
+
+
+        self.btn_export_all = QPushButton("Export All Queued")
+        self.btn_export_all.clicked.connect(self.export_all_queued)
+        export_row.addWidget(self.btn_export_all)
+
         right.addLayout(export_row)
+    
 
         right_scroll = QScrollArea(); right_scroll.setWidgetResizable(True)
         right_container = QWidget(); right_container.setLayout(right)
@@ -2713,6 +2716,23 @@ class MainWindow(QWidget):
 
 
     
+    def export_all_queued(self):
+        if not self.export_queue:
+            QMessageBox.information(self, "Export All", "No queued compats to export.")
+            return
+        fname, _ = QFileDialog.getSaveFileName(self, "Export All Queued Compats", "", "JSON Files (*.json)")
+        if not fname:
+            return
+        # Build a single dict: {ItemID: compat, ...}
+        out_dict = {}
+        for compat, base in self.export_queue:
+            compat = self._ensure_identity_fields(base or {}, compat)
+            key = str(compat.get("ItemID"))
+            out_dict[key] = compat
+        with open(fname, "w", encoding="utf-8") as f:
+            json.dump(out_dict, f, indent=2, ensure_ascii=False)
+        QMessageBox.information(self, "Exported", f"Exported {len(out_dict)} compats to {fname}")
+        self.export_queue.clear()  # Optionally clear after export
 
 
     def change_paths(self):
@@ -3383,53 +3403,31 @@ class MainWindow(QWidget):
 
     
     def batch_export(self):
-        """
-        Batch export for all items selected in the left list.
-        For each item:
-        - auto-match a template (prefers exact candidate id match)
-        - compute compat (via formulas if available; else fallback)
-        - write { <key>: compat } to a file in the chosen folder
-        """
         sel = getattr(self, "selected_records", []) or []
-        if not sel:
-            QMessageBox.information(self, "Batch Export", "Select items in the list first.")
-            return
-
+        if not sel: return
         out_dir = QFileDialog.getExistingDirectory(self, "Select export folder")
-        if not out_dir:
-            return
+        if not out_dir: return
 
         exported = 0
         for base in sel:
-            # Find best template match(es) for this base
             matches, candidates = self.index.template_index.match_by_item(base)
-            t = None
-            # Prefer an exact candidate target match
-            cand_set = set(candidates)
-            for cand in matches:
-                tgt = str(cand.get("ItemID") or cand.get("ItemId") or cand.get("id") or cand.get("_guid") or "")
-                if tgt in cand_set:
-                    t = cand
-                    break
-            if not t and matches:
-                t = matches[0]
-
-            # Compute compat (uses formulas.py if wired; else simple merge)
+            t = matches[0] if matches else None
+            
             compat = self.compute_compat(base, t)
             compat = self._ensure_identity_fields(base or {}, compat, t)
+            compat = reorder_fields(compat) # Ensure order
 
-            key = str(compat.get("ItemID"))  # guaranteed
+            key = str(compat.get("ItemID"))
             name = self.index.display_name_for(base).replace("/", "_")
             fname = os.path.join(out_dir, f"{key}_{name}_compat.json")
             with open(fname, "w", encoding="utf-8") as f:
-                json.dump({key: compat}, f, indent=2, ensure_ascii=False)
+                json.dump({key: compat}, f, indent=4, ensure_ascii=False)
             exported += 1
-
-        QMessageBox.information(self, "Batch Export", f"Exported {exported} file(s) to {out_dir}")
-
+        QMessageBox.information(self, "Batch Export", f"Exported {exported} files.")
 
 
-    def export_current(self):
+
+    def queue_current_compat(self):
         if not self.compat_forms:
             return
         compat = self.compat_forms[0].value()
@@ -3442,12 +3440,10 @@ class MainWindow(QWidget):
                     base = rec
                     break
         compat = self._ensure_identity_fields(base or {}, compat)
-        fname, _ = QFileDialog.getSaveFileName(self, "Export Compat JSON", "", "JSON Files (*.json)")
-        if not fname: return
-        key = str(compat.get("ItemID"))  # must exist now
-        with open(fname, "w", encoding="utf-8") as f:
-            json.dump({key: compat}, f, indent=2, ensure_ascii=False)
-        QMessageBox.information(self, "Exported", f"Exported to {fname}")
+        # Add to queue
+        self.export_queue.append((compat, base))
+        QMessageBox.information(self, "Queued", f"Queued compat for export: {compat.get('Name')} [{compat.get('ItemID')}]")
+        # Optionally, update a UI list of queued items here
 
 
 # -------------------------
