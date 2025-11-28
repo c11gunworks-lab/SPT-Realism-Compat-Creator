@@ -1773,7 +1773,10 @@ class UserTemplatesDB:
 # UI pieces
 # -------------------------
 class CompatForm(QWidget):
-    """Editable form that renders a dict with smart widgets."""
+    """
+    Editable form that renders a dict with smart widgets.
+    Includes support for adding new fields and removing existing ones.
+    """
     MODTYPE_OPTIONS = [
         "", "bipod", "short_barrel", "booster", "762x39", "300", "556", "366TKM", "308", "277",
         "sight", "mount", "shotTube", "foregrip_adapter", "shot_pump_grip_adapt", "counterWeight",
@@ -1784,15 +1787,23 @@ class CompatForm(QWidget):
     WEAPTYPE_OPTIONS = ["", "DI", "bullpup", "short_AK"]
     OPERATION_OPTIONS = ["", "buffer", "magForward", "tubefed", "tubefed-m", "p90"]
 
+    # Fields that cannot be deleted to ensure file integrity
+    PROTECTED_KEYS = {"$type", "ItemID", "Name", "_id", "id", "_guid"}
+
     def __init__(self, compat_dict, editable=True, schema_for_type=None):
         super().__init__()
         self.compat_dict = compat_dict or {}
-        self.fields = {}
+        # Maps key -> The actual input widget (QSpinBox, QComboBox, etc), NOT the row container
+        self.fields = {} 
         self.schema_for_type = schema_for_type or set()
         self._ctype = classify_realism_type(self.compat_dict.get("$type", ""))
 
+        # Main Layout
         outer = QVBoxLayout(self)
-        form = QFormLayout()
+        
+        # Form Layout
+        self._form = QFormLayout()
+        self._form.setVerticalSpacing(4) # Tighter spacing
         
         # Sort keys for UI: Priority keys first, then alphabetical
         keys = list(self.compat_dict.keys())
@@ -1802,24 +1813,82 @@ class CompatForm(QWidget):
         for k in keys:
             if k.startswith("_"): continue
             v = self.compat_dict[k]
-            w = self._widget_for(k, v)
-            self.fields[k] = w
-            form.addRow(QLabel(k), w)
-        outer.addLayout(form)
-        self._form = form
+            self._add_row_to_layout(k, v)
+            
+        outer.addLayout(self._form)
 
+        # "Add Field" Section
         self.add_row = None
         if editable:
             self.add_row = QHBoxLayout()
-            self.add_row.addWidget(QLabel("+ Add Field:"))
+            self.add_row.addWidget(QLabel("<b>+ Add Field:</b>"))
+            
             self.cb_add = QComboBox()
-            self.add_row.addWidget(self.cb_add)
+            self.add_row.addWidget(self.cb_add, 1)
+            
             self.btn_add = QPushButton("Add")
+            self.btn_add.setFixedWidth(60)
             self.btn_add.clicked.connect(self._on_add_field)
             self.add_row.addWidget(self.btn_add)
+            
             self._all_allowed = sorted(set(self.schema_for_type))
             self._refresh_add_dropdown()
+            
             outer.addLayout(self.add_row)
+
+    def _add_row_to_layout(self, key, val):
+        """Creates the widget and the delete button wrapper, adds to form."""
+        editor_widget = self._widget_for(key, val)
+        self.fields[key] = editor_widget
+
+        # If protected, just add the widget directly
+        if key in self.PROTECTED_KEYS:
+            self._form.addRow(QLabel(key), editor_widget)
+            return
+
+        # If removable, create a container with [Editor | X Button]
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+
+        # Add editor
+        layout.addWidget(editor_widget, 1) # 1 = stretch factor
+
+        # Add Delete Button
+        btn_del = QPushButton("X")
+        btn_del.setFixedSize(24, 24)
+        btn_del.setStyleSheet("QPushButton { color: #ff5555; font-weight: bold; border: 1px solid #553333; } QPushButton:hover { background-color: #442222; }")
+        btn_del.setToolTip(f"Remove field '{key}'")
+        # Use default arg v=key to capture the current loop variable
+        btn_del.clicked.connect(lambda _, k=key: self._on_remove_field(k))
+        
+        layout.addWidget(btn_del)
+
+        self._form.addRow(QLabel(key), container)
+
+    def _on_remove_field(self, key):
+        """Removes a field from the dict, the UI, and the internal tracker."""
+        # 1. Remove from data
+        if key in self.compat_dict:
+            del self.compat_dict[key]
+        
+        # 2. Remove from internal widget tracker
+        if key in self.fields:
+            del self.fields[key]
+
+        # 3. Remove from UI Layout
+        # QFormLayout stores (Label, Field). We iterate to find the row with the matching label text.
+        for i in range(self._form.rowCount()):
+            item = self._form.itemAt(i, QFormLayout.LabelRole)
+            if item and item.widget():
+                lbl = item.widget()
+                if isinstance(lbl, QLabel) and lbl.text() == key:
+                    self._form.removeRow(i)
+                    break
+        
+        # 4. Refresh add dropdown (so we can add it back if we want)
+        self._refresh_add_dropdown()
 
     def _widget_for(self, key, val):
         # 1. Enforce ModType Dropdown
@@ -1847,7 +1916,7 @@ class CompatForm(QWidget):
             if idx >= 0: cb.setCurrentIndex(idx)
             return cb
 
-        # 2. Strict Boolean Handling
+        # 2. Strict Boolean Handling (Fixes integers showing as numbers instead of dropdowns)
         # Check if it's a known boolean key OR if the value is explicitly a python bool
         if key in KNOWN_BOOLS or isinstance(val, bool):
             box = QComboBox()
@@ -1876,8 +1945,10 @@ class CompatForm(QWidget):
 
     def _on_add_field(self):
         key = self.cb_add.currentText().strip() if hasattr(self, "cb_add") else ""
-        if not key or key in self.compat_dict: return
+        if not key or key in self.fields: 
+            return
         
+        # Determine smart default
         default = ""
         if key in KNOWN_BOOLS or re.search(r"(Allow|Has|Can|Is)[A-Z_]", key):
             default = False # Use actual bool
@@ -1887,20 +1958,20 @@ class CompatForm(QWidget):
         self.compat_dict[key] = default
         if key == "$type": self._ctype = classify_realism_type(self.compat_dict.get("$type", ""))
         
-        w = self._widget_for(key, default)
-        self.fields[key] = w
-        self._form.addRow(QLabel(key), w)
+        self._add_row_to_layout(key, default)
         self._refresh_add_dropdown()
 
     def _refresh_add_dropdown(self):
         if not hasattr(self, "cb_add"): return
-        have = set(k for k in self.compat_dict.keys() if not k.startswith("_"))
+        have = set(self.fields.keys())
+        # Filter out keys already in the form
         missing = [k for k in self._all_allowed if k not in have]
         self.cb_add.clear()
         self.cb_add.addItems(missing)
         if hasattr(self, "btn_add"): self.btn_add.setEnabled(bool(missing))
 
     def value(self):
+        """Reconstruct the dictionary from the UI state."""
         out = {}
         for k, w in self.fields.items():
             if isinstance(w, QSpinBox) or isinstance(w, QDoubleSpinBox):
@@ -1913,14 +1984,13 @@ class CompatForm(QWidget):
                     out[k] = w.currentText()
             else:
                 txt = w.text()
-                # Try to preserve types
+                # Try to preserve types if they are numeric strings
                 if k in KNOWN_BOOLS:
                     out[k] = (txt.lower() == "true")
                 elif re.fullmatch(r"-?\d+", txt): out[k] = int(txt)
                 elif re.fullmatch(r"-?\d+(\.\d+)?", txt): out[k] = float(txt)
                 else: out[k] = txt
         return out
-
 # -------------------------
 # Main Window
 # -------------------------
