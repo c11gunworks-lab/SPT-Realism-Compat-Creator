@@ -1,8 +1,25 @@
-
 import re
 import math
+from typing import Dict, Any
 
-# --- Helper functions ---
+def parse_armor_class_string(s: str) -> float:
+    if not isinstance(s, str): return 0.0
+    s = s.lower()
+    if 'iiia' in s or '3a' in s: return 1.5
+    if 'iii+' in s or '3+' in s: return 4.0
+    if 'iii' in s or '3' in s: return 3.0
+    if 'iv' in s or '4' in s: return 5.0
+    if 'ii' in s or '2' in s: return 2.0
+    if 'v0' in s or 'v50' in s: return 2.0
+    if 'gost 1' in s: return 1.0
+    if 'gost 2' in s or 'pm 5' in s: return 2.0
+    if 'gost 3' in s or 'pm 8' in s: return 3.0
+    if 'gost 4' in s or 'pm 10' in s or 'esapi' in s or 'xsapi' in s: return 4.0
+    if 'gost 5' in s: return 5.0
+    if 'gost 6' in s: return 6.0
+    if 'unclassified' in s: return 2.0
+    return 0.0
+
 def to_f(x, d=0.0):
     try: return float(x)
     except: return d
@@ -11,4843 +28,57 @@ def r(x, d=3):
     try: return round(float(x), d)
     except: return x
 
-def expm1_clamped(z, cap=20.0):
-    z = min(max(z, -cap), cap)
-    return math.expm1(z)
-
-
-
-# --- Armor (Mod) Formulas ---
-def apply_armor_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: Armor (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    BlindnessProtection = to_f(props.get("BlindnessProtection", base_data.get("BlindnessProtection", 0.0)))
-    BluntThroughput = to_f(props.get("BluntThroughput", base_data.get("BluntThroughput", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-    mousePenalty = to_f(props.get("mousePenalty", base_data.get("mousePenalty", 0.0)))
-    speedPenaltyPercent = to_f(props.get("speedPenaltyPercent", base_data.get("speedPenaltyPercent", 0.0)))
-    weaponErgonomicPenalty = to_f(props.get("weaponErgonomicPenalty", base_data.get("weaponErgonomicPenalty", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: Comfort
-    z = 1.03472582267 + (0.9814640118 * ((Weight - 4.77117647059) / 3.11355930682)) + (0.0198431705579 * ((BluntThroughput - 0.255405882353) / 0.0950984627239)) + (-0.963261098169 * ((FactoredWeight - 8.91453084324) / 6.31607646952)) + (-0.00865220505251 * ((weaponErgonomicPenalty - -1.88235294118) / 2.5381177125))
-    pred = z
-    pred = min(max(pred, 0.8365), 1.1335)
-    item_entry["Comfort"] = r(pred)
-
-    # Target: Price
-    z = 148.372964397
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, -7220.75), 173635.75)
-    item_entry["Price"] = r(pred)
-
-    # Target: ReloadSpeedMulti
-    z = 0.693147180414 + (4.58437337567e-09 * ((FactoredWeight - 8.91453084324) / 6.31607646952)) + (-4.81306695614e-09 * ((Weight - 4.77117647059) / 3.11355930682))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.99725), 1.05775)
-    item_entry["ReloadSpeedMulti"] = r(pred)
-
-    # Target: mousePenalty
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["mousePenalty"] = r(pred)
-
-    # Target: speedPenaltyPercent
-    z = -3.00430416069 + (1.19478446234 * ((weaponErgonomicPenalty - -1.88235294118) / 2.5381177125)) + (-0.35430071702 * ((BluntThroughput - 0.255405882353) / 0.0950984627239))
-    pred = z
-    pred = min(max(pred, -6.825), 0.325)
-    item_entry["speedPenaltyPercent"] = r(pred)
-
-    # Target: weaponErgonomicPenalty
-    z = -2.4606339975 + (1.11976148588 * ((weaponErgonomicPenalty - -1.88235294118) / 2.5381177125)) + (0.0315963936905 * ((speedPenaltyPercent - -2.51470588235) / 3.20955671788)) + (-0.537678024047 * ((BluntThroughput - 0.255405882353) / 0.0950984627239))
-    pred = z
-    pred = min(max(pred, -8.4), 0.4)
-    item_entry["weaponErgonomicPenalty"] = r(pred)
-
-    return item_entry
-
-# --- AssaultCarbines (Gun) Formulas ---
-def apply_assaultcarbines_gun_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: AssaultCarbines (Gun)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    AimPlane = to_f(props.get("AimPlane", base_data.get("AimPlane", 0.0)))
-    AimSensitivity = to_f(props.get("AimSensitivity", base_data.get("AimSensitivity", 0.0)))
-    BaseMalfunctionChance = to_f(props.get("BaseMalfunctionChance", base_data.get("BaseMalfunctionChance", 0.0)))
-    CameraSnap = to_f(props.get("CameraSnap", base_data.get("CameraSnap", 0.0)))
-    CameraToWeaponAngleStep = to_f(props.get("CameraToWeaponAngleStep", base_data.get("CameraToWeaponAngleStep", 0.0)))
-    CenterOfImpact = to_f(props.get("CenterOfImpact", base_data.get("CenterOfImpact", 0.0)))
-    CoolFactorGun = to_f(props.get("CoolFactorGun", base_data.get("CoolFactorGun", 0.0)))
-    CoolFactorGunMods = to_f(props.get("CoolFactorGunMods", base_data.get("CoolFactorGunMods", 0.0)))
-    DeviationCurve = to_f(props.get("DeviationCurve", base_data.get("DeviationCurve", 0.0)))
-    DeviationMax = to_f(props.get("DeviationMax", base_data.get("DeviationMax", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    DurabilityBurnRatio = to_f(props.get("DurabilityBurnRatio", base_data.get("DurabilityBurnRatio", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    HeatFactorByShot = to_f(props.get("HeatFactorByShot", base_data.get("HeatFactorByShot", 0.0)))
-    HeatFactorGun = to_f(props.get("HeatFactorGun", base_data.get("HeatFactorGun", 0.0)))
-    HipAccuracyRestorationDelay = to_f(props.get("HipAccuracyRestorationDelay", base_data.get("HipAccuracyRestorationDelay", 0.0)))
-    HipAccuracyRestorationSpeed = to_f(props.get("HipAccuracyRestorationSpeed", base_data.get("HipAccuracyRestorationSpeed", 0.0)))
-    HipInnaccuracyGain = to_f(props.get("HipInnaccuracyGain", base_data.get("HipInnaccuracyGain", 0.0)))
-    IronSightRange = to_f(props.get("IronSightRange", base_data.get("IronSightRange", 0.0)))
-    MaxRepairDegradation = to_f(props.get("MaxRepairDegradation", base_data.get("MaxRepairDegradation", 0.0)))
-    MinRepairDegradation = to_f(props.get("MinRepairDegradation", base_data.get("MinRepairDegradation", 0.0)))
-    RecoilAngle = to_f(props.get("RecoilAngle", base_data.get("RecoilAngle", 0.0)))
-    RecoilCamera = to_f(props.get("RecoilCamera", base_data.get("RecoilCamera", 0.0)))
-    RecoilCategoryMultiplierHandRotation = to_f(props.get("RecoilCategoryMultiplierHandRotation", base_data.get("RecoilCategoryMultiplierHandRotation", 0.0)))
-    RecoilDampingHandRotation = to_f(props.get("RecoilDampingHandRotation", base_data.get("RecoilDampingHandRotation", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    RecoilPosZMult = to_f(props.get("RecoilPosZMult", base_data.get("RecoilPosZMult", 0.0)))
-    RecoilReturnPathDampingHandRotation = to_f(props.get("RecoilReturnPathDampingHandRotation", base_data.get("RecoilReturnPathDampingHandRotation", 0.0)))
-    RecoilReturnPathOffsetHandRotation = to_f(props.get("RecoilReturnPathOffsetHandRotation", base_data.get("RecoilReturnPathOffsetHandRotation", 0.0)))
-    RecoilReturnSpeedHandRotation = to_f(props.get("RecoilReturnSpeedHandRotation", base_data.get("RecoilReturnSpeedHandRotation", 0.0)))
-    RecolDispersion = to_f(props.get("RecolDispersion", base_data.get("RecolDispersion", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    SingleFireRate = to_f(props.get("SingleFireRate", base_data.get("SingleFireRate", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-    bEffDist = to_f(props.get("bEffDist", base_data.get("bEffDist", 0.0)))
-    bFirerate = to_f(props.get("bFirerate", base_data.get("bFirerate", 0.0)))
-    bHearDist = to_f(props.get("bHearDist", base_data.get("bHearDist", 0.0)))
-    shotgunDispersion = to_f(props.get("shotgunDispersion", base_data.get("shotgunDispersion", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: AllowOverheat
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["AllowOverheat"] = r(pred)
-
-    # Target: AutoROF
-    z = 520.041266733 + (348.74267259 * ((bFirerate - 520) / 348.743777324))
-    pred = z
-    pred = min(max(pred, -3), 943)
-    item_entry["AutoROF"] = int(round(pred))
-
-    # Target: BaseChamberCheckSpeed
-    z = 1.10222222222 + (-0.0455837311243 * ((CenterOfImpact - 0.0701111111111) / 0.0455837311243)) + (1.24753399359 * ((BaseMalfunctionChance - 0.215752777778) / 0.0492145197134)) + (-1.35256920475 * ((VRecoilPerErgo - 4.25859148376) / 2.63597398396)) + (-0.482127419391 * ((shotgunDispersion - 4.44444444444) / 4.96903995)) + (0.427652033535 * ((AimPlane - 0.221111111111) / 0.026010444246)) + (0.396504044144 * ((RecoilForceUp - 131.555555556) / 36.6882091599))
-    pred = z
-    pred = min(max(pred, 0.8175), 1.5325)
-    item_entry["BaseChamberCheckSpeed"] = r(pred)
-
-    # Target: BaseChamberSpeedMulti
-    z = 0.983333333333 + (-0.045006387703 * ((CoolFactorGunMods - 1.01433333333) / 0.0520683311727)) + (-0.0379179410258 * ((CenterOfImpact - 0.0701111111111) / 0.0455837311243)) + (0.0648422174554 * ((RecoilForceUp - 131.555555556) / 36.6882091599)) + (-0.0752849794408 * ((RecoilDampingHandRotation - 0.857777777778) / 0.0129338296965)) + (0.0294062560055 * ((bHearDist - 75.5555555556) / 4.96903995)) + (-0.0294062560055 * ((MaxRepairDegradation - 0.0444444444444) / 0.00496903995)) + (0.0894190994008 * ((DeviationCurve - 1.6) / 0.268741924943))
-    pred = z
-    pred = min(max(pred, 0.8425), 1.0075)
-    item_entry["BaseChamberSpeedMulti"] = r(pred)
-
-    # Target: BaseFixSpeed
-    z = 1.01825079822 + (0.3008152022 * ((AimPlane - 0.221111111111) / 0.026010444246)) + (-0.285663239271 * ((shotgunDispersion - 4.44444444444) / 4.96903995)) + (0.0489169524479 * ((RecoilForceUp - 131.555555556) / 36.6882091599)) + (-0.0211619125052 * ((CenterOfImpact - 0.0701111111111) / 0.0455837311243)) + (-0.0320460085374 * ((VRecoilPerErgo - 4.25859148376) / 2.63597398396)) + (0.0199763360829 * ((RecoilDampingHandRotation - 0.857777777778) / 0.0129338296965))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.8325), 1.2175)
-    item_entry["BaseFixSpeed"] = r(pred)
-
-    # Target: BaseMalfunctionChance
-    z = 0.0439698438816 + (0.00288853407715 * ((RecolDispersion - 12.8888888889) / 1.79161283296)) + (0.0913629326356 * ((HRecoilPerErgo - 14.313127803) / 11.2423725202)) + (-0.15592653303 * ((BaseMalfunctionChance - 0.215752777778) / 0.0492145197134)) + (0.122207165415 * ((VRecoilPerErgo - 4.25859148376) / 2.63597398396)) + (-0.021040506089 * ((RecoilReturnSpeedHandRotation - 2.40555555556) / 0.360897372642)) + (0.00289494649739 * ((CenterOfImpact - 0.0701111111111) / 0.0455837311243)) + (-0.0750503931675 * ((RecoilForceBack - 415.555555556) / 167.737301961))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.00112), 0.00288)
-    item_entry["BaseMalfunctionChance"] = r(pred)
-
-    # Target: BaseReloadSpeedMulti
-    z = 0.996890393105 + (0.14162439941 * ((ErgoWeight - 68.6168910461) / 11.3702623037)) + (0.013357346679 * ((Ergonomics - 37.4444444444) / 11.0364155927)) + (0.0176389334054 * ((Weight - 1.13533333333) / 0.37891335861))
-    pred = z
-    pred = min(max(pred, 0.785), 1.115)
-    item_entry["BaseReloadSpeedMulti"] = r(pred)
-
-    # Target: BaseTorque
-    z = -0.944444444444 + (2.42539984011 * ((RecoilAngle - 89.4444444444) / 1.57134840264)) + (-2.42539984006 * ((Velocity - 0.2) / 0.565685424949)) + (66.0048609398 * ((FactoredWeight - 1.80586588746) / 0.673913303629)) + (-64.2131987852 * ((Weight - 1.13533333333) / 0.37891335861)) + (0.43007303157 * ((HeatFactorByShot - 2.32) / 0.703041013503)) + (0.12489188969 * ((CoolFactorGunMods - 1.01433333333) / 0.0520683311727)) + (-0.653822914203 * ((HeatFactorGun - 0.9958) / 0.0616997028626))
-    pred = z
-    pred = min(max(pred, -7.35), 0.35)
-    item_entry["BaseTorque"] = r(pred)
-
-    # Target: CameraRecoil
-    z = 0.060679039669 + (-0.0423586573895 * ((RecoilForceBack - 415.555555556) / 167.737301961)) + (0.0854218074869 * ((HRecoilPerErgo - 14.313127803) / 11.2423725202)) + (-0.0597615242318 * ((VRecoilPerErgo - 4.25859148376) / 2.63597398396)) + (-9.43799504205e-08 * ((RecoilReturnSpeedHandRotation - 2.40555555556) / 0.360897372642)) + (0.0405388005665 * ((RecoilDampingHandRotation - 0.857777777778) / 0.0129338296965))
-    pred = z
-    pred = min(max(pred, 0.032), 0.098)
-    item_entry["CameraRecoil"] = r(pred)
-
-    # Target: CenterOfImpact
-    z = 0.0663706992231 + (0.00791170100283 * ((bFirerate - 520) / 348.743777324))
-    pred = z
-    pred = min(max(pred, 0.03175), 0.10325)
-    item_entry["CenterOfImpact"] = r(pred)
-
-    # Target: Convergence
-    z = 10.184192039 + (23.1327562221 * ((RecoilReturnPathDampingHandRotation - 0.465555555556) / 0.0177081971672)) + (5.12041076967 * ((DeviationCurve - 1.6) / 0.268741924943)) + (9.9760940508 * ((CameraSnap - 3.1) / 0.520683311727)) + (11.6536916644 * ((DeviationMax - 19.5555555556) / 3.63963096759)) + (5.111559909 * ((RecoilForceUp - 131.555555556) / 36.6882091599))
-    pred = z
-    pred = min(max(pred, 4.28), 15.72)
-    item_entry["Convergence"] = r(pred)
-
-    # Target: CoolFactorGun
-    z = 0.0953101784628 + (-5.95462645795e-10 * ((CoolFactorGun - 2.784) / 0.271529003976)) + (-2.13115449397e-09 * ((CoolFactorGunMods - 1.01433333333) / 0.0520683311727))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.0975), 0.1525)
-    item_entry["CoolFactorGun"] = r(pred)
-
-    # Target: CoolFactorGunMods
-    z = 0.694700495699 + (0.00134919658996 * ((CoolFactorGunMods - 1.01433333333) / 0.0520683311727)) + (-0.00103836910871 * ((CoolFactorGun - 2.784) / 0.271529003976))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.9993), 1.0147)
-    item_entry["CoolFactorGunMods"] = r(pred)
-
-    # Target: Dispersion
-    z = 2.71353513333 + (-0.462523318378 * ((CenterOfImpact - 0.0701111111111) / 0.0455837311243)) + (0.241331556971 * ((Velocity - 0.2) / 0.565685424949)) + (-1.23411328549 * ((DeviationMax - 19.5555555556) / 3.63963096759)) + (-0.919569167514 * ((DeviationCurve - 1.6) / 0.268741924943))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 10.45), 22.55)
-    item_entry["Dispersion"] = r(pred)
-
-    # Target: DurabilityBurnRatio
-    z = 0.4
-    pred = z
-    pred = min(max(pred, 0.3375), 0.6125)
-    item_entry["DurabilityBurnRatio"] = r(pred)
-
-    # Target: Ergonomics
-    z = 79.9998936176 + (-0.000431844144992 * ((Ergonomics - 37.4444444444) / 11.0364155927)) + (0.000465206990413 * ((ErgoWeight - 68.6168910461) / 11.3702623037)) + (0.000231723030357 * ((Weight - 1.13533333333) / 0.37891335861))
-    pred = z
-    pred = min(max(pred, 74.75), 80.25)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: HasShoulderContact
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["HasShoulderContact"] = r(pred)
-
-    # Target: HeatFactorByShot
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["HeatFactorByShot"] = r(pred)
-
-    # Target: HeatFactorGun
-    z = 0.318707427053 + (-0.00862929880076 * ((HeatFactorByShot - 2.32) / 0.703041013503)) + (-0.0627566304241 * ((HeatFactorGun - 0.9958) / 0.0616997028626))
-    pred = z
-    pred = min(max(pred, 0.1775), 0.6725)
-    item_entry["HeatFactorGun"] = r(pred)
-
-    # Target: HipAccuracyRestorationDelay
-    z = 0.447213602382 + (5.92870693933e-09 * ((CenterOfImpact - 0.0701111111111) / 0.0455837311243)) + (1.35961690224e-08 * ((RecolDispersion - 12.8888888889) / 1.79161283296)) + (6.79588632508e-08 * ((shotgunDispersion - 4.44444444444) / 4.96903995)) + (-5.24707370666e-08 * ((AimPlane - 0.221111111111) / 0.026010444246))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.195), 0.305)
-    item_entry["HipAccuracyRestorationDelay"] = r(pred)
-
-    # Target: HipAccuracyRestorationSpeed
-    z = 7
-    pred = z
-    pred = min(max(pred, 6.999999), 7.000001)
-    item_entry["HipAccuracyRestorationSpeed"] = r(pred)
-
-    # Target: HipInnaccuracyGain
-    z = 0.16
-    pred = z
-    pred = min(max(pred, 0.159999), 0.160001)
-    item_entry["HipInnaccuracyGain"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = 5.32554659477 + (0.301423737649 * ((RecoilCamera - 0.0666666666667) / 0.0163299316186)) + (0.294401521306 * ((RecoilForceUp - 131.555555556) / 36.6882091599)) + (-0.304743186498 * ((DeviationMax - 19.5555555556) / 3.63963096759)) + (-0.434014721958 * ((DeviationCurve - 1.6) / 0.268741924943)) + (-0.321221637382 * ((RecoilDampingHandRotation - 0.857777777778) / 0.0129338296965))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 97), 383)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: MaxChamberSpeed
-    z = 1.5
-    pred = z
-    pred = min(max(pred, 1.499999), 1.500001)
-    item_entry["MaxChamberSpeed"] = r(pred)
-
-    # Target: MinChamberSpeed
-    z = 0.7
-    pred = z
-    pred = min(max(pred, 0.699999), 0.700001)
-    item_entry["MinChamberSpeed"] = r(pred)
-
-    # Target: OffsetRotation
-    z = 0.00765542604286 + (0.000456694486681 * ((shotgunDispersion - 5) / 5)) + (0.000456694486681 * ((bHearDist - 75) / 5)) + (0.000456694486681 * ((AimPlane - 0.225) / 0.025)) + (-0.000456694486681 * ((MaxRepairDegradation - 0.045) / 0.005)) + (-0.00010191554159 * ((DeviationCurve - 1.63125) / 0.269185693342)) + (-6.88668414809e-05 * ((DeviationMax - 19.125) / 3.63790805271)) + (-0.000443787507807 * ((RecoilReturnPathDampingHandRotation - 0.4675) / 0.0178535710714))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.00475), 0.01025)
-    item_entry["OffsetRotation"] = r(pred)
-
-    # Target: RecoilAngle
-    z = 4.45136324758 + (0.00279006226516 * ((ErgoWeight - 68.6168910461) / 11.3702623037)) + (-0.163426798102 * ((HRecoilPerErgo - 14.313127803) / 11.2423725202)) + (0.0418904825821 * ((Ergonomics - 37.4444444444) / 11.0364155927)) + (0.0274042389664 * ((RecoilForceBack - 415.555555556) / 167.737301961)) + (-0.130232294295 * ((RecoilReturnSpeedHandRotation - 2.40555555556) / 0.360897372642))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 77.4), 90.6)
-    item_entry["RecoilAngle"] = r(pred)
-
-    # Target: RecoilDamping
-    z = 0.850313625233 + (-0.120639298003 * ((CenterOfImpact - 0.0701111111111) / 0.0455837311243)) + (0.0957592425513 * ((RecoilDampingHandRotation - 0.857777777778) / 0.0129338296965)) + (-0.0724927609555 * ((RecoilForceUp - 131.555555556) / 36.6882091599)) + (-0.00960357149077 * ((RecoilForceBack - 415.555555556) / 167.737301961)) + (-0.11014716242 * ((VRecoilPerErgo - 4.25859148376) / 2.63597398396))
-    pred = z
-    pred = min(max(pred, 0.74375), 0.88125)
-    item_entry["RecoilDamping"] = r(pred)
-
-    # Target: RecoilHandDamping
-    z = 0.621703481655 + (0.0474098307573 * ((CenterOfImpact - 0.0701111111111) / 0.0455837311243)) + (-0.0296249535311 * ((RecoilForceUp - 131.555555556) / 36.6882091599)) + (0.032795773714 * ((VRecoilPerErgo - 4.25859148376) / 2.63597398396)) + (9.7911880321e-08 * ((RecoilReturnSpeedHandRotation - 2.40555555556) / 0.360897372642)) + (-0.0836909677019 * ((RecoilCamera - 0.0666666666667) / 0.0163299316186))
-    pred = z
-    pred = min(max(pred, 0.4305), 0.8595)
-    item_entry["RecoilHandDamping"] = r(pred)
-
-    # Target: RecoilIntensity
-    z = 0.169063312787 + (0.00623638006761 * ((ErgoWeight - 68.6168910461) / 11.3702623037)) + (0.232742880323 * ((RecoilForceBack - 415.555555556) / 167.737301961)) + (-0.0880149683107 * ((HRecoilPerErgo - 14.313127803) / 11.2423725202)) + (0.0486991371249 * ((Ergonomics - 37.4444444444) / 11.0364155927)) + (-0.0644172133813 * ((RecoilDampingHandRotation - 0.857777777778) / 0.0129338296965))
-    pred = z
-    pred = min(max(pred, 0.12925), 0.25575)
-    item_entry["RecoilIntensity"] = r(pred)
-
-    # Target: SemiROF
-    z = 350.314811768 + (2.76125674125 * ((bFirerate - 520) / 348.743777324))
-    pred = z
-    pred = min(max(pred, 338.25), 376.75)
-    item_entry["SemiROF"] = int(round(pred))
-
-    # Target: ShotgunDispersion
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["ShotgunDispersion"] = r(pred)
-
-    # Target: Velocity
-    z = 0.211111111111 + (0.597112393002 * ((Velocity - 0.2) / 0.565685424949))
-    pred = z
-    pred = min(max(pred, -0.095), 1.995)
-    item_entry["Velocity"] = r(pred)
-
-    # Target: VerticalRecoil
-    z = 97.2 + (-20.7388210529 * ((RecoilForceBack - 415.555555556) / 167.737301961)) + (71.6821690419 * ((RecoilDampingHandRotation - 0.857777777778) / 0.0129338296965)) + (-50.9136429384 * ((RecoilCamera - 0.0666666666667) / 0.0163299316186)) + (-72.1087689403 * ((Ergonomics - 37.4444444444) / 11.0364155927)) + (-39.2044697237 * ((VRecoilPerErgo - 4.25859148376) / 2.63597398396))
-    pred = z
-    pred = min(max(pred, 55.8), 148.2)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: VisualMulti
-    z = 1.22444444444 + (0.211563721843 * ((CoolFactorGunMods - 1.01433333333) / 0.0520683311727)) + (0.7290253883 * ((ErgoWeight - 68.6168910461) / 11.3702623037)) + (0.0395599166488 * ((Weight - 1.13533333333) / 0.37891335861)) + (0.41237058938 * ((FactoredWeight - 1.80586588746) / 0.673913303629)) + (-0.0779222158141 * ((CameraSnap - 3.1) / 0.520683311727)) + (-0.675240671642 * ((Ergonomics - 37.4444444444) / 11.0364155927)) + (0.00786708598257 * ((RecoilReturnPathDampingHandRotation - 0.465555555556) / 0.0177081971672))
-    pred = z
-    pred = min(max(pred, 1.08), 1.52)
-    item_entry["VisualMulti"] = r(pred)
-
-    # Target: WeapAccuracy
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["WeapAccuracy"] = r(pred)
-
-    # Target: WeaponAllowADS
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["WeaponAllowADS"] = r(pred)
-
-    # Target: Weight
-    z = 0.744535582406 + (-0.911057460787 * ((FactoredWeight - 1.80586588746) / 0.673913303629)) + (1.06969005637 * ((Weight - 1.13533333333) / 0.37891335861)) + (0.000960611839358 * ((ErgoWeight - 68.6168910461) / 11.3702623037))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.7564), 2.1556)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- AssaultRifles (Gun) Formulas ---
-def apply_assaultrifles_gun_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: AssaultRifles (Gun)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    AimPlane = to_f(props.get("AimPlane", base_data.get("AimPlane", 0.0)))
-    AimSensitivity = to_f(props.get("AimSensitivity", base_data.get("AimSensitivity", 0.0)))
-    BaseMalfunctionChance = to_f(props.get("BaseMalfunctionChance", base_data.get("BaseMalfunctionChance", 0.0)))
-    CameraSnap = to_f(props.get("CameraSnap", base_data.get("CameraSnap", 0.0)))
-    CameraToWeaponAngleStep = to_f(props.get("CameraToWeaponAngleStep", base_data.get("CameraToWeaponAngleStep", 0.0)))
-    CenterOfImpact = to_f(props.get("CenterOfImpact", base_data.get("CenterOfImpact", 0.0)))
-    CoolFactorGun = to_f(props.get("CoolFactorGun", base_data.get("CoolFactorGun", 0.0)))
-    CoolFactorGunMods = to_f(props.get("CoolFactorGunMods", base_data.get("CoolFactorGunMods", 0.0)))
-    DeviationCurve = to_f(props.get("DeviationCurve", base_data.get("DeviationCurve", 0.0)))
-    DeviationMax = to_f(props.get("DeviationMax", base_data.get("DeviationMax", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    DurabilityBurnRatio = to_f(props.get("DurabilityBurnRatio", base_data.get("DurabilityBurnRatio", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    HeatFactorByShot = to_f(props.get("HeatFactorByShot", base_data.get("HeatFactorByShot", 0.0)))
-    HeatFactorGun = to_f(props.get("HeatFactorGun", base_data.get("HeatFactorGun", 0.0)))
-    HipAccuracyRestorationDelay = to_f(props.get("HipAccuracyRestorationDelay", base_data.get("HipAccuracyRestorationDelay", 0.0)))
-    HipAccuracyRestorationSpeed = to_f(props.get("HipAccuracyRestorationSpeed", base_data.get("HipAccuracyRestorationSpeed", 0.0)))
-    HipInnaccuracyGain = to_f(props.get("HipInnaccuracyGain", base_data.get("HipInnaccuracyGain", 0.0)))
-    IronSightRange = to_f(props.get("IronSightRange", base_data.get("IronSightRange", 0.0)))
-    MaxRepairDegradation = to_f(props.get("MaxRepairDegradation", base_data.get("MaxRepairDegradation", 0.0)))
-    MinRepairDegradation = to_f(props.get("MinRepairDegradation", base_data.get("MinRepairDegradation", 0.0)))
-    RecoilAngle = to_f(props.get("RecoilAngle", base_data.get("RecoilAngle", 0.0)))
-    RecoilCamera = to_f(props.get("RecoilCamera", base_data.get("RecoilCamera", 0.0)))
-    RecoilCategoryMultiplierHandRotation = to_f(props.get("RecoilCategoryMultiplierHandRotation", base_data.get("RecoilCategoryMultiplierHandRotation", 0.0)))
-    RecoilDampingHandRotation = to_f(props.get("RecoilDampingHandRotation", base_data.get("RecoilDampingHandRotation", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    RecoilPosZMult = to_f(props.get("RecoilPosZMult", base_data.get("RecoilPosZMult", 0.0)))
-    RecoilReturnPathDampingHandRotation = to_f(props.get("RecoilReturnPathDampingHandRotation", base_data.get("RecoilReturnPathDampingHandRotation", 0.0)))
-    RecoilReturnPathOffsetHandRotation = to_f(props.get("RecoilReturnPathOffsetHandRotation", base_data.get("RecoilReturnPathOffsetHandRotation", 0.0)))
-    RecoilReturnSpeedHandRotation = to_f(props.get("RecoilReturnSpeedHandRotation", base_data.get("RecoilReturnSpeedHandRotation", 0.0)))
-    RecolDispersion = to_f(props.get("RecolDispersion", base_data.get("RecolDispersion", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    SingleFireRate = to_f(props.get("SingleFireRate", base_data.get("SingleFireRate", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-    bEffDist = to_f(props.get("bEffDist", base_data.get("bEffDist", 0.0)))
-    bFirerate = to_f(props.get("bFirerate", base_data.get("bFirerate", 0.0)))
-    bHearDist = to_f(props.get("bHearDist", base_data.get("bHearDist", 0.0)))
-    shotgunDispersion = to_f(props.get("shotgunDispersion", base_data.get("shotgunDispersion", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: AllowOverheat
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["AllowOverheat"] = r(pred)
-
-    # Target: AutoROF
-    z = 665.83348119 + (69.6278455882 * ((bFirerate - 665.365853659) / 69.6278455994)) + (2.06498717291 * ((SingleFireRate - 462.926829268) / 57.0833324287))
-    pred = z
-    pred = min(max(pred, 568.6), 863.4)
-    item_entry["AutoROF"] = int(round(pred))
-
-    # Target: BaseChamberCheckSpeed
-    z = 1.34426179591 + (0.303106094136 * ((MaxRepairDegradation - 0.0360975609756) / 0.00487804878049)) + (-0.0359476109924 * ((CenterOfImpact - 0.0410243902439) / 0.0293278256326)) + (-0.0361731886838 * ((Ergonomics - 43.7804878049) / 14.540963492)) + (-0.0159228012626 * ((AimPlane - 0.176585365854) / 0.0186899942055)) + (0.0510043972185 * ((RecoilPosZMult - 0.960975609756) / 0.118688049372)) + (0.0145628987637 * ((HRecoilPerErgo - 8.70613652119) / 3.12281065606)) + (0.140649606008 * ((ErgoWeight - 67.8617859543) / 20.9336462719))
-    pred = z
-    pred = min(max(pred, 0.86), 1.74)
-    item_entry["BaseChamberCheckSpeed"] = r(pred)
-
-    # Target: BaseChamberSpeedMulti
-    z = 0.720219938694 + (0.0508231510953 * ((bFirerate - 665.365853659) / 69.6278455994)) + (0.0970852569054 * ((ErgoWeight - 67.8617859543) / 20.9336462719)) + (0.768689894022 * ((Weight - 1.72309756098) / 0.921504120523)) + (-0.758715985905 * ((FactoredWeight - 2.88851819242) / 1.67841692936)) + (0.0380048460449 * ((BaseMalfunctionChance - 0.178512804878) / 0.00813745128859)) + (0.0752340404275 * ((MaxRepairDegradation - 0.0360975609756) / 0.00487804878049)) + (-0.00120866541213 * ((CenterOfImpact - 0.0410243902439) / 0.0293278256326))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.53), 2.07)
-    item_entry["BaseChamberSpeedMulti"] = r(pred)
-
-    # Target: BaseFixSpeed
-    z = 1.11128279179 + (0.0916842749906 * ((RecoilReturnPathDampingHandRotation - 0.480243902439) / 0.00154257446837)) + (7.3638381129e-09 * ((AimPlane - 0.176585365854) / 0.0186899942055)) + (4.1378274108e-09 * ((HeatFactorByShot - 1.37524390244) / 0.129360298597)) + (0.0235218573151 * ((RecoilPosZMult - 0.960975609756) / 0.118688049372)) + (0.0445690637706 * ((MaxRepairDegradation - 0.0360975609756) / 0.00487804878049)) + (7.28492811602e-09 * ((Ergonomics - 43.7804878049) / 14.540963492)) + (6.61196087741e-09 * ((RecoilForceBack - 340.975609756) / 46.9288448429))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.705), 2.795)
-    item_entry["BaseFixSpeed"] = r(pred)
-
-    # Target: BaseMalfunctionChance
-    z = 0.00131763942725 + (0.000698690191503 * ((CoolFactorGunMods - 1.00557804878) / 0.0446346005575)) + (-0.00042062932894 * ((HeatFactorGun - 0.982631707317) / 0.0384132817416)) + (-0.000776917644532 * ((Velocity - -0.40487804878) / 4.98905882025)) + (0.00028428864081 * ((DeviationMax - 22.4512195122) / 1.95312407049)) + (0.00028428864081 * ((Durability - 99.6341463415) / 1.30208271366)) + (-0.00028428864081 * ((DeviationCurve - 1.39024390244) / 0.143229098503)) + (0.000155718219727 * ((RecoilReturnSpeedHandRotation - 2.49512195122) / 0.124354370724))
-    pred = z
-    pred = min(max(pred, 0.00029), 0.00271)
-    item_entry["BaseMalfunctionChance"] = r(pred)
-
-    # Target: BaseReloadSpeedMulti
-    z = 0.982556373262 + (-0.0373064218925 * ((Ergonomics - 43.7804878049) / 14.540963492)) + (-0.323966011346 * ((Weight - 1.72309756098) / 0.921504120523)) + (0.319471089995 * ((FactoredWeight - 2.88851819242) / 1.67841692936))
-    pred = z
-    pred = min(max(pred, 0.835), 1.165)
-    item_entry["BaseReloadSpeedMulti"] = r(pred)
-
-    # Target: BaseTorque
-    z = -0.942963838807 + (2.75989257301 * ((Ergonomics - 43.7804878049) / 14.540963492)) + (0.952647500174 * ((HRecoilPerErgo - 8.70613652119) / 3.12281065606)) + (-0.41717977648 * ((VRecoilPerErgo - 3.22619314864) / 1.33432508309)) + (-0.571784793605 * ((MaxRepairDegradation - 0.0360975609756) / 0.00487804878049)) + (0.0744828959987 * ((CenterOfImpact - 0.0410243902439) / 0.0293278256326)) + (0.165317486235 * ((ErgoWeight - 67.8617859543) / 20.9336462719)) + (-0.108015581365 * ((AimPlane - 0.176585365854) / 0.0186899942055))
-    pred = z
-    pred = min(max(pred, -4.45), 5.45)
-    item_entry["BaseTorque"] = r(pred)
-
-    # Target: CameraRecoil
-    z = 0.199399644845 + (0.00977467738498 * ((RecoilDampingHandRotation - 0.853414634146) / 0.00684666773055)) + (0.00683463143167 * ((RecoilCamera - 0.0553414634146) / 0.00673762553563)) + (-0.00376600519098 * ((RecoilForceBack - 340.975609756) / 46.9288448429)) + (0.115020012692 * ((FactoredWeight - 2.88851819242) / 1.67841692936)) + (-0.114455855345 * ((Weight - 1.72309756098) / 0.921504120523))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.0298875), 0.0763625)
-    item_entry["CameraRecoil"] = r(pred)
-
-    # Target: CenterOfImpact
-    z = 0.179246904438 + (-0.0437660782942 * ((bFirerate - 665.365853659) / 69.6278455994)) + (-0.0335263375388 * ((SingleFireRate - 462.926829268) / 57.0833324287))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, -0.0035), 0.0735)
-    item_entry["CenterOfImpact"] = r(pred)
-
-    # Target: Convergence
-    z = 13.6904194523 + (-2.5200931262 * ((RecoilCamera - 0.0553414634146) / 0.00673762553563)) + (-1.29220324612 * ((RecoilDampingHandRotation - 0.853414634146) / 0.00684666773055)) + (-1.43454147308 * ((RecoilForceUp - 124.902439024) / 24.5345002266)) + (-0.975401764153 * ((VRecoilPerErgo - 3.22619314864) / 1.33432508309)) + (3.36620654704 * ((RecoilForceBack - 340.975609756) / 46.9288448429))
-    pred = z
-    pred = min(max(pred, 6.725), 23.775)
-    item_entry["Convergence"] = r(pred)
-
-    # Target: CoolFactorGun
-    z = 0.0997708760509 + (-0.00542591599119 * ((CoolFactorGun - 3.17404878049) / 0.143244282433)) + (-2.74890781059e-11 * ((CoolFactorGunMods - 1.00557804878) / 0.0446346005575))
-    pred = z
-    pred = min(max(pred, 0.068), 0.112)
-    item_entry["CoolFactorGun"] = r(pred)
-
-    # Target: CoolFactorGunMods
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["CoolFactorGunMods"] = r(pred)
-
-    # Target: Dispersion
-    z = 2.49538911601 + (0.0952627058977 * ((AimPlane - 0.176585365854) / 0.0186899942055)) + (-0.00493988451501 * ((RecolDispersion - 10.2682926829) / 1.32562714553)) + (-0.0564885109509 * ((bEffDist - 536.585365854) / 132.529053531)) + (-0.0102263211672 * ((Velocity - -0.40487804878) / 4.98905882025))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 5.35), 19.65)
-    item_entry["Dispersion"] = r(pred)
-
-    # Target: DurabilityBurnRatio
-    z = 0.22926136608 + (0.00801702180255 * ((DurabilityBurnRatio - 1.14536585366) / 0.0233841264667))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.1375), 0.4125)
-    item_entry["DurabilityBurnRatio"] = r(pred)
-
-    # Target: Ergonomics
-    z = 8.94427191016 + (6.40772937194e-10 * ((Ergonomics - 43.7804878049) / 14.540963492)) + (-6.49867082717e-10 * ((ErgoWeight - 67.8617859543) / 20.9336462719)) + (-3.98783530623e-10 * ((FactoredWeight - 2.88851819242) / 1.67841692936))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 79.75), 85.25)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: HasShoulderContact
-    z = 0.118646299123 + (0.296815900251 * ((Ergonomics - 43.7804878049) / 14.540963492)) + (0.0804363847024 * ((SingleFireRate - 462.926829268) / 57.0833324287)) + (-0.01700462328 * ((HRecoilPerErgo - 8.70613652119) / 3.12281065606)) + (0.137746828277 * ((VRecoilPerErgo - 3.22619314864) / 1.33432508309)) + (3.8902083444 * ((FactoredWeight - 2.88851819242) / 1.67841692936)) + (-3.63896915832 * ((Weight - 1.72309756098) / 0.921504120523)) + (-0.153384783408 * ((bHearDist - 81.9512195122) / 9.42738931224))
-    pred = z
-    pred = min(max(pred, -0.05), 1.05)
-    item_entry["HasShoulderContact"] = r(pred)
-
-    # Target: HeatFactorByShot
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["HeatFactorByShot"] = r(pred)
-
-    # Target: HeatFactorGun
-    z = 0.50314806311 + (0.0248378762409 * ((HeatFactorGun - 0.982631707317) / 0.0384132817416)) + (0.00646894396196 * ((HeatFactorByShot - 1.37524390244) / 0.129360298597))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.169), 0.411)
-    item_entry["HeatFactorGun"] = r(pred)
-
-    # Target: HipAccuracyRestorationDelay
-    z = 0.182321556794
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.199999), 0.200001)
-    item_entry["HipAccuracyRestorationDelay"] = r(pred)
-
-    # Target: HipAccuracyRestorationSpeed
-    z = 7
-    pred = z
-    pred = min(max(pred, 6.999999), 7.000001)
-    item_entry["HipAccuracyRestorationSpeed"] = r(pred)
-
-    # Target: HipInnaccuracyGain
-    z = 0.148420005118
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.159999), 0.160001)
-    item_entry["HipInnaccuracyGain"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = 5.2933522495 + (0.100192508161 * ((RecoilCamera - 0.0553414634146) / 0.00673762553563)) + (0.0796570575501 * ((RecoilDampingHandRotation - 0.853414634146) / 0.00684666773055)) + (-0.524465338343 * ((FactoredWeight - 2.88851819242) / 1.67841692936)) + (0.645937415892 * ((Weight - 1.72309756098) / 0.921504120523)) + (0.0204389615887 * ((RecoilForceBack - 340.975609756) / 46.9288448429))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 107.9), 550.1)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: MaxChamberSpeed
-    z = 1.49024495085 + (0.00019429736345 * ((Weight - 1.72309756098) / 0.921504120523)) + (-0.000191912863691 * ((FactoredWeight - 2.88851819242) / 1.67841692936)) + (7.68589383596e-06 * ((ErgoWeight - 67.8617859543) / 20.9336462719)) + (-3.69390971918e-07 * ((BaseMalfunctionChance - 0.178512804878) / 0.00813745128859)) + (-0.0471309401512 * ((bHearDist - 81.9512195122) / 9.42738931224)) + (-2.77611363923e-07 * ((bFirerate - 665.365853659) / 69.6278455994)) + (8.66484560636e-08 * ((RecoilCamera - 0.0553414634146) / 0.00673762553563))
-    pred = z
-    pred = min(max(pred, 1.16), 2.04)
-    item_entry["MaxChamberSpeed"] = r(pred)
-
-    # Target: MinChamberSpeed
-    z = 0.840064579181 + (0.00891504019298 * ((RecoilReturnPathDampingHandRotation - 0.480243902439) / 0.00154257446837)) + (0.000595035556764 * ((bFirerate - 665.365853659) / 69.6278455994)) + (0.0089838316814 * ((bHearDist - 81.9512195122) / 9.42738931224)) + (0.00073609314638 * ((ErgoWeight - 67.8617859543) / 20.9336462719)) + (0.000147701426527 * ((RecoilCamera - 0.0553414634146) / 0.00673762553563)) + (0.0017095177851 * ((MaxRepairDegradation - 0.0360975609756) / 0.00487804878049)) + (0.00348884467887 * ((BaseMalfunctionChance - 0.178512804878) / 0.00813745128859))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.695), 0.805)
-    item_entry["MinChamberSpeed"] = r(pred)
-
-    # Target: OffsetRotation
-    z = 0.00872443457116 + (0.000120535829472 * ((RecoilCamera - 0.0553414634146) / 0.00673762553563)) + (-0.00096610455941 * ((RecoilForceBack - 340.975609756) / 46.9288448429)) + (-5.98495630397e-05 * ((RecoilDampingHandRotation - 0.853414634146) / 0.00684666773055)) + (-0.000817627355969 * ((bHearDist - 81.9512195122) / 9.42738931224)) + (-0.000946162195006 * ((CameraSnap - 3.51219512195) / 0.1346995246)) + (0.000580798052959 * ((RecoilForceUp - 124.902439024) / 24.5345002266)) + (0.000116876347698 * ((RecolDispersion - 10.2682926829) / 1.32562714553))
-    pred = z
-    pred = min(max(pred, 0.00197), 0.01363)
-    item_entry["OffsetRotation"] = r(pred)
-
-    # Target: RecoilAngle
-    z = 86.2093467691 + (-41.4709852407 * ((FactoredWeight - 2.88851819242) / 1.67841692936)) + (43.7269561724 * ((Weight - 1.72309756098) / 0.921504120523)) + (-1.05802566669 * ((RecoilPosZMult - 0.960975609756) / 0.118688049372)) + (5.04439802074 * ((ErgoWeight - 67.8617859543) / 20.9336462719)) + (-2.96433218724 * ((Ergonomics - 43.7804878049) / 14.540963492))
-    pred = z
-    pred = min(max(pred, 78.45), 90.55)
-    item_entry["RecoilAngle"] = r(pred)
-
-    # Target: RecoilDamping
-    z = 0.8255479398 + (0.012582827984 * ((RecoilCamera - 0.0553414634146) / 0.00673762553563)) + (0.00996828750301 * ((CameraSnap - 3.51219512195) / 0.1346995246)) + (-0.00034465270863 * ((RecoilForceBack - 340.975609756) / 46.9288448429)) + (-0.00464760118975 * ((RecoilDampingHandRotation - 0.853414634146) / 0.00684666773055)) + (0.0049039620733 * ((FactoredWeight - 2.88851819242) / 1.67841692936))
-    pred = z
-    pred = min(max(pred, 0.7755), 0.8745)
-    item_entry["RecoilDamping"] = r(pred)
-
-    # Target: RecoilHandDamping
-    z = 0.833772975531 + (-0.00984120562726 * ((RecoilPosZMult - 0.960975609756) / 0.118688049372)) + (0.0187755121147 * ((RecoilCamera - 0.0553414634146) / 0.00673762553563)) + (-0.0209847473076 * ((RecoilForceBack - 340.975609756) / 46.9288448429)) + (0.00580643851576 * ((RecoilDampingHandRotation - 0.853414634146) / 0.00684666773055)) + (-0.0108775515954 * ((DeviationMax - 22.4512195122) / 1.95312407049))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.328), 0.812)
-    item_entry["RecoilHandDamping"] = r(pred)
-
-    # Target: RecoilIntensity
-    z = 0.440617827957 + (-0.0196561759909 * ((RecoilReturnPathDampingHandRotation - 0.480243902439) / 0.00154257446837)) + (0.212504196556 * ((FactoredWeight - 2.88851819242) / 1.67841692936)) + (-0.212250627496 * ((Weight - 1.72309756098) / 0.921504120523)) + (0.00937373955254 * ((RecoilAngle - 89.8780487805) / 2.81282014504)) + (-0.00659132184532 * ((ErgoWeight - 67.8617859543) / 20.9336462719))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.0925), 0.2575)
-    item_entry["RecoilIntensity"] = r(pred)
-
-    # Target: SemiROF
-    z = 394.235853053 + (-14.4624637351 * ((SingleFireRate - 462.926829268) / 57.0833324287)) + (6.53643118515 * ((bFirerate - 665.365853659) / 69.6278455994))
-    pred = z
-    pred = min(max(pred, 326.75), 508.25)
-    item_entry["SemiROF"] = int(round(pred))
-
-    # Target: ShotgunDispersion
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["ShotgunDispersion"] = r(pred)
-
-    # Target: Velocity
-    z = -1.98927224355 + (6.48842681588 * ((Velocity - -0.40487804878) / 4.98905882025))
-    pred = z
-    pred = min(max(pred, -26.775), 1.275)
-    item_entry["Velocity"] = r(pred)
-
-    # Target: VerticalRecoil
-    z = 4.47266649444 + (0.106732352952 * ((RecoilForceUp - 124.902439024) / 24.5345002266)) + (0.0181285555627 * ((RecoilForceBack - 340.975609756) / 46.9288448429)) + (0.0441682818885 * ((RecoilCamera - 0.0553414634146) / 0.00673762553563)) + (0.0105212425867 * ((RecoilDampingHandRotation - 0.853414634146) / 0.00684666773055)) + (0.00237447779771 * ((VRecoilPerErgo - 3.22619314864) / 1.33432508309))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 56.5), 133.5)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: VisualMulti
-    z = 1.02307362484 + (0.0360789980342 * ((RecoilPosZMult - 0.960975609756) / 0.118688049372)) + (0.000104659655156 * ((CameraSnap - 3.51219512195) / 0.1346995246)) + (-0.00193371694712 * ((Ergonomics - 43.7804878049) / 14.540963492)) + (-0.0679428613917 * ((Weight - 1.72309756098) / 0.921504120523)) + (0.0618824159038 * ((FactoredWeight - 2.88851819242) / 1.67841692936)) + (-0.0131457323975 * ((RecoilForceBack - 340.975609756) / 46.9288448429)) + (-0.0133990128616 * ((bEffDist - 536.585365854) / 132.529053531))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.7945), 1.7955)
-    item_entry["VisualMulti"] = r(pred)
-
-    # Target: WeapAccuracy
-    z = 0
-    pred = z
-    pred = min(max(pred, -17), 27)
-    item_entry["WeapAccuracy"] = r(pred)
-
-    # Target: WeaponAllowADS
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["WeaponAllowADS"] = r(pred)
-
-    # Target: Weight
-    z = 1.84837908475 + (2.81826362216 * ((FactoredWeight - 2.88851819242) / 1.67841692936)) + (-2.09452610137 * ((Weight - 1.72309756098) / 0.921504120523)) + (-0.0859093095708 * ((ErgoWeight - 67.8617859543) / 20.9336462719))
-    pred = z
-    pred = min(max(pred, 0.165), 5.335)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- AuxiliaryParts (Mod) Formulas ---
-def apply_auxiliaryparts_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: AuxiliaryParts (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    Accuracy = to_f(props.get("Accuracy", base_data.get("Accuracy", 0.0)))
-    CoolFactor = to_f(props.get("CoolFactor", base_data.get("CoolFactor", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    DurabilityBurnModificator = to_f(props.get("DurabilityBurnModificator", base_data.get("DurabilityBurnModificator", 0.0)))
-    EffectiveDistance = to_f(props.get("EffectiveDistance", base_data.get("EffectiveDistance", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    HeatFactor = to_f(props.get("HeatFactor", base_data.get("HeatFactor", 0.0)))
-    Loudness = to_f(props.get("Loudness", base_data.get("Loudness", 0.0)))
-    Recoil = to_f(props.get("Recoil", base_data.get("Recoil", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    ShiftsAimCamera = to_f(props.get("ShiftsAimCamera", base_data.get("ShiftsAimCamera", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: Accuracy
-    z = 0.260103167033
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, -0.75), 15.75)
-    item_entry["Accuracy"] = r(pred)
-
-    # Target: AimSpeed
-    z = 0
-    pred = z
-    pred = min(max(pred, -0.05), 1.05)
-    item_entry["AimSpeed"] = r(pred)
-
-    # Target: AimStability
-    z = 3.33333333333 + (0.438096478961 * ((Ergonomics - 3) / 0.816496580928)) + (0.433447014236 * ((ErgoWeight - 185.574588131) / 18.2460434193)) + (-0.408860783784 * ((Recoil - -0.333333333333) / 0.471404520791)) + (0.0589162073913 * ((HeatFactor - 0.986666666667) / 0.00471404520791))
-    pred = z
-    pred = min(max(pred, 1.85), 5.15)
-    item_entry["AimStability"] = r(pred)
-
-    # Target: AutoROF
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["AutoROF"] = int(round(pred))
-
-    # Target: ChamberSpeed
-    z = 4.375 + (-0.973022558209 * ((DurabilityBurnModificator - 0.9975) / 0.00433012701892)) + (1.0593696399 * ((Ergonomics - 2) / 0.707106781187)) + (0.623513216053 * ((FactoredWeight - 0.00851375397933) / 0.000888904124255))
-    pred = z
-    pred = min(max(pred, 2.2), 8.8)
-    item_entry["ChamberSpeed"] = r(pred)
-
-    # Target: CoolFactor
-    z = 0.693147180513 + (-3.47682462268e-12 * ((CoolFactor - 1.00687179487) / 0.0327470331302))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.9475), 1.0025)
-    item_entry["CoolFactor"] = r(pred)
-
-    # Target: Dispersion
-    z = -1
-    pred = z
-    pred = min(max(pred, -2.075), -0.425)
-    item_entry["Dispersion"] = r(pred)
-
-    # Target: DurabilityBurnModificator
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["DurabilityBurnModificator"] = r(pred)
-
-    # Target: Ergonomics
-    z = 0
-    pred = z
-    pred = min(max(pred, -0.3), 6.3)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: FixSpeed
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["FixSpeed"] = r(pred)
-
-    # Target: Handling
-    z = 1.5 + (0.184815676223 * ((Ergonomics - 3) / 0.816496580928)) + (0.201575632364 * ((ErgoWeight - 185.574588131) / 18.2460434193)) + (-0.0257121397062 * ((Recoil - -0.333333333333) / 0.471404520791))
-    pred = z
-    pred = min(max(pred, 0.95), 2.05)
-    item_entry["Handling"] = r(pred)
-
-    # Target: HeatFactor
-    z = 0.999999999969 + (1.24285938911e-10 * ((HeatFactor - 0.992153846154) / 0.0317179383537))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.9475), 1.0025)
-    item_entry["HeatFactor"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = -0.102564104871 + (0.441144884532 * ((Recoil - -0.0512820512821) / 0.220572442745)) + (-1.99497555055e-09 * ((Ergonomics - 3.17948717949) / 1.59922729533)) + (-2.66081150394e-10 * ((Weight - 0.0176666666667) / 0.0325366328718))
-    pred = z
-    pred = min(max(pred, -10.5), 0.5)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: ModMalfunctionChance
-    z = 1.13675220402 + (-3.4191667739 * ((DurabilityBurnModificator - 0.995128205128) / 0.0146535713459)) + (4.87155434596e-08 * ((Ergonomics - 3.17948717949) / 1.59922729533)) + (-1.33511611197e-08 * ((ShiftsAimCamera - 0.00307692307692) / 0.00646642062201)) + (1.13365716289e-08 * ((HeatFactor - 0.992153846154) / 0.0317179383537)) + (3.6791988236e-08 * ((Recoil - -0.0512820512821) / 0.220572442745))
-    pred = z
-    pred = min(max(pred, -16.65), 19.65)
-    item_entry["ModMalfunctionChance"] = r(pred)
-
-    # Target: ReloadSpeed
-    z = 0
-    pred = z
-    pred = min(max(pred, -1), 21)
-    item_entry["ReloadSpeed"] = r(pred)
-
-    # Target: SemiROF
-    z = 0.179856115108
-    pred = z
-    pred = min(max(pred, -0.375), 7.875)
-    item_entry["SemiROF"] = int(round(pred))
-
-    # Target: VerticalRecoil
-    z = -0.102564104366 + (0.441144886014 * ((Recoil - -0.0512820512821) / 0.220572442745)) + (1.75740603263e-09 * ((ErgoWeight - 151.867405004) / 56.058328991)) + (-5.57898828252e-10 * ((Weight - 0.0176666666667) / 0.0325366328718))
-    pred = z
-    pred = min(max(pred, -2.1), 0.1)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: Weight
-    z = 0.0176666666667 + (0.0325366328718 * ((Weight - 0.0176666666667) / 0.0325366328718))
-    pred = z
-    pred = min(max(pred, -0.00475), 0.20975)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- Backpack (Mod) Formulas ---
-def apply_backpack_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: Backpack (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-    mousePenalty = to_f(props.get("mousePenalty", base_data.get("mousePenalty", 0.0)))
-    speedPenaltyPercent = to_f(props.get("speedPenaltyPercent", base_data.get("speedPenaltyPercent", 0.0)))
-    weaponErgonomicPenalty = to_f(props.get("weaponErgonomicPenalty", base_data.get("weaponErgonomicPenalty", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: Comfort
-    z = 0.941662078423 + (0.0127477396068 * ((mousePenalty - -1.075) / 1.034105894)) + (0.00833740575299 * ((weaponErgonomicPenalty - -3.55) / 2.07304124416)) + (0.0122272646363 * ((speedPenaltyPercent - -2.7) / 1.77763888346)) + (0.000648980169524 * ((Weight - 2.1053) / 2.25986937897))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.717), 1.223)
-    item_entry["Comfort"] = r(pred)
-
-    # Target: ReloadSpeedMulti
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["ReloadSpeedMulti"] = r(pred)
-
-    # Target: mousePenalty
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["mousePenalty"] = r(pred)
-
-    # Target: speedPenaltyPercent
-    z = -2.69631605012 + (0.285714677159 * ((weaponErgonomicPenalty - -3.55) / 2.07304124416)) + (0.388896770749 * ((speedPenaltyPercent - -2.7) / 1.77763888346))
-    pred = z
-    pred = min(max(pred, -5.01), -0.39)
-    item_entry["speedPenaltyPercent"] = r(pred)
-
-    # Target: weaponErgonomicPenalty
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["weaponErgonomicPenalty"] = r(pred)
-
-    return item_entry
-
-# --- Barrel (Mod) Formulas ---
-def apply_barrel_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: Barrel (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    Accuracy = to_f(props.get("Accuracy", base_data.get("Accuracy", 0.0)))
-    CenterOfImpact = to_f(props.get("CenterOfImpact", base_data.get("CenterOfImpact", 0.0)))
-    CoolFactor = to_f(props.get("CoolFactor", base_data.get("CoolFactor", 0.0)))
-    DeviationCurve = to_f(props.get("DeviationCurve", base_data.get("DeviationCurve", 0.0)))
-    DeviationMax = to_f(props.get("DeviationMax", base_data.get("DeviationMax", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    DurabilityBurnModificator = to_f(props.get("DurabilityBurnModificator", base_data.get("DurabilityBurnModificator", 0.0)))
-    EffectiveDistance = to_f(props.get("EffectiveDistance", base_data.get("EffectiveDistance", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    HeatFactor = to_f(props.get("HeatFactor", base_data.get("HeatFactor", 0.0)))
-    Loudness = to_f(props.get("Loudness", base_data.get("Loudness", 0.0)))
-    Recoil = to_f(props.get("Recoil", base_data.get("Recoil", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    ShotgunDispersion = to_f(props.get("ShotgunDispersion", base_data.get("ShotgunDispersion", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: Accuracy
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["Accuracy"] = r(pred)
-
-    # Target: AutoROF
-    z = 0.230303030303
-    pred = z
-    pred = min(max(pred, -4.8), 12.8)
-    item_entry["AutoROF"] = int(round(pred))
-
-    # Target: CameraRecoil
-    z = -3.05626697721 + (3.59017225803 * ((Ergonomics - -13.4324324324) / 7.42727093506)) + (1.53954402317 * ((Recoil - -4.51351351351) / 2.51075117027)) + (-0.469345254339 * ((CenterOfImpact - 0.0611891891892) / 0.0468654415626)) + (-3.05935560123 * ((DeviationMax - 22.7162162162) / 5.25375096445))
-    pred = z
-    pred = min(max(pred, -18.45), 13.45)
-    item_entry["CameraRecoil"] = r(pred)
-
-    # Target: CenterOfImpact
-    z = 0.073836
-    pred = z
-    pred = min(max(pred, -0.01975), 0.52475)
-    item_entry["CenterOfImpact"] = r(pred)
-
-    # Target: Convergence
-    z = 0
-    pred = z
-    pred = min(max(pred, -11), 11)
-    item_entry["Convergence"] = r(pred)
-
-    # Target: CoolFactor
-    z = 1.0060909091 + (0.102057251582 * ((CoolFactor - 1.00609090909) / 0.102057251798))
-    pred = z
-    pred = min(max(pred, 0.78785), 1.42915)
-    item_entry["CoolFactor"] = r(pred)
-
-    # Target: Dispersion
-    z = -5.34762126316 + (-31.0644621178 * ((DeviationCurve - 1.71153846154) / 0.511842015197)) + (-16.0281618077 * ((DeviationMax - 19) / 8.11456430415)) + (10.8274629036 * ((CenterOfImpact - 0.126153846154) / 0.111993712841))
-    pred = z
-    pred = min(max(pred, -15.75), 0.75)
-    item_entry["Dispersion"] = r(pred)
-
-    # Target: DurabilityBurnModificator
-    z = 0.693147908097 + (-1.01016431144e-05 * ((DurabilityBurnModificator - 0.978) / 0.0920882317359))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.7175), 1.4325)
-    item_entry["DurabilityBurnModificator"] = r(pred)
-
-    # Target: Ergonomics
-    z = 0.0202813906621 + (0.183559477798 * ((ErgoWeight - 0.358701674193) / 3.24647768255)) + (3.56686421724e-08 * ((Weight - 0.826163636364) / 0.628102860626)) + (-3.28602773706e-08 * ((FactoredWeight - 1.30426065014) / 1.08187980141))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, -0.25), 5.25)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: Flash
-    z = -1.41503751721 + (60.4864813823 * ((Recoil - -6.5) / 4.06761042204)) + (4.22609466402 * ((CenterOfImpact - 0.117545454545) / 0.093541788072)) + (52.6422226652 * ((CoolFactor - 1.01236363636) / 0.100953880314)) + (-34.2522640098 * ((HeatFactor - 0.95) / 0.117354939471)) + (-63.0886550736 * ((Ergonomics - -7.59090909091) / 4.81861061557))
-    pred = z
-    pred = min(max(pred, -64.5), 34.5)
-    item_entry["Flash"] = r(pred)
-
-    # Target: HeatFactor
-    z = 0.969981818243 + (0.097945716162 * ((HeatFactor - 0.969981818182) / 0.0979457161176))
-    pred = z
-    pred = min(max(pred, 0.76095), 1.15805)
-    item_entry["HeatFactor"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = -0
-    pred = z
-    pred = min(max(pred, -18.45), 13.45)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: Loudness
-    z = 0
-    pred = z
-    pred = min(max(pred, -64.5), 34.5)
-    item_entry["Loudness"] = r(pred)
-
-    # Target: MalfChance
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["MalfChance"] = r(pred)
-
-    # Target: ModMalfunctionChance
-    z = 0
-    pred = z
-    pred = min(max(pred, -22.85), 105.85)
-    item_entry["ModMalfunctionChance"] = r(pred)
-
-    # Target: SemiROF
-    z = 0.0354545454545
-    pred = z
-    pred = min(max(pred, -4.45), 5.45)
-    item_entry["SemiROF"] = int(round(pred))
-
-    # Target: ShotgunDispersion
-    z = 1.01293939394
-    pred = z
-    pred = min(max(pred, 0.911645454545), 1.11423333333)
-    item_entry["ShotgunDispersion"] = r(pred)
-
-    # Target: Velocity
-    z = -3.33427592202 + (3.53345586466 * ((Velocity - -0.100484848485) / 8.31680109002))
-    pred = z
-    pred = min(max(pred, -39.335), 12.035)
-    item_entry["Velocity"] = r(pred)
-
-    # Target: VerticalRecoil
-    z = -0
-    pred = z
-    pred = min(max(pred, -21), 1)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: Weight
-    z = 0.548647510721 + (1.81919587071 * ((Weight - 0.826163636364) / 0.628102860626)) + (-1.50887605267 * ((FactoredWeight - 1.30426065014) / 1.08187980141)) + (3.33258891508e-05 * ((ErgoWeight - 0.358701674193) / 3.24647768255))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, -0.0635), 2.6535)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- Bipods (Mod) Formulas ---
-def apply_bipods_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: Bipods (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    Accuracy = to_f(props.get("Accuracy", base_data.get("Accuracy", 0.0)))
-    BipodCameraSnapMultiplier = to_f(props.get("BipodCameraSnapMultiplier", base_data.get("BipodCameraSnapMultiplier", 0.0)))
-    BipodOutOfStaminaBreathMultiplier = to_f(props.get("BipodOutOfStaminaBreathMultiplier", base_data.get("BipodOutOfStaminaBreathMultiplier", 0.0)))
-    BipodRecoilMultiplier = to_f(props.get("BipodRecoilMultiplier", base_data.get("BipodRecoilMultiplier", 0.0)))
-    BipodReturnHandSpeedMultiplier = to_f(props.get("BipodReturnHandSpeedMultiplier", base_data.get("BipodReturnHandSpeedMultiplier", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    EffectiveDistance = to_f(props.get("EffectiveDistance", base_data.get("EffectiveDistance", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    Loudness = to_f(props.get("Loudness", base_data.get("Loudness", 0.0)))
-    Recoil = to_f(props.get("Recoil", base_data.get("Recoil", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: Accuracy
-    z = -3.34498245492e-10
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, -1), 21)
-    item_entry["Accuracy"] = r(pred)
-
-    # Target: AimSpeed
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["AimSpeed"] = r(pred)
-
-    # Target: AutoROF
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["AutoROF"] = int(round(pred))
-
-    # Target: Ergonomics
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: FixSpeed
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["FixSpeed"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: MalfChance
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["MalfChance"] = r(pred)
-
-    # Target: ModMalfunctionChance
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["ModMalfunctionChance"] = r(pred)
-
-    # Target: ReloadSpeed
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["ReloadSpeed"] = r(pred)
-
-    # Target: SemiROF
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["SemiROF"] = int(round(pred))
-
-    # Target: VerticalRecoil
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: Weight
-    z = 0.392714285714 + (0.109971053705 * ((Weight - 0.392714285714) / 0.109971053705))
-    pred = z
-    pred = min(max(pred, 0.21045), 0.55255)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- ChargingHandle (Mod) Formulas ---
-def apply_charginghandle_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: ChargingHandle (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    Accuracy = to_f(props.get("Accuracy", base_data.get("Accuracy", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    DurabilityBurnModificator = to_f(props.get("DurabilityBurnModificator", base_data.get("DurabilityBurnModificator", 0.0)))
-    EffectiveDistance = to_f(props.get("EffectiveDistance", base_data.get("EffectiveDistance", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    Loudness = to_f(props.get("Loudness", base_data.get("Loudness", 0.0)))
-    Recoil = to_f(props.get("Recoil", base_data.get("Recoil", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: CameraRecoil
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["CameraRecoil"] = r(pred)
-
-    # Target: ChamberSpeed
-    z = 21.1237247411 + (1.32603812742 * ((Ergonomics - 1.2) / 1.10754984839)) + (6.54416498777 * ((ErgoWeight - 57.3872840552) / 45.7469830593)) + (-273.895719278 * ((FactoredWeight - 0.0428009745796) / 0.0327262909978)) + (274.280056865 * ((Weight - 0.0373) / 0.0253550126536))
-    pred = z
-    pred = min(max(pred, -7.15), 40.15)
-    item_entry["ChamberSpeed"] = r(pred)
-
-    # Target: Ergonomics
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: FixSpeed
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["FixSpeed"] = r(pred)
-
-    # Target: Flash
-    z = -19 + (-3.07852194036 * ((Ergonomics - 1.42857142857) / 1.04978131834)) + (801.612633945 * ((Weight - 0.0337142857143) / 0.00465109159889)) + (-797.540241742 * ((FactoredWeight - 0.037561186349) / 0.0057191354428)) + (5.72426354707 * ((ErgoWeight - 59.5690499003) / 39.1441903592))
-    pred = z
-    pred = min(max(pred, -31), -9)
-    item_entry["Flash"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: ReloadSpeed
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["ReloadSpeed"] = r(pred)
-
-    # Target: VerticalRecoil
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: Weight
-    z = 0.0506129028332 + (0.0770658392952 * ((Weight - 0.0506129032258) / 0.0770658191332)) + (-2.30156458744e-08 * ((FactoredWeight - 0.0623552734466) / 0.111837290446)) + (-2.65111854994e-10 * ((ErgoWeight - 55.5360813438) / 46.1311799414))
-    pred = z
-    pred = min(max(pred, -0.01095), 0.47195)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- CombTactDevice (Mod) Formulas ---
-def apply_combtactdevice_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: CombTactDevice (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    Recoil = to_f(props.get("Recoil", base_data.get("Recoil", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-
-    # 3. Calculate all target values
-
-    # Target: Ergonomics
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: VerticalRecoil
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: Weight
-    z = 0.410048142573 + (-0.553064609678 * ((FactoredWeight - 0.227198005199) / 0.110653241122)) + (0.654305633936 * ((Weight - 0.1715) / 0.0770451166525))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.02775), 0.40725)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- Foregrip (Mod) Formulas ---
-def apply_foregrip_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: Foregrip (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    Accuracy = to_f(props.get("Accuracy", base_data.get("Accuracy", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    EffectiveDistance = to_f(props.get("EffectiveDistance", base_data.get("EffectiveDistance", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    Loudness = to_f(props.get("Loudness", base_data.get("Loudness", 0.0)))
-    Recoil = to_f(props.get("Recoil", base_data.get("Recoil", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: Accuracy
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["Accuracy"] = r(pred)
-
-    # Target: AimSpeed
-    z = -0
-    pred = z
-    pred = min(max(pred, -21), 1)
-    item_entry["AimSpeed"] = r(pred)
-
-    # Target: AimStability
-    z = 6.66013228039 + (-78.0141378645 * ((FactoredWeight - 0.109863282472) / 0.0545988320003)) + (76.6548306147 * ((Weight - 0.088652173913) / 0.0400690802356)) + (2.67514639108 * ((ErgoWeight - 88.4705816046) / 25.2052277141)) + (1.15807403927 * ((Ergonomics - 5.41304347826) / 2.67090675823)) + (-2.48024754462 * ((Recoil - -1.61956521739) / 0.745892976709))
-    pred = z
-    pred = min(max(pred, -21.75), 16.75)
-    item_entry["AimStability"] = r(pred)
-
-    # Target: Dispersion
-    z = -0.936363636364
-    pred = z
-    pred = min(max(pred, -4.8), 12.8)
-    item_entry["Dispersion"] = r(pred)
-
-    # Target: Ergonomics
-    z = 2.46210713637 + (0.179028437291 * ((Ergonomics - 5.29090909091) / 2.60190648475)) + (0.206118705199 * ((ErgoWeight - 86.93819457) / 24.8308378583)) + (0.152532090476 * ((FactoredWeight - 0.109627184881) / 0.0512788715938))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 1.65), 9.35)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: Handling
-    z = 2.60584255649 + (45.7243472688 * ((FactoredWeight - 0.116698428904) / 0.0536017239701)) + (-46.7064415363 * ((Weight - 0.0937727272727) / 0.0392213205218)) + (0.184132930674 * ((Recoil - -1.44318181818) / 0.948778575393)) + (1.83836208639 * ((Ergonomics - 4.90909090909) / 2.71626566697)) + (-2.93596407798 * ((ErgoWeight - 83.065844649) / 25.3762857297))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 2.425), 26.075)
-    item_entry["Handling"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = -1.97125883493 + (-10.4062181879 * ((FactoredWeight - 0.109627184881) / 0.0512788715938)) + (10.2173286274 * ((Weight - 0.0885818181818) / 0.037628176536)) + (0.165628433206 * ((Recoil - -1.5) / 0.879049072992))
-    pred = z
-    pred = min(max(pred, -16.8), 0.8)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: VerticalRecoil
-    z = -2.12154936335 + (0.433628646137 * ((Ergonomics - 5.29090909091) / 2.60190648475)) + (-0.357696234856 * ((ErgoWeight - 86.93819457) / 24.8308378583)) + (-0.476549384778 * ((FactoredWeight - 0.109627184881) / 0.0512788715938))
-    pred = z
-    pred = min(max(pred, -4.725), 0.225)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: Weight
-    z = 0.29001977336 + (0.445061908804 * ((Weight - 0.0885818181818) / 0.037628176536)) + (-0.385612592587 * ((FactoredWeight - 0.109627184881) / 0.0512788715938)) + (-0.000353073060935 * ((ErgoWeight - 86.93819457) / 24.8308378583))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.02015), 0.19285)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- Gasblock (Mod) Formulas ---
-def apply_gasblock_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: Gasblock (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    Accuracy = to_f(props.get("Accuracy", base_data.get("Accuracy", 0.0)))
-    CoolFactor = to_f(props.get("CoolFactor", base_data.get("CoolFactor", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    DurabilityBurnModificator = to_f(props.get("DurabilityBurnModificator", base_data.get("DurabilityBurnModificator", 0.0)))
-    EffectiveDistance = to_f(props.get("EffectiveDistance", base_data.get("EffectiveDistance", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    HeatFactor = to_f(props.get("HeatFactor", base_data.get("HeatFactor", 0.0)))
-    Loudness = to_f(props.get("Loudness", base_data.get("Loudness", 0.0)))
-    Recoil = to_f(props.get("Recoil", base_data.get("Recoil", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: Accuracy
-    z = -2.52033623994e-08
-    pred = z
-    pred = min(max(pred, -14.55), 19.55)
-    item_entry["Accuracy"] = r(pred)
-
-    # Target: AutoROF
-    z = -0.193548387097
-    pred = z
-    pred = min(max(pred, -5.4), 3.4)
-    item_entry["AutoROF"] = int(round(pred))
-
-    # Target: CameraRecoil
-    z = -4.96744240295 + (4.86707517903 * ((Recoil - -2.83333333333) / 0.687184270936)) + (-7.49855809411 * ((Ergonomics - -0.5) / 1.11803398875)) + (9.66376072094 * ((ErgoWeight - 18.5944009298) / 26.2964539792))
-    pred = z
-    pred = min(max(pred, -10.85), 7.85)
-    item_entry["CameraRecoil"] = r(pred)
-
-    # Target: CanCycleSubs
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["CanCycleSubs"] = r(pred)
-
-    # Target: Convergence
-    z = -4.27098014127 + (7.45532576053 * ((Recoil - -2.83333333333) / 0.687184270936)) + (4.34545965941 * ((Ergonomics - -0.5) / 1.11803398875)) + (6.07146710047 * ((FactoredWeight - 0.110946842139) / 0.0836619183688))
-    pred = z
-    pred = min(max(pred, -10.9), 8.9)
-    item_entry["Convergence"] = r(pred)
-
-    # Target: CoolFactor
-    z = 1.01112903408 + (0.0183034345929 * ((CoolFactor - 1.01112903226) / 0.0183034316111))
-    pred = z
-    pred = min(max(pred, 0.9791), 1.0869)
-    item_entry["CoolFactor"] = r(pred)
-
-    # Target: Dispersion
-    z = -2.8368231402e-10
-    pred = z
-    pred = min(max(pred, -3.25), 2.25)
-    item_entry["Dispersion"] = r(pred)
-
-    # Target: DurabilityBurnModificator
-    z = 0.997419355003 + (0.00841187407285 * ((DurabilityBurnModificator - 0.997419354839) / 0.00841187407123))
-    pred = z
-    pred = min(max(pred, 0.78625), 1.08875)
-    item_entry["DurabilityBurnModificator"] = r(pred)
-
-    # Target: Ergonomics
-    z = 0.533569820929 + (0.780263966598 * ((Ergonomics - 1.45161290323) / 4.24141417133)) + (5.45657886139 * ((FactoredWeight - 0.195501387928) / 0.186251833456)) + (-4.93752806137 * ((Weight - 0.147096774194) / 0.124790755147))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, -0.7), 14.7)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: Flash
-    z = -15.9967434363 + (1.05253797982 * ((HeatFactor - 0.979529411765) / 0.0216906530346)) + (-60.1522997262 * ((Weight - 0.173529411765) / 0.162282294945)) + (-0.278331829193 * ((CoolFactor - 1.01764705882) / 0.0221145179263)) + (57.1168757322 * ((FactoredWeight - 0.236937632315) / 0.241963522677)) + (4.71406675336 * ((ErgoWeight - 21.332854858) / 29.1735451592))
-    pred = z
-    pred = min(max(pred, -26.75), 11.75)
-    item_entry["Flash"] = r(pred)
-
-    # Target: HeatFactor
-    z = 0.987322580213 + (0.0193146906278 * ((HeatFactor - 0.987322580645) / 0.0193146895406))
-    pred = z
-    pred = min(max(pred, 0.8875), 1.1625)
-    item_entry["HeatFactor"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = -0.103578025194 + (0.0809843081051 * ((Recoil - -1.56451612903) / 1.64974062225)) + (-0.416414223362 * ((Ergonomics - 1.45161290323) / 4.24141417133)) + (0.217093404312 * ((ErgoWeight - 14.2295787863) / 26.6905704936))
-    pred = z
-    pred = min(max(pred, -10.75), 5.75)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: MalfChance
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["MalfChance"] = r(pred)
-
-    # Target: ModMalfunctionChance
-    z = 0
-    pred = z
-    pred = min(max(pred, -20.5), 100.5)
-    item_entry["ModMalfunctionChance"] = r(pred)
-
-    # Target: SemiROF
-    z = -0.112903225806
-    pred = z
-    pred = min(max(pred, -6.55), 5.55)
-    item_entry["SemiROF"] = int(round(pred))
-
-    # Target: VerticalRecoil
-    z = -0.338609632408 + (-1.00811200549 * ((Ergonomics - 1.45161290323) / 4.24141417133)) + (0.10974484388 * ((ErgoWeight - 14.2295787863) / 26.6905704936)) + (0.0763508917334 * ((Weight - 0.147096774194) / 0.124790755147))
-    pred = z
-    pred = min(max(pred, -3.15), 0.15)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: Weight
-    z = 0.147096779726 + (0.124790708739 * ((Weight - 0.147096774194) / 0.124790755147)) + (4.16864601933e-08 * ((FactoredWeight - 0.195501387928) / 0.186251833456)) + (-7.01072759989e-09 * ((ErgoWeight - 14.2295787863) / 26.6905704936))
-    pred = z
-    pred = min(max(pred, 0.004), 0.576)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- GearComponents (Mod) Formulas ---
-def apply_gearcomponents_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: GearComponents (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    BlindnessProtection = to_f(props.get("BlindnessProtection", base_data.get("BlindnessProtection", 0.0)))
-    BluntThroughput = to_f(props.get("BluntThroughput", base_data.get("BluntThroughput", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-    mousePenalty = to_f(props.get("mousePenalty", base_data.get("mousePenalty", 0.0)))
-    speedPenaltyPercent = to_f(props.get("speedPenaltyPercent", base_data.get("speedPenaltyPercent", 0.0)))
-    weaponErgonomicPenalty = to_f(props.get("weaponErgonomicPenalty", base_data.get("weaponErgonomicPenalty", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: Comfort
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["Comfort"] = r(pred)
-
-    # Target: ReloadSpeedMulti
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["ReloadSpeedMulti"] = r(pred)
-
-    return item_entry
-
-# --- Handguard (Mod) Formulas ---
-def apply_handguard_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: Handguard (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    Accuracy = to_f(props.get("Accuracy", base_data.get("Accuracy", 0.0)))
-    CoolFactor = to_f(props.get("CoolFactor", base_data.get("CoolFactor", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    EffectiveDistance = to_f(props.get("EffectiveDistance", base_data.get("EffectiveDistance", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    HeatFactor = to_f(props.get("HeatFactor", base_data.get("HeatFactor", 0.0)))
-    Loudness = to_f(props.get("Loudness", base_data.get("Loudness", 0.0)))
-    Recoil = to_f(props.get("Recoil", base_data.get("Recoil", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: Accuracy
-    z = 2.25524475524 + (1.21317982163 * ((Accuracy - 0.0268817204301) / 0.192124391239))
-    pred = z
-    pred = min(max(pred, -22.25), 27.25)
-    item_entry["Accuracy"] = r(pred)
-
-    # Target: AimSpeed
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["AimSpeed"] = r(pred)
-
-    # Target: AimStability
-    z = 1.61612852412 + (-0.0921417712108 * ((Recoil - -1.34536082474) / 1.16291675767)) + (0.127369866343 * ((Ergonomics - 8.96391752577) / 2.96825769184)) + (-0.0284840477837 * ((HeatFactor - 0.995701030928) / 0.0402031349622)) + (-0.00557584010286 * ((ErgoWeight - 67.1363130572) / 14.7863679258)) + (0.0492601933717 * ((Accuracy - 0.020618556701) / 0.142103595382))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.3), 15.7)
-    item_entry["AimStability"] = r(pred)
-
-    # Target: ChamberSpeed
-    z = 0
-    pred = z
-    pred = min(max(pred, -6.35), 23.35)
-    item_entry["ChamberSpeed"] = r(pred)
-
-    # Target: CoolFactor
-    z = 1.01961742972 + (0.0452879718044 * ((CoolFactor - 1.0196172973) / 0.0452891637089))
-    pred = z
-    pred = min(max(pred, 0.88775), 1.15725)
-    item_entry["CoolFactor"] = r(pred)
-
-    # Target: Dispersion
-    z = -0.952797202797 + (-0.066877039123 * ((Accuracy - 0.0268817204301) / 0.192124391239))
-    pred = z
-    pred = min(max(pred, -10.55), 1.55)
-    item_entry["Dispersion"] = r(pred)
-
-    # Target: Ergonomics
-    z = 7.24019541661 + (3.45915167303 * ((Ergonomics - 7.44892473118) / 3.27278184338)) + (-1.04505680745 * ((ErgoWeight - 64.4397503992) / 16.0896061551)) + (-0.577640827341 * ((Weight - 0.301290322581) / 0.167391343711))
-    pred = z
-    pred = min(max(pred, -1.1), 23.1)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: Handling
-    z = 1.38184628082 + (-0.127752677475 * ((Recoil - -1.3152173913) / 1.14615944549)) + (-0.152050254472 * ((CoolFactor - 1.02672826087) / 0.0498606979627)) + (0.0932706036804 * ((Durability - 99.8913043478) / 1.03689043632)) + (-0.101986630927 * ((ErgoWeight - 64.1802006343) / 13.5343070153)) + (-0.0168781888421 * ((Ergonomics - 7.70108695652) / 2.91832644735))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.3), 15.7)
-    item_entry["Handling"] = r(pred)
-
-    # Target: HeatFactor
-    z = 1.00174517033 + (0.0386042561063 * ((HeatFactor - 1.00199459459) / 0.0389341088976))
-    pred = z
-    pred = min(max(pred, 0.89), 1.11)
-    item_entry["HeatFactor"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = -1.47181994295 + (-1.69782316906 * ((Weight - 0.301290322581) / 0.167391343711)) + (1.38681686445 * ((FactoredWeight - 0.424212687673) / 0.258800930671)) + (0.123205665234 * ((Recoil - -1.03494623656) / 1.14540420968))
-    pred = z
-    pred = min(max(pred, -10.55), 1.55)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: ReloadSpeed
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["ReloadSpeed"] = r(pred)
-
-    # Target: VerticalRecoil
-    z = -1.37462450586 + (-0.419182162902 * ((Ergonomics - 7.44892473118) / 3.27278184338)) + (0.196853534089 * ((Recoil - -1.03494623656) / 1.14540420968)) + (-0.179556923306 * ((Weight - 0.301290322581) / 0.167391343711))
-    pred = z
-    pred = min(max(pred, -13.1), 11.1)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: Weight
-    z = 0.301290322457 + (0.167391340646 * ((Weight - 0.301290322581) / 0.167391343711)) + (2.74710172282e-09 * ((FactoredWeight - 0.424212687673) / 0.258800930671)) + (-4.55664923271e-10 * ((ErgoWeight - 64.4397503992) / 16.0896061551))
-    pred = z
-    pred = min(max(pred, -0.00985), 0.93285)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- Headset (Mod) Formulas ---
-def apply_headset_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: Headset (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    AmbientCompressorSendLevel = to_f(props.get("AmbientCompressorSendLevel", base_data.get("AmbientCompressorSendLevel", 0.0)))
-    AmbientVolume = to_f(props.get("AmbientVolume", base_data.get("AmbientVolume", 0.0)))
-    ClientPlayerCompressorSendLevel = to_f(props.get("ClientPlayerCompressorSendLevel", base_data.get("ClientPlayerCompressorSendLevel", 0.0)))
-    CompressorAttack = to_f(props.get("CompressorAttack", base_data.get("CompressorAttack", 0.0)))
-    CompressorGain = to_f(props.get("CompressorGain", base_data.get("CompressorGain", 0.0)))
-    CompressorRelease = to_f(props.get("CompressorRelease", base_data.get("CompressorRelease", 0.0)))
-    CompressorThreshold = to_f(props.get("CompressorThreshold", base_data.get("CompressorThreshold", 0.0)))
-    Distortion = to_f(props.get("Distortion", base_data.get("Distortion", 0.0)))
-    DryVolume = to_f(props.get("DryVolume", base_data.get("DryVolume", 0.0)))
-    EQBand1Frequency = to_f(props.get("EQBand1Frequency", base_data.get("EQBand1Frequency", 0.0)))
-    EQBand1Gain = to_f(props.get("EQBand1Gain", base_data.get("EQBand1Gain", 0.0)))
-    EQBand1Q = to_f(props.get("EQBand1Q", base_data.get("EQBand1Q", 0.0)))
-    EQBand2Frequency = to_f(props.get("EQBand2Frequency", base_data.get("EQBand2Frequency", 0.0)))
-    EQBand2Gain = to_f(props.get("EQBand2Gain", base_data.get("EQBand2Gain", 0.0)))
-    EQBand2Q = to_f(props.get("EQBand2Q", base_data.get("EQBand2Q", 0.0)))
-    EQBand3Frequency = to_f(props.get("EQBand3Frequency", base_data.get("EQBand3Frequency", 0.0)))
-    EQBand3Gain = to_f(props.get("EQBand3Gain", base_data.get("EQBand3Gain", 0.0)))
-    EQBand3Q = to_f(props.get("EQBand3Q", base_data.get("EQBand3Q", 0.0)))
-    EffectsReturnsCompressorSendLevel = to_f(props.get("EffectsReturnsCompressorSendLevel", base_data.get("EffectsReturnsCompressorSendLevel", 0.0)))
-    EffectsReturnsGroupVolume = to_f(props.get("EffectsReturnsGroupVolume", base_data.get("EffectsReturnsGroupVolume", 0.0)))
-    EnvCommonCompressorSendLevel = to_f(props.get("EnvCommonCompressorSendLevel", base_data.get("EnvCommonCompressorSendLevel", 0.0)))
-    EnvNatureCompressorSendLevel = to_f(props.get("EnvNatureCompressorSendLevel", base_data.get("EnvNatureCompressorSendLevel", 0.0)))
-    EnvTechnicalCompressorSendLevel = to_f(props.get("EnvTechnicalCompressorSendLevel", base_data.get("EnvTechnicalCompressorSendLevel", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    GunsCompressorSendLevel = to_f(props.get("GunsCompressorSendLevel", base_data.get("GunsCompressorSendLevel", 0.0)))
-    HeadphonesMixerVolume = to_f(props.get("HeadphonesMixerVolume", base_data.get("HeadphonesMixerVolume", 0.0)))
-    HighpassFreq = to_f(props.get("HighpassFreq", base_data.get("HighpassFreq", 0.0)))
-    HighpassResonance = to_f(props.get("HighpassResonance", base_data.get("HighpassResonance", 0.0)))
-    LowpassFreq = to_f(props.get("LowpassFreq", base_data.get("LowpassFreq", 0.0)))
-    NpcCompressorSendLevel = to_f(props.get("NpcCompressorSendLevel", base_data.get("NpcCompressorSendLevel", 0.0)))
-    ObservedPlayerCompressorSendLevel = to_f(props.get("ObservedPlayerCompressorSendLevel", base_data.get("ObservedPlayerCompressorSendLevel", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: dB
-    z = 21.9330217009 + (-15.3587524663 * ((FactoredWeight - 0.724847087921) / 0.181650410837)) + (14.5133794247 * ((Weight - 0.496285714286) / 0.11326922957)) + (-0.479541590561 * ((EQBand1Gain - 1.17857142857) / 0.0646813224153)) + (-0.084507516573 * ((HeadphonesMixerVolume - -4.85714285714) / 1.6413036133)) + (0.199822059167 * ((EQBand1Q - 1.27857142857) / 0.30978926346)) + (-0.00618849381922 * ((ClientPlayerCompressorSendLevel - -4.67857142857) / 1.47123785172)) + (-0.140844898764 * ((AmbientCompressorSendLevel - -13.6071428571) / 1.50212434606))
-    pred = z
-    pred = min(max(pred, 18.65), 26.35)
-    item_entry["dB"] = r(pred)
-
-    # Target: mousePenalty
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["mousePenalty"] = r(pred)
-
-    # Target: speedPenaltyPercent
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["speedPenaltyPercent"] = r(pred)
-
-    # Target: weaponErgonomicPenalty
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["weaponErgonomicPenalty"] = r(pred)
-
-    return item_entry
-
-# --- Headwear (Mod) Formulas ---
-def apply_headwear_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: Headwear (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    BlindnessProtection = to_f(props.get("BlindnessProtection", base_data.get("BlindnessProtection", 0.0)))
-    BluntThroughput = to_f(props.get("BluntThroughput", base_data.get("BluntThroughput", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-    mousePenalty = to_f(props.get("mousePenalty", base_data.get("mousePenalty", 0.0)))
-    speedPenaltyPercent = to_f(props.get("speedPenaltyPercent", base_data.get("speedPenaltyPercent", 0.0)))
-    weaponErgonomicPenalty = to_f(props.get("weaponErgonomicPenalty", base_data.get("weaponErgonomicPenalty", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: Comfort
-    z = 0.989838000086 + (0.154773790758 * ((Weight - 1.70386363636) / 0.929773227261)) + (-0.127794924414 * ((FactoredWeight - 2.85015295458) / 1.71667679305)) + (-0.0108429347162 * ((mousePenalty - -1.43181818182) / 0.889272615751)) + (-0.0103922717699 * ((weaponErgonomicPenalty - -1.45454545455) / 1.05431031861))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.78), 1.22)
-    item_entry["Comfort"] = r(pred)
-
-    # Target: Price
-    z = 151.595787079 + (64.7646921945 * ((DurabilityMalfRisk - 7.73229545455) / 1.29775636072)) + (35.9961040162 * ((Durability - 4.31818181818) / 23.0017516401))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, -2000), 42000)
-    item_entry["Price"] = r(pred)
-
-    # Target: ReloadSpeedMulti
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["ReloadSpeedMulti"] = r(pred)
-
-    # Target: mousePenalty
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["mousePenalty"] = r(pred)
-
-    # Target: speedPenaltyPercent
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["speedPenaltyPercent"] = r(pred)
-
-    # Target: weaponErgonomicPenalty
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["weaponErgonomicPenalty"] = r(pred)
-
-    return item_entry
-
-# --- Launcher (Gun) Formulas ---
-def apply_launcher_gun_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: Launcher (Gun)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    Accuracy = to_f(props.get("Accuracy", base_data.get("Accuracy", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    EffectiveDistance = to_f(props.get("EffectiveDistance", base_data.get("EffectiveDistance", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    Loudness = to_f(props.get("Loudness", base_data.get("Loudness", 0.0)))
-    Recoil = to_f(props.get("Recoil", base_data.get("Recoil", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: Accuracy
-    z = -15
-    pred = z
-    pred = min(max(pred, -20.5), -9.5)
-    item_entry["Accuracy"] = r(pred)
-
-    # Target: AimSpeed
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["AimSpeed"] = r(pred)
-
-    # Target: AutoROF
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["AutoROF"] = int(round(pred))
-
-    # Target: BlocksFolding
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["BlocksFolding"] = r(pred)
-
-    # Target: CameraRecoil
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["CameraRecoil"] = r(pred)
-
-    # Target: CoolFactor
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["CoolFactor"] = r(pred)
-
-    # Target: Dispersion
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["Dispersion"] = r(pred)
-
-    # Target: Ergonomics
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: HasShoulderContact
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["HasShoulderContact"] = r(pred)
-
-    # Target: HeatFactor
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["HeatFactor"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: ModMalfunctionChance
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["ModMalfunctionChance"] = r(pred)
-
-    # Target: SemiROF
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["SemiROF"] = int(round(pred))
-
-    # Target: StockAllowADS
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["StockAllowADS"] = r(pred)
-
-    # Target: VerticalRecoil
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: Weight
-    z = 1.43 + (0.07 * ((Weight - 1.38) / 0.02))
-    pred = z
-    pred = min(max(pred, 1.353), 1.507)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- Magazines (Mod) Formulas ---
-def apply_magazines_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: Magazines (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    Accuracy = to_f(props.get("Accuracy", base_data.get("Accuracy", 0.0)))
-    BeltMagazineRefreshCount = to_f(props.get("BeltMagazineRefreshCount", base_data.get("BeltMagazineRefreshCount", 0.0)))
-    CheckTimeModifier = to_f(props.get("CheckTimeModifier", base_data.get("CheckTimeModifier", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    EffectiveDistance = to_f(props.get("EffectiveDistance", base_data.get("EffectiveDistance", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    LoadUnloadModifier = to_f(props.get("LoadUnloadModifier", base_data.get("LoadUnloadModifier", 0.0)))
-    Loudness = to_f(props.get("Loudness", base_data.get("Loudness", 0.0)))
-    MalfunctionChance = to_f(props.get("MalfunctionChance", base_data.get("MalfunctionChance", 0.0)))
-    Recoil = to_f(props.get("Recoil", base_data.get("Recoil", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: CheckTimeModifier
-    z = -2.57211538425 + (14.090865534 * ((CheckTimeModifier - -2.57211538462) / 14.0908655404)) + (-8.21252238232e-09 * ((LoadUnloadModifier - -0.144230769231) / 17.1315151948)) + (8.51598069447e-09 * ((Ergonomics - -3.81971153846) / 6.46141996729)) + (9.56201912981e-09 * ((MalfunctionChance - 0.0776153846154) / 0.0834044026338)) + (2.62274878362e-09 * ((Weight - 0.270283653846) / 0.230194673721))
-    pred = z
-    pred = min(max(pred, -54.25), 39.25)
-    item_entry["CheckTimeModifier"] = r(pred)
-
-    # Target: Ergonomics
-    z = -0
-    pred = z
-    pred = min(max(pred, -31.5), 1.5)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: LoadUnloadModifier
-    z = -0.144230769261 + (17.1315151922 * ((LoadUnloadModifier - -0.144230769231) / 17.1315151948)) + (2.2861046799e-09 * ((MalfunctionChance - 0.0776153846154) / 0.0834044026338)) + (-9.84974876188e-10 * ((Ergonomics - -3.81971153846) / 6.46141996729)) + (-4.67684847125e-10 * ((CheckTimeModifier - -2.57211538462) / 14.0908655404)) + (8.00395286285e-10 * ((Weight - 0.270283653846) / 0.230194673721))
-    pred = z
-    pred = min(max(pred, -36), 96)
-    item_entry["LoadUnloadModifier"] = r(pred)
-
-    # Target: MalfunctionChance
-    z = 0.250958374712 + (0.184159976313 * ((MalfunctionChance - 0.0776153846154) / 0.0834044026338)) + (-0.102033182172 * ((Ergonomics - -3.81971153846) / 6.46141996729)) + (0.0152763926605 * ((LoadUnloadModifier - -0.144230769231) / 17.1315151948)) + (0.0343007447734 * ((CheckTimeModifier - -2.57211538462) / 14.0908655404)) + (-0.0423091256746 * ((Weight - 0.270283653846) / 0.230194673721))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, -0.5), 10.5)
-    item_entry["MalfunctionChance"] = r(pred)
-
-    # Target: ReloadSpeed
-    z = -1.64859464173 + (3.91542187936 * ((Ergonomics - -3.81971153846) / 6.46141996729)) + (-7.62618412866 * ((Weight - 0.270283653846) / 0.230194673721)) + (7.31798778826 * ((FactoredWeight - 0.381858641004) / 0.36662498179))
-    pred = z
-    pred = min(max(pred, -23.4), 7.4)
-    item_entry["ReloadSpeed"] = r(pred)
-
-    # Target: VerticalRecoil
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: Weight
-    z = 0.270283653613 + (0.230194671915 * ((Weight - 0.270283653846) / 0.230194673721)) + (1.91085267801e-09 * ((FactoredWeight - 0.381858641004) / 0.36662498179)) + (-8.15502752524e-11 * ((ErgoWeight - 9.02713616756) / 21.7084061614))
-    pred = z
-    pred = min(max(pred, -0.06975), 1.57475)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- MarksmanRifles (Gun) Formulas ---
-def apply_marksmanrifles_gun_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: MarksmanRifles (Gun)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    AimPlane = to_f(props.get("AimPlane", base_data.get("AimPlane", 0.0)))
-    AimSensitivity = to_f(props.get("AimSensitivity", base_data.get("AimSensitivity", 0.0)))
-    BaseMalfunctionChance = to_f(props.get("BaseMalfunctionChance", base_data.get("BaseMalfunctionChance", 0.0)))
-    CameraSnap = to_f(props.get("CameraSnap", base_data.get("CameraSnap", 0.0)))
-    CameraToWeaponAngleStep = to_f(props.get("CameraToWeaponAngleStep", base_data.get("CameraToWeaponAngleStep", 0.0)))
-    CenterOfImpact = to_f(props.get("CenterOfImpact", base_data.get("CenterOfImpact", 0.0)))
-    CoolFactorGun = to_f(props.get("CoolFactorGun", base_data.get("CoolFactorGun", 0.0)))
-    CoolFactorGunMods = to_f(props.get("CoolFactorGunMods", base_data.get("CoolFactorGunMods", 0.0)))
-    DeviationCurve = to_f(props.get("DeviationCurve", base_data.get("DeviationCurve", 0.0)))
-    DeviationMax = to_f(props.get("DeviationMax", base_data.get("DeviationMax", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    DurabilityBurnRatio = to_f(props.get("DurabilityBurnRatio", base_data.get("DurabilityBurnRatio", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    HeatFactorByShot = to_f(props.get("HeatFactorByShot", base_data.get("HeatFactorByShot", 0.0)))
-    HeatFactorGun = to_f(props.get("HeatFactorGun", base_data.get("HeatFactorGun", 0.0)))
-    HipAccuracyRestorationDelay = to_f(props.get("HipAccuracyRestorationDelay", base_data.get("HipAccuracyRestorationDelay", 0.0)))
-    HipAccuracyRestorationSpeed = to_f(props.get("HipAccuracyRestorationSpeed", base_data.get("HipAccuracyRestorationSpeed", 0.0)))
-    HipInnaccuracyGain = to_f(props.get("HipInnaccuracyGain", base_data.get("HipInnaccuracyGain", 0.0)))
-    IronSightRange = to_f(props.get("IronSightRange", base_data.get("IronSightRange", 0.0)))
-    MaxRepairDegradation = to_f(props.get("MaxRepairDegradation", base_data.get("MaxRepairDegradation", 0.0)))
-    MinRepairDegradation = to_f(props.get("MinRepairDegradation", base_data.get("MinRepairDegradation", 0.0)))
-    RecoilAngle = to_f(props.get("RecoilAngle", base_data.get("RecoilAngle", 0.0)))
-    RecoilCamera = to_f(props.get("RecoilCamera", base_data.get("RecoilCamera", 0.0)))
-    RecoilCategoryMultiplierHandRotation = to_f(props.get("RecoilCategoryMultiplierHandRotation", base_data.get("RecoilCategoryMultiplierHandRotation", 0.0)))
-    RecoilDampingHandRotation = to_f(props.get("RecoilDampingHandRotation", base_data.get("RecoilDampingHandRotation", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    RecoilPosZMult = to_f(props.get("RecoilPosZMult", base_data.get("RecoilPosZMult", 0.0)))
-    RecoilReturnPathDampingHandRotation = to_f(props.get("RecoilReturnPathDampingHandRotation", base_data.get("RecoilReturnPathDampingHandRotation", 0.0)))
-    RecoilReturnPathOffsetHandRotation = to_f(props.get("RecoilReturnPathOffsetHandRotation", base_data.get("RecoilReturnPathOffsetHandRotation", 0.0)))
-    RecoilReturnSpeedHandRotation = to_f(props.get("RecoilReturnSpeedHandRotation", base_data.get("RecoilReturnSpeedHandRotation", 0.0)))
-    RecolDispersion = to_f(props.get("RecolDispersion", base_data.get("RecolDispersion", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    SingleFireRate = to_f(props.get("SingleFireRate", base_data.get("SingleFireRate", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-    bEffDist = to_f(props.get("bEffDist", base_data.get("bEffDist", 0.0)))
-    bFirerate = to_f(props.get("bFirerate", base_data.get("bFirerate", 0.0)))
-    bHearDist = to_f(props.get("bHearDist", base_data.get("bHearDist", 0.0)))
-    shotgunDispersion = to_f(props.get("shotgunDispersion", base_data.get("shotgunDispersion", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: AllowOverheat
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["AllowOverheat"] = r(pred)
-
-    # Target: AutoROF
-    z = 641.25 + (240.126919565 * ((bFirerate - 641.25) / 240.126919565))
-    pred = z
-    pred = min(max(pred, -13.5), 943.5)
-    item_entry["AutoROF"] = int(round(pred))
-
-    # Target: BaseChamberCheckSpeed
-    z = 1.15251657837 + (4.18897363046 * ((HRecoilPerErgo - 18.5167803726) / 21.2703088241)) + (8.13932812255 * ((RecoilForceUp - 206) / 131.012403993)) + (-12.7050644196 * ((VRecoilPerErgo - 8.57245014912) / 11.4443834241)) + (-0.933707897292 * ((RecoilForceBack - 470.875) / 234.749034876)) + (-0.510459743921 * ((HeatFactorByShot - 2.54875) / 0.680008042232)) + (3.24451753342 * ((bFirerate - 641.25) / 240.126919565)) + (5.35324771504 * ((bHearDist - 90) / 26.4575131106))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.7425), 3.1075)
-    item_entry["BaseChamberCheckSpeed"] = r(pred)
-
-    # Target: BaseChamberSpeedMulti
-    z = 0.695775601459 + (-0.0597420385953 * ((Ergonomics - 38) / 12.5996031684)) + (0.0946466872427 * ((RecoilForceBack - 470.875) / 234.749034876)) + (0.0180818089818 * ((MaxRepairDegradation - 0.0375) / 0.00661437827766)) + (0.0476224172283 * ((RecoilReturnSpeedHandRotation - 2.6125) / 0.301817411691)) + (-0.102649455823 * ((HRecoilPerErgo - 18.5167803726) / 21.2703088241)) + (0.0169126961924 * ((HeatFactorByShot - 2.54875) / 0.680008042232)) + (0.0173689513178 * ((ErgoWeight - 67.0329379602) / 20.3876118186))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.8875), 1.1625)
-    item_entry["BaseChamberSpeedMulti"] = r(pred)
-
-    # Target: BaseFixSpeed
-    z = 1.34375 + (5.50161385929 * ((HRecoilPerErgo - 18.5167803726) / 21.2703088241)) + (-15.81780571 * ((VRecoilPerErgo - 8.57245014912) / 11.4443834241)) + (10.3524841747 * ((RecoilForceUp - 206) / 131.012403993)) + (-1.17950732918 * ((RecoilForceBack - 470.875) / 234.749034876)) + (-0.56416230094 * ((HeatFactorByShot - 2.54875) / 0.680008042232)) + (6.71956880477 * ((bHearDist - 90) / 26.4575131106)) + (4.28493605325 * ((bFirerate - 641.25) / 240.126919565))
-    pred = z
-    pred = min(max(pred, 0.7425), 3.1075)
-    item_entry["BaseFixSpeed"] = r(pred)
-
-    # Target: BaseMalfunctionChance
-    z = 0.00191725461871 + (0.0115147331625 * ((Weight - 1.478) / 0.740848162581)) + (-0.0113536844043 * ((FactoredWeight - 2.43497289467) / 1.32416559039)) + (-0.000135497808668 * ((ErgoWeight - 67.0329379602) / 20.3876118186)) + (-6.64566123653e-05 * ((RecoilReturnPathDampingHandRotation - 0.41) / 0.0264575131106)) + (6.64566123653e-05 * ((RecoilCategoryMultiplierHandRotation - 0.227125) / 0.00760653501931)) + (6.64566123653e-05 * ((DeviationMax - 29.125) / 2.31503239718)) + (-6.64566123653e-05 * ((RecolDispersion - 11.125) / 0.330718913883))
-    pred = z
-    pred = min(max(pred, 0.0009), 0.0031)
-    item_entry["BaseMalfunctionChance"] = r(pred)
-
-    # Target: BaseReloadSpeedMulti
-    z = 0.709021980895 + (-0.0457550341056 * ((Ergonomics - 38) / 12.5996031684)) + (0.990171205294 * ((FactoredWeight - 2.43497289467) / 1.32416559039)) + (-0.958220972988 * ((Weight - 1.478) / 0.740848162581))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.8175), 1.5325)
-    item_entry["BaseReloadSpeedMulti"] = r(pred)
-
-    # Target: BaseTorque
-    z = 0.564831272137 + (0.555202312442 * ((bEffDist - 812.5) / 169.096865731)) + (-0.273474202563 * ((CenterOfImpact - 0.014375) / 0.0311686440995)) + (-0.240189338439 * ((AimPlane - 0.3375) / 0.257572805242)) + (0.0580873943063 * ((RecoilReturnPathDampingHandRotation - 0.41) / 0.0264575131106)) + (-0.0580873943063 * ((RecoilCategoryMultiplierHandRotation - 0.227125) / 0.00760653501931)) + (0.0580873943063 * ((DeviationCurve - 1.13125) / 0.0826797284708)) + (0.0580873943063 * ((RecolDispersion - 11.125) / 0.330718913883))
-    pred = z
-    pred = min(max(pred, -1.875), 6.375)
-    item_entry["BaseTorque"] = r(pred)
-
-    # Target: CameraRecoil
-    z = 0.0780158075272 + (-0.0577032375127 * ((RecoilForceUp - 206) / 131.012403993)) + (0.0855955269842 * ((VRecoilPerErgo - 8.57245014912) / 11.4443834241)) + (-0.0201016003941 * ((HRecoilPerErgo - 18.5167803726) / 21.2703088241)) + (0.0210206826246 * ((RecoilCamera - 0.0825) / 0.0178535710714)) + (0.0132631514807 * ((RecoilDampingHandRotation - 0.85875) / 0.0105326872165))
-    pred = z
-    pred = min(max(pred, 0.0259), 0.1821)
-    item_entry["CameraRecoil"] = r(pred)
-
-    # Target: CenterOfImpact
-    z = 0
-    pred = z
-    pred = min(max(pred, -0.002), 0.042)
-    item_entry["CenterOfImpact"] = r(pred)
-
-    # Target: Convergence
-    z = 9.74858981544 + (-0.709036873209 * ((FactoredWeight - 2.43497289467) / 1.32416559039)) + (-0.534878099537 * ((Weight - 1.478) / 0.740848162581)) + (-2.32824520318 * ((VRecoilPerErgo - 8.57245014912) / 11.4443834241)) + (0.566567502158 * ((RecoilForceUp - 206) / 131.012403993)) + (0.411528812028 * ((HRecoilPerErgo - 18.5167803726) / 21.2703088241))
-    pred = z
-    pred = min(max(pred, 3.2625), 13.9875)
-    item_entry["Convergence"] = r(pred)
-
-    # Target: CoolFactorGun
-    z = 0.100000000806 + (3.89270172059e-10 * ((CoolFactorGunMods - 1.0239375) / 0.0261249372009))
-    pred = z
-    pred = min(max(pred, 0.0765), 0.1535)
-    item_entry["CoolFactorGun"] = r(pred)
-
-    # Target: CoolFactorGunMods
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["CoolFactorGunMods"] = r(pred)
-
-    # Target: Dispersion
-    z = 10.6249998619 + (5.97600548246 * ((bEffDist - 812.5) / 169.096865731)) + (-4.56909520025 * ((CenterOfImpact - 0.014375) / 0.0311686440995)) + (12.8786380208 * ((AimPlane - 0.3375) / 0.257572805242)) + (-2.77913900426 * ((DeviationCurve - 1.13125) / 0.0826797284708))
-    pred = z
-    pred = min(max(pred, 7.8), 12.2)
-    item_entry["Dispersion"] = r(pred)
-
-    # Target: DurabilityBurnRatio
-    z = 0.672637466697
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.1825), 0.5675)
-    item_entry["DurabilityBurnRatio"] = r(pred)
-
-    # Target: Ergonomics
-    z = 8.94427191547 + (7.70927255065e-09 * ((Ergonomics - 38) / 12.5996031684)) + (4.13570237347e-08 * ((Weight - 1.478) / 0.740848162581)) + (-3.42361987308e-08 * ((FactoredWeight - 2.43497289467) / 1.32416559039))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 79.85), 83.15)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: HasShoulderContact
-    z = 0.125 + (0.984916005188 * ((RecoilReturnSpeedHandRotation - 2.6125) / 0.301817411691)) + (-0.0207019874107 * ((RecoilDampingHandRotation - 0.85875) / 0.0105326872165)) + (-0.859433422811 * ((Ergonomics - 38) / 12.5996031684)) + (-0.13498785994 * ((RecoilForceBack - 470.875) / 234.749034876)) + (-7.29204219484 * ((Weight - 1.478) / 0.740848162581)) + (-0.158973118285 * ((HeatFactorByShot - 2.54875) / 0.680008042232)) + (7.61959894412 * ((FactoredWeight - 2.43497289467) / 1.32416559039))
-    pred = z
-    pred = min(max(pred, -0.05), 1.05)
-    item_entry["HasShoulderContact"] = r(pred)
-
-    # Target: HeatFactorByShot
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["HeatFactorByShot"] = r(pred)
-
-    # Target: HeatFactorGun
-    z = 0.442496422 + (0.102755549468 * ((HeatFactorByShot - 2.54875) / 0.680008042232)) + (-0.0533060169615 * ((HeatFactorGun - 0.9924125) / 0.0514571286971))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.265), 1.035)
-    item_entry["HeatFactorGun"] = r(pred)
-
-    # Target: HipAccuracyRestorationDelay
-    z = 0.2
-    pred = z
-    pred = min(max(pred, 0.199999), 0.200001)
-    item_entry["HipAccuracyRestorationDelay"] = r(pred)
-
-    # Target: HipAccuracyRestorationSpeed
-    z = 2.64575131106
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 6.999999), 7.000001)
-    item_entry["HipAccuracyRestorationSpeed"] = r(pred)
-
-    # Target: HipInnaccuracyGain
-    z = 0.148420005118
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.159999), 0.160001)
-    item_entry["HipInnaccuracyGain"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = 14.8928424639 + (4.38544226595 * ((RecoilDampingHandRotation - 0.85875) / 0.0105326872165)) + (3.9497133842 * ((RecoilCamera - 0.0825) / 0.0178535710714)) + (-20.0567315077 * ((RecoilForceUp - 206) / 131.012403993)) + (18.5586722333 * ((VRecoilPerErgo - 8.57245014912) / 11.4443834241)) + (-3.65436391731 * ((HRecoilPerErgo - 18.5167803726) / 21.2703088241))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 94.5), 435.5)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: MaxChamberSpeed
-    z = 0.934843232514 + (0.0487008254685 * ((CoolFactorGunMods - 1.0239375) / 0.0261249372009)) + (-0.213293061693 * ((Ergonomics - 38) / 12.5996031684)) + (-0.0304376257726 * ((HeatFactorGun - 0.9924125) / 0.0514571286971)) + (0.0748221791728 * ((RecoilForceBack - 470.875) / 234.749034876)) + (0.08238236621 * ((ErgoWeight - 67.0329379602) / 20.3876118186)) + (0.194266336351 * ((RecoilReturnSpeedHandRotation - 2.6125) / 0.301817411691)) + (0.0503761334521 * ((AimPlane - 0.3375) / 0.257572805242))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 1.48), 1.92)
-    item_entry["MaxChamberSpeed"] = r(pred)
-
-    # Target: MinChamberSpeed
-    z = 0.7 + (-0.201098836134 * ((CoolFactorGunMods - 1.0239375) / 0.0261249372009)) + (2.83654787202 * ((ErgoWeight - 67.0329379602) / 20.3876118186)) + (31.5496826008 * ((Weight - 1.478) / 0.740848162581)) + (-29.5874154804 * ((FactoredWeight - 2.43497289467) / 1.32416559039)) + (-0.295949140484 * ((HeatFactorGun - 0.9924125) / 0.0514571286971)) + (0.360724634813 * ((MaxRepairDegradation - 0.0375) / 0.00661437827766)) + (-0.916079059608 * ((RecoilReturnSpeedHandRotation - 2.6125) / 0.301817411691))
-    pred = z
-    pred = min(max(pred, 0.5925), 0.7575)
-    item_entry["MinChamberSpeed"] = r(pred)
-
-    # Target: MinReloadSpeed
-    z = 0.75 + (-0.1 * ((Ergonomics - 21) / 7))
-    pred = z
-    pred = min(max(pred, 0.64), 0.86)
-    item_entry["MinReloadSpeed"] = r(pred)
-
-    # Target: OffsetRotation
-    z = 0.0962501634283 + (-0.00198467789096 * ((RecoilReturnPathDampingHandRotation - 0.41) / 0.0264575131106)) + (0.00198467789096 * ((RecoilCategoryMultiplierHandRotation - 0.227125) / 0.00760653501931)) + (0.00198467789096 * ((DeviationMax - 29.125) / 2.31503239718)) + (-0.00198467789096 * ((DeviationCurve - 1.13125) / 0.0826797284708)) + (-0.00198467789096 * ((RecolDispersion - 11.125) / 0.330718913883)) + (2.12957226226e-05 * ((CenterOfImpact - 0.014375) / 0.0311686440995)) + (-1.96116600644e-05 * ((AimPlane - 0.3375) / 0.257572805242))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.004645), 0.010255)
-    item_entry["OffsetRotation"] = r(pred)
-
-    # Target: RecoilAngle
-    z = 88.3221894794 + (-18.0150602682 * ((Weight - 1.478) / 0.740848162581)) + (12.9041522947 * ((FactoredWeight - 2.43497289467) / 1.32416559039)) + (-3.17593051785 * ((ErgoWeight - 67.0329379602) / 20.3876118186)) + (0.938480517773 * ((DeviationMax - 29.125) / 2.31503239718)) + (-0.938480517773 * ((DeviationCurve - 1.13125) / 0.0826797284708))
-    pred = z
-    pred = min(max(pred, 79.35), 93.65)
-    item_entry["RecoilAngle"] = r(pred)
-
-    # Target: RecoilDamping
-    z = 0.845178843928 + (-0.0807234891276 * ((ErgoWeight - 67.0329379602) / 20.3876118186)) + (-1.07009952537 * ((Weight - 1.478) / 0.740848162581)) + (1.04622477276 * ((FactoredWeight - 2.43497289467) / 1.32416559039)) + (0.0125031842368 * ((Ergonomics - 38) / 12.5996031684)) + (-0.028655209072 * ((HRecoilPerErgo - 18.5167803726) / 21.2703088241))
-    pred = z
-    pred = min(max(pred, 0.796), 0.884)
-    item_entry["RecoilDamping"] = r(pred)
-
-    # Target: RecoilHandDamping
-    z = 0.443753551056 + (-0.0289397365803 * ((DeviationMax - 29.125) / 2.31503239718)) + (0.0289397365803 * ((DeviationCurve - 1.13125) / 0.0826797284708)) + (-0.0289397365803 * ((RecoilCategoryMultiplierHandRotation - 0.227125) / 0.00760653501931)) + (0.0289397365803 * ((RecoilReturnPathDampingHandRotation - 0.41) / 0.0264575131106)) + (-9.34779447293e-06 * ((CenterOfImpact - 0.014375) / 0.0311686440995))
-    pred = z
-    pred = min(max(pred, 0.3825), 0.7675)
-    item_entry["RecoilHandDamping"] = r(pred)
-
-    # Target: RecoilIntensity
-    z = 0.219124999686 + (-0.00719313623735 * ((RecoilReturnPathDampingHandRotation - 0.41) / 0.0264575131106)) + (0.00719313623735 * ((DeviationMax - 29.125) / 2.31503239718)) + (0.00719313623735 * ((RecoilCategoryMultiplierHandRotation - 0.227125) / 0.00760653501931)) + (-0.00719313623735 * ((DeviationCurve - 1.13125) / 0.0826797284708)) + (-3.19442670223e-10 * ((CenterOfImpact - 0.014375) / 0.0311686440995))
-    pred = z
-    pred = min(max(pred, 0.13865), 0.23435)
-    item_entry["RecoilIntensity"] = r(pred)
-
-    # Target: SemiROF
-    z = 378.125 + (3.91394580708 * ((bFirerate - 641.25) / 240.126919565))
-    pred = z
-    pred = min(max(pred, 341.25), 423.75)
-    item_entry["SemiROF"] = int(round(pred))
-
-    # Target: ShotgunDispersion
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["ShotgunDispersion"] = r(pred)
-
-    # Target: Velocity
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["Velocity"] = r(pred)
-
-    # Target: VerticalRecoil
-    z = 111.953368773 + (8.17575166609 * ((RecoilDampingHandRotation - 0.85875) / 0.0105326872165)) + (7.14071035725 * ((RecoilCamera - 0.0825) / 0.0178535710714)) + (20.9599160075 * ((RecoilForceUp - 206) / 131.012403993)) + (13.7851846024 * ((VRecoilPerErgo - 8.57245014912) / 11.4443834241)) + (-20.5832776749 * ((HRecoilPerErgo - 18.5167803726) / 21.2703088241))
-    pred = z
-    pred = min(max(pred, 62.4), 185.6)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: VisualMulti
-    z = 0.755196092788 + (0.281206751324 * ((bEffDist - 812.5) / 169.096865731)) + (0.500422952392 * ((AimPlane - 0.3375) / 0.257572805242)) + (-0.1632612871 * ((CenterOfImpact - 0.014375) / 0.0311686440995)) + (0.0157980565072 * ((BaseMalfunctionChance - 0.208725) / 0.013039321541)) + (-0.0224100965588 * ((RecolDispersion - 11.125) / 0.330718913883)) + (-0.0224100965588 * ((RecoilReturnPathDampingHandRotation - 0.41) / 0.0264575131106)) + (-0.0224100965588 * ((DeviationCurve - 1.13125) / 0.0826797284708))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.9875), 1.2625)
-    item_entry["VisualMulti"] = r(pred)
-
-    # Target: WeapAccuracy
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["WeapAccuracy"] = r(pred)
-
-    # Target: WeaponAllowADS
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["WeaponAllowADS"] = r(pred)
-
-    # Target: Weight
-    z = 0.821745181586 + (-3.10966784854 * ((FactoredWeight - 2.43497289467) / 1.32416559039)) + (3.48175138451 * ((Weight - 1.478) / 0.740848162581)) + (0.11858603147 * ((ErgoWeight - 67.0329379602) / 20.3876118186))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.4195), 2.4105)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- Mounts (Mod) Formulas ---
-def apply_mounts_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: Mounts (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    Accuracy = to_f(props.get("Accuracy", base_data.get("Accuracy", 0.0)))
-    CoolFactor = to_f(props.get("CoolFactor", base_data.get("CoolFactor", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    EffectiveDistance = to_f(props.get("EffectiveDistance", base_data.get("EffectiveDistance", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    HeatFactor = to_f(props.get("HeatFactor", base_data.get("HeatFactor", 0.0)))
-    Loudness = to_f(props.get("Loudness", base_data.get("Loudness", 0.0)))
-    Recoil = to_f(props.get("Recoil", base_data.get("Recoil", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: Accuracy
-    z = 8.93027320476e-10
-    pred = z
-    pred = min(max(pred, -22.8), 16.8)
-    item_entry["Accuracy"] = r(pred)
-
-    # Target: AimSpeed
-    z = -2.5 + (2.20218584894 * ((Weight - 0.233) / 0.0926093947718)) + (2.0991367997 * ((FactoredWeight - 0.317412249507) / 0.137313719789)) + (1.84153004267 * ((Recoil - -6.25) / 6.49519052838))
-    pred = z
-    pred = min(max(pred, -5.25), 0.25)
-    item_entry["AimSpeed"] = r(pred)
-
-    # Target: AimStability
-    z = 1.43767605673 + (-0.742633211062 * ((HeatFactor - 0.964909090909) / 0.0336545405432)) + (-0.699687246593 * ((FactoredWeight - 0.146990382021) / 0.109498897351)) + (0.449624294448 * ((Weight - 0.113454545455) / 0.0799481236762)) + (-0.030239784791 * ((CoolFactor - 1.00854545455) / 0.0116958705717)) + (0.244802216828 * ((Recoil - -0.363636363636) / 0.481045692921))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 1.7), 8.3)
-    item_entry["AimStability"] = r(pred)
-
-    # Target: CoolFactor
-    z = 1.01576598368 + (-0.0129082450107 * ((CoolFactor - 1.0024) / 0.0048))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.976), 1.064)
-    item_entry["CoolFactor"] = r(pred)
-
-    # Target: Dispersion
-    z = -1.5
-    pred = z
-    pred = min(max(pred, -3.675), 0.175)
-    item_entry["Dispersion"] = r(pred)
-
-    # Target: Ergonomics
-    z = 0.0934272828928 + (0.38084933945 * ((ErgoWeight - 4.74635448442) / 19.3481000445)) + (-5.52697917334e-07 * ((Ergonomics - -0.426724137931) / 1.44698603278)) + (-2.17013687273e-07 * ((FactoredWeight - 0.135351861052) / 0.128158528477))
-    pred = z
-    pred = min(max(pred, -13.2), 13.2)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: Handling
-    z = 1.97373761968 + (0.722208571269 * ((HeatFactor - 0.961555555556) / 0.0363657687366)) + (0.000689559499866 * ((Recoil - -0.666666666667) / 0.816496580928)) + (0.0172097062557 * ((Ergonomics - 3.44444444444) / 2.1140330656)) + (0.469884621903 * ((FactoredWeight - 0.230229029054) / 0.137663266774))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.7), 7.3)
-    item_entry["Handling"] = r(pred)
-
-    # Target: HeatFactor
-    z = 0.989949585764 + (1.66986858746e-06 * ((HeatFactor - 0.9464) / 0.0411319826899))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.9465), 1.0235)
-    item_entry["HeatFactor"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = -1.56171808399 + (1.51384724176 * ((Ergonomics - -0.333333333333) / 5.61743318212)) + (-1.4767214928 * ((ErgoWeight - 28.6433495892) / 25.7766550386)) + (-1.33728014409 * ((Recoil - -3.44444444444) / 5.03567519717))
-    pred = z
-    pred = min(max(pred, -2.625), 0.125)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: VerticalRecoil
-    z = -1.44444444444 + (-0.706571408211 * ((Recoil - -3.44444444444) / 5.03567519717))
-    pred = z
-    pred = min(max(pred, -3.15), 0.15)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: Weight
-    z = 0.104943965535 + (0.0898706031842 * ((Weight - 0.104943965517) / 0.0898706031381)) + (-6.79989396676e-11 * ((FactoredWeight - 0.135351861052) / 0.128158528477)) + (-6.46985626895e-12 * ((ErgoWeight - 4.74635448442) / 19.3481000445))
-    pred = z
-    pred = min(max(pred, -0.0187), 0.5247)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- Muzzle (Mod) Formulas ---
-def apply_muzzle_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: Muzzle (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    Accuracy = to_f(props.get("Accuracy", base_data.get("Accuracy", 0.0)))
-    CoolFactor = to_f(props.get("CoolFactor", base_data.get("CoolFactor", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    DurabilityBurnModificator = to_f(props.get("DurabilityBurnModificator", base_data.get("DurabilityBurnModificator", 0.0)))
-    EffectiveDistance = to_f(props.get("EffectiveDistance", base_data.get("EffectiveDistance", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    HeatFactor = to_f(props.get("HeatFactor", base_data.get("HeatFactor", 0.0)))
-    Loudness = to_f(props.get("Loudness", base_data.get("Loudness", 0.0)))
-    Recoil = to_f(props.get("Recoil", base_data.get("Recoil", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: Accuracy
-    z = 1.02371593631 + (1.08015577176 * ((Velocity - 0.24953271028) / 0.371722143185)) + (0.789170946669 * ((Accuracy - 0.640186915888) / 1.44250300462))
-    pred = z
-    pred = min(max(pred, -32.6), 24.6)
-    item_entry["Accuracy"] = r(pred)
-
-    # Target: AutoROF
-    z = 0.432102803738
-    pred = z
-    pred = min(max(pred, -9.7), 5.7)
-    item_entry["AutoROF"] = int(round(pred))
-
-    # Target: CameraRecoil
-    z = -4.67737282152 + (-36.1085495929 * ((Weight - 0.23411682243) / 0.21406827105)) + (33.6510105634 * ((FactoredWeight - 0.328918943922) / 0.329107383079)) + (1.38762943329 * ((Ergonomics - -7.02336448598) / 8.84283414879))
-    pred = z
-    pred = min(max(pred, -31.5), 1.5)
-    item_entry["CameraRecoil"] = r(pred)
-
-    # Target: CanCycleSubs
-    z = 0
-    pred = z
-    pred = min(max(pred, -0.05), 1.05)
-    item_entry["CanCycleSubs"] = r(pred)
-
-    # Target: Convergence
-    z = 4.16384672668 + (-1.68452022354 * ((Velocity - 0.244811320755) / 0.370264390831)) + (0.792342013847 * ((Ergonomics - -7.07075471698) / 8.87091353681)) + (-0.503234882076 * ((Weight - 0.233051886792) / 0.214209102889))
-    pred = z
-    pred = min(max(pred, -7.25), 42.25)
-    item_entry["Convergence"] = r(pred)
-
-    # Target: CoolFactor
-    z = 1.01328997073 + (0.0315147932853 * ((CoolFactor - 1.01329439252) / 0.0315252793736))
-    pred = z
-    pred = min(max(pred, 0.885), 1.215)
-    item_entry["CoolFactor"] = r(pred)
-
-    # Target: Dispersion
-    z = -9.6818951323 + (-0.601032173191 * ((Accuracy - 0.640186915888) / 1.44250300462)) + (0.247237660316 * ((Velocity - 0.24953271028) / 0.371722143185))
-    pred = z
-    pred = min(max(pred, -29.4), 1.4)
-    item_entry["Dispersion"] = r(pred)
-
-    # Target: DurabilityBurnModificator
-    z = 1.05808544152 + (0.0836771109851 * ((DurabilityBurnModificator - 1.20051401869) / 0.322535540735))
-    pred = z
-    pred = min(max(pred, 0.9745), 1.3155)
-    item_entry["DurabilityBurnModificator"] = r(pred)
-
-    # Target: Ergonomics
-    z = -0
-    pred = z
-    pred = min(max(pred, -1.05), 0.05)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: Flash
-    z = 1.09613597241 + (-16.179985302 * ((Recoil - -7.38038277512) / 2.81316927763)) + (30.4583483532 * ((DurabilityBurnModificator - 1.20224880383) / 0.323151667639)) + (-5.90190967702 * ((Velocity - 0.251913875598) / 0.37294402552)) + (-4.91797212609 * ((HeatFactor - 1.0420861244) / 0.0746652000876)) + (12.0908436849 * ((Ergonomics - -7.16267942584) / 8.89961799608))
-    pred = z
-    pred = min(max(pred, -92.25), 67.25)
-    item_entry["Flash"] = r(pred)
-
-    # Target: HeatFactor
-    z = 1.02317339883 + (0.0335804142342 * ((HeatFactor - 1.04137383178) / 0.0744519569566))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.7775), 1.2725)
-    item_entry["HeatFactor"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = -6.81221473593 + (1.80043474185 * ((Velocity - 0.24953271028) / 0.371722143185)) + (-0.355472017787 * ((Ergonomics - -7.02336448598) / 8.84283414879)) + (1.8789304877 * ((Recoil - -7.23130841121) / 2.94561311204))
-    pred = z
-    pred = min(max(pred, -31.5), 1.5)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: Loudness
-    z = 3.39928168277 + (14.0011993789 * ((Loudness - -6.59345794393) / 13.7463046591)) + (-13.8731660098 * ((DurabilityBurnModificator - 1.20051401869) / 0.322535540735)) + (-2.22235242852 * ((Velocity - 0.24953271028) / 0.371722143185)) + (-1.74354027755 * ((HeatFactor - 1.04137383178) / 0.0744519569566)) + (-6.31169334318 * ((Ergonomics - -7.02336448598) / 8.84283414879))
-    pred = z
-    pred = min(max(pred, -57.3), 81.3)
-    item_entry["Loudness"] = r(pred)
-
-    # Target: MeleeDamage
-    z = 2.47863267981 + (0.223393359208 * ((Recoil - -6.84615384615) / 1.79083795797)) + (-0.110843108256 * ((DurabilityBurnModificator - 1.1) / 0.238424314713)) + (0.380832640595 * ((Velocity - 0.153846153846) / 0.28720238004)) + (-0.154295777293 * ((HeatFactor - 1.02007692308) / 0.0564752655709)) + (-0.135618605772 * ((Accuracy - 0.538461538462) / 1.15127919593))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 5.3), 20.7)
-    item_entry["MeleeDamage"] = r(pred)
-
-    # Target: MeleePen
-    z = 2.0291915381 + (0.630404663589 * ((DurabilityBurnModificator - 1.12181818182) / 0.253011612447)) + (1.15363022507 * ((HeatFactor - 1.02490909091) / 0.0600824502367)) + (-0.399342559535 * ((Velocity - 0.181818181818) / 0.303968245405)) + (-13.3501269251 * ((FactoredWeight - 0.301228914212) / 0.233403623954)) + (12.1639494032 * ((Weight - 0.218363636364) / 0.156649157922))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 4.8), 9.2)
-    item_entry["MeleePen"] = r(pred)
-
-    # Target: ModMalfunctionChance
-    z = -5.22533755619 + (3.97280353114 * ((Ergonomics - -7.02336448598) / 8.84283414879)) + (-5.13035910436 * ((DurabilityBurnModificator - 1.20051401869) / 0.322535540735)) + (0.0434705447196 * ((Weight - 0.23411682243) / 0.21406827105)) + (1.26683721124 * ((HeatFactor - 1.04137383178) / 0.0744519569566)) + (-0.00196912438391 * ((FactoredWeight - 0.328918943922) / 0.329107383079))
-    pred = z
-    pred = min(max(pred, -26.25), 1.25)
-    item_entry["ModMalfunctionChance"] = r(pred)
-
-    # Target: ModShotDispersion
-    z = 0
-    pred = z
-    pred = min(max(pred, -0.75), 15.75)
-    item_entry["ModShotDispersion"] = r(pred)
-
-    # Target: RecoilAngle
-    z = 0
-    pred = z
-    pred = min(max(pred, -1.5), 31.5)
-    item_entry["RecoilAngle"] = r(pred)
-
-    # Target: SemiROF
-    z = 0.383439490446
-    pred = z
-    pred = min(max(pred, -9.7), 5.7)
-    item_entry["SemiROF"] = int(round(pred))
-
-    # Target: Velocity
-    z = 0.209154742707 + (0.31157217394 * ((Velocity - 0.24953271028) / 0.371722143185))
-    pred = z
-    pred = min(max(pred, -1.9125), 1.6625)
-    item_entry["Velocity"] = r(pred)
-
-    # Target: VerticalRecoil
-    z = -0
-    pred = z
-    pred = min(max(pred, -10.5), 0.5)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: Weight
-    z = 0.234116822431 + (0.214068271 * ((Weight - 0.23411682243) / 0.21406827105)) + (4.47717771161e-11 * ((FactoredWeight - 0.328918943922) / 0.329107383079)) + (2.32126198518e-11 * ((ErgoWeight - 0.467289719626) / 6.81986893426))
-    pred = z
-    pred = min(max(pred, -0.0445), 1.1545)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- Pistol (Gun) Formulas ---
-def apply_pistol_gun_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: Pistol (Gun)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    AimPlane = to_f(props.get("AimPlane", base_data.get("AimPlane", 0.0)))
-    AimSensitivity = to_f(props.get("AimSensitivity", base_data.get("AimSensitivity", 0.0)))
-    BaseMalfunctionChance = to_f(props.get("BaseMalfunctionChance", base_data.get("BaseMalfunctionChance", 0.0)))
-    CameraSnap = to_f(props.get("CameraSnap", base_data.get("CameraSnap", 0.0)))
-    CameraToWeaponAngleStep = to_f(props.get("CameraToWeaponAngleStep", base_data.get("CameraToWeaponAngleStep", 0.0)))
-    CenterOfImpact = to_f(props.get("CenterOfImpact", base_data.get("CenterOfImpact", 0.0)))
-    CoolFactorGun = to_f(props.get("CoolFactorGun", base_data.get("CoolFactorGun", 0.0)))
-    CoolFactorGunMods = to_f(props.get("CoolFactorGunMods", base_data.get("CoolFactorGunMods", 0.0)))
-    DeviationCurve = to_f(props.get("DeviationCurve", base_data.get("DeviationCurve", 0.0)))
-    DeviationMax = to_f(props.get("DeviationMax", base_data.get("DeviationMax", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    DurabilityBurnRatio = to_f(props.get("DurabilityBurnRatio", base_data.get("DurabilityBurnRatio", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    HeatFactorByShot = to_f(props.get("HeatFactorByShot", base_data.get("HeatFactorByShot", 0.0)))
-    HeatFactorGun = to_f(props.get("HeatFactorGun", base_data.get("HeatFactorGun", 0.0)))
-    HipAccuracyRestorationDelay = to_f(props.get("HipAccuracyRestorationDelay", base_data.get("HipAccuracyRestorationDelay", 0.0)))
-    HipAccuracyRestorationSpeed = to_f(props.get("HipAccuracyRestorationSpeed", base_data.get("HipAccuracyRestorationSpeed", 0.0)))
-    HipInnaccuracyGain = to_f(props.get("HipInnaccuracyGain", base_data.get("HipInnaccuracyGain", 0.0)))
-    IronSightRange = to_f(props.get("IronSightRange", base_data.get("IronSightRange", 0.0)))
-    MaxRepairDegradation = to_f(props.get("MaxRepairDegradation", base_data.get("MaxRepairDegradation", 0.0)))
-    MinRepairDegradation = to_f(props.get("MinRepairDegradation", base_data.get("MinRepairDegradation", 0.0)))
-    RecoilAngle = to_f(props.get("RecoilAngle", base_data.get("RecoilAngle", 0.0)))
-    RecoilCamera = to_f(props.get("RecoilCamera", base_data.get("RecoilCamera", 0.0)))
-    RecoilCategoryMultiplierHandRotation = to_f(props.get("RecoilCategoryMultiplierHandRotation", base_data.get("RecoilCategoryMultiplierHandRotation", 0.0)))
-    RecoilDampingHandRotation = to_f(props.get("RecoilDampingHandRotation", base_data.get("RecoilDampingHandRotation", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    RecoilPosZMult = to_f(props.get("RecoilPosZMult", base_data.get("RecoilPosZMult", 0.0)))
-    RecoilReturnPathDampingHandRotation = to_f(props.get("RecoilReturnPathDampingHandRotation", base_data.get("RecoilReturnPathDampingHandRotation", 0.0)))
-    RecoilReturnPathOffsetHandRotation = to_f(props.get("RecoilReturnPathOffsetHandRotation", base_data.get("RecoilReturnPathOffsetHandRotation", 0.0)))
-    RecoilReturnSpeedHandRotation = to_f(props.get("RecoilReturnSpeedHandRotation", base_data.get("RecoilReturnSpeedHandRotation", 0.0)))
-    RecolDispersion = to_f(props.get("RecolDispersion", base_data.get("RecolDispersion", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    SingleFireRate = to_f(props.get("SingleFireRate", base_data.get("SingleFireRate", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-    bEffDist = to_f(props.get("bEffDist", base_data.get("bEffDist", 0.0)))
-    bFirerate = to_f(props.get("bFirerate", base_data.get("bFirerate", 0.0)))
-    bHearDist = to_f(props.get("bHearDist", base_data.get("bHearDist", 0.0)))
-    shotgunDispersion = to_f(props.get("shotgunDispersion", base_data.get("shotgunDispersion", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: AllowOverheat
-    z = 0.999999999949 + (-5.69603943793e-10 * ((ErgoWeight - 132.158398031) / 33.9525920818)) + (-2.81014406085e-10 * ((DeviationMax - 10.8461538462) / 0.360801212294)) + (2.81014406085e-10 * ((DeviationCurve - 2.28846153846) / 0.0902003030735)) + (3.09928354967e-10 * ((Ergonomics - 78.7307692308) / 9.85884098473)) + (2.95245379815e-10 * ((CenterOfImpact - 0.101923076923) / 0.155885047163)) + (-9.74002221627e-10 * ((CoolFactorGunMods - 1.13989830769) / 0.159125731583)) + (-5.41415924082e-10 * ((RecolDispersion - 9.5) / 1.59927868356))
-    pred = z
-    pred = min(max(pred, -0.05), 1.05)
-    item_entry["AllowOverheat"] = r(pred)
-
-    # Target: AutoROF
-    z = 130.384669452 + (287.140793339 * ((bFirerate - 130.384615385) / 287.140822718))
-    pred = z
-    pred = min(max(pred, -23.5), 1153.5)
-    item_entry["AutoROF"] = int(round(pred))
-
-    # Target: BaseChamberCheckSpeed
-    z = 0.999999999953 + (-3.83838299822e-10 * ((DeviationMax - 10.8461538462) / 0.360801212294)) + (3.83838299822e-10 * ((DeviationCurve - 2.28846153846) / 0.0902003030735)) + (-1.82796172807e-09 * ((CenterOfImpact - 0.101923076923) / 0.155885047163)) + (-2.25252745007e-08 * ((FactoredWeight - 0.667154876327) / 0.386560701023)) + (1.11726838319e-09 * ((CoolFactorGunMods - 1.13989830769) / 0.159125731583)) + (2.35223329843e-08 * ((Weight - 0.454769230769) / 0.243351804168)) + (9.30367037819e-10 * ((ErgoWeight - 132.158398031) / 33.9525920818))
-    pred = z
-    pred = min(max(pred, 0.9875), 1.2625)
-    item_entry["BaseChamberCheckSpeed"] = r(pred)
-
-    # Target: BaseChamberSpeedMulti
-    z = 0.693147497014 + (-1.36514991516e-06 * ((DeviationMax - 10.8461538462) / 0.360801212294)) + (1.36514991516e-06 * ((DeviationCurve - 2.28846153846) / 0.0902003030735)) + (-8.58353564657e-07 * ((CenterOfImpact - 0.101923076923) / 0.155885047163)) + (0.000149480688559 * ((FactoredWeight - 0.667154876327) / 0.386560701023)) + (-1.40714648243e-06 * ((CoolFactorGunMods - 1.13989830769) / 0.159125731583)) + (-0.000152678174078 * ((Weight - 0.454769230769) / 0.243351804168)) + (-5.37078589581e-06 * ((ErgoWeight - 132.158398031) / 33.9525920818))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.9925), 1.1575)
-    item_entry["BaseChamberSpeedMulti"] = r(pred)
-
-    # Target: BaseFixSpeed
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["BaseFixSpeed"] = r(pred)
-
-    # Target: BaseMalfunctionChance
-    z = 0.0414296562725 + (-0.00963090688468 * ((ErgoWeight - 132.158398031) / 33.9525920818)) + (-0.00212001429465 * ((DeviationMax - 10.8461538462) / 0.360801212294)) + (0.00212001429465 * ((DeviationCurve - 2.28846153846) / 0.0902003030735)) + (-0.00236487597946 * ((Ergonomics - 78.7307692308) / 9.85884098473)) + (-0.000790640514134 * ((CenterOfImpact - 0.101923076923) / 0.155885047163)) + (-0.00696679897594 * ((CoolFactorGunMods - 1.13989830769) / 0.159125731583)) + (0.00108850377863 * ((RecolDispersion - 9.5) / 1.59927868356))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, -0.01086), 0.23906)
-    item_entry["BaseMalfunctionChance"] = r(pred)
-
-    # Target: BaseReloadSpeedMulti
-    z = 1.00000000024 + (3.06123106526e-08 * ((Weight - 0.454769230769) / 0.243351804168)) + (-2.89714553877e-08 * ((FactoredWeight - 0.667154876327) / 0.386560701023)) + (2.13772220845e-09 * ((ErgoWeight - 132.158398031) / 33.9525920818))
-    pred = z
-    pred = min(max(pred, 0.9925), 1.1575)
-    item_entry["BaseReloadSpeedMulti"] = r(pred)
-
-    # Target: BaseTorque
-    z = -0.885626217813 + (-20.2683021102 * ((Weight - 0.454769230769) / 0.243351804168)) + (19.6243830334 * ((FactoredWeight - 0.667154876327) / 0.386560701023)) + (-0.459179496494 * ((ErgoWeight - 132.158398031) / 33.9525920818)) + (0.27980751922 * ((shotgunDispersion - 9.23076923077) / 2.66469355011)) + (0.195286711526 * ((Velocity - -1.26615384615) / 2.8818838349)) + (-0.194765288275 * ((CoolFactorGunMods - 1.13989830769) / 0.159125731583)) + (-0.269103403632 * ((HeatFactorByShot - 2.63092307692) / 1.02782095579))
-    pred = z
-    pred = min(max(pred, -2.73), 0.13)
-    item_entry["BaseTorque"] = r(pred)
-
-    # Target: CameraRecoil
-    z = 0.00599969544694 + (0.00124386769259 * ((RecoilCamera - 0.0160384615385) / 0.0166974912193)) + (-0.029467481365 * ((CameraSnap - 4.48076923077) / 1.78928847714)) + (0.0240350637155 * ((RecoilReturnSpeedHandRotation - 4.61538461538) / 1.52987991175)) + (-0.0016159658281 * ((RecoilDampingHandRotation - 0.814230769231) / 0.038045830351)) + (-6.94598496303e-05 * ((HRecoilPerErgo - 3.78249643135) / 0.858097226347))
-    pred = z
-    pred = min(max(pred, 0.0011), 0.0209)
-    item_entry["CameraRecoil"] = r(pred)
-
-    # Target: CenterOfImpact
-    z = 0.0292790821648 + (0.0837490242588 * ((bFirerate - 130.384615385) / 287.140822718))
-    pred = z
-    pred = min(max(pred, -0.0195), 0.4095)
-    item_entry["CenterOfImpact"] = r(pred)
-
-    # Target: Convergence
-    z = 2.92989934244 + (-0.19016268816 * ((RecoilReturnSpeedHandRotation - 4.61538461538) / 1.52987991175)) + (0.274879108604 * ((CameraSnap - 4.48076923077) / 1.78928847714)) + (0.0138789599834 * ((DeviationMax - 10.8461538462) / 0.360801212294)) + (-0.0138789599834 * ((DeviationCurve - 2.28846153846) / 0.0902003030735)) + (-0.0085128490601 * ((RecoilCamera - 0.0160384615385) / 0.0166974912193))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 4.25), 20.75)
-    item_entry["Convergence"] = r(pred)
-
-    # Target: CoolFactorGun
-    z = 0.0953101800302 + (5.9309891379e-10 * ((CoolFactorGunMods - 1.13989830769) / 0.159125731583)) + (3.5487225043e-12 * ((CoolFactorGun - 3.94338461538) / 0.285432341023))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, -0.0966), 4.2286)
-    item_entry["CoolFactorGun"] = r(pred)
-
-    # Target: CoolFactorGunMods
-    z = 1.00000000013 + (1.15007410111e-10 * ((CoolFactorGunMods - 1.13989830769) / 0.159125731583)) + (2.15826058778e-11 * ((CoolFactorGun - 3.94338461538) / 0.285432341023))
-    pred = z
-    pred = min(max(pred, 0.9786514), 1.4483206)
-    item_entry["CoolFactorGunMods"] = r(pred)
-
-    # Target: Dispersion
-    z = 2.35753211223 + (0.22748362982 * ((shotgunDispersion - 9.23076923077) / 2.66469355011)) + (0.116588316778 * ((Velocity - -1.26615384615) / 2.8818838349)) + (0.111660009226 * ((CenterOfImpact - 0.101923076923) / 0.155885047163)) + (-0.0405630308761 * ((DeviationCurve - 2.28846153846) / 0.0902003030735))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 3.3), 18.7)
-    item_entry["Dispersion"] = r(pred)
-
-    # Target: DoubleActionAccuracyPenalty
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["DoubleActionAccuracyPenalty"] = r(pred)
-
-    # Target: DurabilityBurnRatio
-    z = 0.21789075698 + (0.0117012965781 * ((DurabilityBurnRatio - 1.14730769231) / 0.0134615384615))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, -0.0155), 1.2055)
-    item_entry["DurabilityBurnRatio"] = r(pred)
-
-    # Target: EnableExtraBSGVisRecoil
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["EnableExtraBSGVisRecoil"] = r(pred)
-
-    # Target: Ergonomics
-    z = 4.3044220119 + (0.15099261713 * ((ErgoWeight - 132.158398031) / 33.9525920818)) + (1.02345775122 * ((Weight - 0.454769230769) / 0.243351804168)) + (-0.926867399118 * ((FactoredWeight - 0.667154876327) / 0.386560701023))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 62.2), 101.8)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: HasShoulderContact
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["HasShoulderContact"] = r(pred)
-
-    # Target: HeatFactorByShot
-    z = 1.00000000009 + (-1.75912268232e-10 * ((HeatFactorGun - 1.00458215385) / 0.0533322100537)) + (4.37680043234e-11 * ((HeatFactorByShot - 2.63092307692) / 1.02782095579))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.972), 1.588)
-    item_entry["HeatFactorByShot"] = r(pred)
-
-    # Target: HeatFactorGun
-    z = 0.249572879788 + (-0.0039908810027 * ((HeatFactorGun - 1.00458215385) / 0.0533322100537)) + (-0.00131458066583 * ((HeatFactorByShot - 2.63092307692) / 1.02782095579))
-    pred = z
-    pred = min(max(pred, 0.1556256), 1.1318624)
-    item_entry["HeatFactorGun"] = r(pred)
-
-    # Target: HipAccuracyRestorationDelay
-    z = 0.2
-    pred = z
-    pred = min(max(pred, 0.199999), 0.200001)
-    item_entry["HipAccuracyRestorationDelay"] = r(pred)
-
-    # Target: HipAccuracyRestorationSpeed
-    z = 2.64575131106
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 6.999999), 7.000001)
-    item_entry["HipAccuracyRestorationSpeed"] = r(pred)
-
-    # Target: HipInnaccuracyGain
-    z = 0.4
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.159999), 0.160001)
-    item_entry["HipInnaccuracyGain"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = 15.9549580963 + (2.36274820383 * ((RecoilDampingHandRotation - 0.814230769231) / 0.038045830351)) + (10.2486458343 * ((RecoilCamera - 0.0160384615385) / 0.0166974912193)) + (64.4512985083 * ((CameraSnap - 4.48076923077) / 1.78928847714)) + (-56.6684068988 * ((RecoilReturnSpeedHandRotation - 4.61538461538) / 1.52987991175)) + (-0.785100742985 * ((HRecoilPerErgo - 3.78249643135) / 0.858097226347))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, -6), 566)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: MaxChamberSpeed
-    z = 1.5
-    pred = z
-    pred = min(max(pred, 1.499999), 1.500001)
-    item_entry["MaxChamberSpeed"] = r(pred)
-
-    # Target: MinChamberSpeed
-    z = 0.799999999969 + (-1.95007107725e-10 * ((ErgoWeight - 132.158398031) / 33.9525920818)) + (-7.55187960059e-11 * ((DeviationMax - 10.8461538462) / 0.360801212294)) + (7.55187960059e-11 * ((DeviationCurve - 2.28846153846) / 0.0902003030735)) + (1.00223081941e-10 * ((Ergonomics - 78.7307692308) / 9.85884098473)) + (-2.11353959612e-11 * ((CenterOfImpact - 0.101923076923) / 0.155885047163)) + (-2.24544991717e-10 * ((CoolFactorGunMods - 1.13989830769) / 0.159125731583)) + (-8.21933864135e-11 * ((RecolDispersion - 9.5) / 1.59927868356))
-    pred = z
-    pred = min(max(pred, 0.695), 0.805)
-    item_entry["MinChamberSpeed"] = r(pred)
-
-    # Target: OffsetRotation
-    z = 0.0995939507456 + (0.00203024601665 * ((Durability - 99.6153846154) / 1.92307692308)) + (8.8527693971e-10 * ((RecoilForceBack - 290.038461538) / 35.241453704)) + (-3.31413674967e-10 * ((RecolDispersion - 9.5) / 1.59927868356)) + (-9.84764633656e-10 * ((HRecoilPerErgo - 3.78249643135) / 0.858097226347)) + (4.51565064005e-10 * ((RecoilDampingHandRotation - 0.814230769231) / 0.038045830351)) + (-1.94604341418e-11 * ((CoolFactorGunMods - 1.13989830769) / 0.159125731583)) + (-4.17728376508e-11 * ((Ergonomics - 78.7307692308) / 9.85884098473))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.0078), 0.0122)
-    item_entry["OffsetRotation"] = r(pred)
-
-    # Target: RecoilAngle
-    z = 94.1107443573 + (2.24182926432 * ((RecoilDampingHandRotation - 0.814230769231) / 0.038045830351)) + (5.51410465536 * ((CameraSnap - 4.48076923077) / 1.78928847714)) + (-0.373394125651 * ((RecoilCamera - 0.0160384615385) / 0.0166974912193)) + (-6.41156841284 * ((RecoilReturnSpeedHandRotation - 4.61538461538) / 1.52987991175)) + (-0.479679814896 * ((Ergonomics - 78.7307692308) / 9.85884098473))
-    pred = z
-    pred = min(max(pred, 84.25), 100.75)
-    item_entry["RecoilAngle"] = r(pred)
-
-    # Target: RecoilDamping
-    z = 0.751816399493 + (-0.0114140457945 * ((DeviationMax - 10.8461538462) / 0.360801212294)) + (0.000298948602416 * ((DeviationCurve - 2.28846153846) / 0.0902003030735)) + (0.0220379480237 * ((RecoilForceUp - 396.923076923) / 76.5375338173)) + (0.0114031973647 * ((RecoilCamera - 0.0160384615385) / 0.0166974912193)) + (-0.0183974205746 * ((VRecoilPerErgo - 5.20947053404) / 1.52518058256))
-    pred = z
-    pred = min(max(pred, 0.6845), 0.8055)
-    item_entry["RecoilDamping"] = r(pred)
-
-    # Target: RecoilHandDamping
-    z = 0.459452234953 + (0.0813297376699 * ((RecoilDampingHandRotation - 0.814230769231) / 0.038045830351)) + (0.785867081626 * ((CameraSnap - 4.48076923077) / 1.78928847714)) + (-0.716720775983 * ((RecoilReturnSpeedHandRotation - 4.61538461538) / 1.52987991175)) + (0.0630475523336 * ((RecoilCamera - 0.0160384615385) / 0.0166974912193)) + (-0.0117062210341 * ((HRecoilPerErgo - 3.78249643135) / 0.858097226347))
-    pred = z
-    pred = min(max(pred, 0.3915), 0.5785)
-    item_entry["RecoilHandDamping"] = r(pred)
-
-    # Target: RecoilIntensity
-    z = 0.630371109773 + (0.135630035153 * ((RecoilCamera - 0.0160384615385) / 0.0166974912193)) + (0.668787642171 * ((CameraSnap - 4.48076923077) / 1.78928847714)) + (-0.658543825288 * ((RecoilReturnSpeedHandRotation - 4.61538461538) / 1.52987991175)) + (-0.0251023490369 * ((RecoilDampingHandRotation - 0.814230769231) / 0.038045830351)) + (-0.00388217841088 * ((HRecoilPerErgo - 3.78249643135) / 0.858097226347))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.1119), 0.6861)
-    item_entry["RecoilIntensity"] = r(pred)
-
-    # Target: SemiROF
-    z = 361.369146203 + (-4.94530259096 * ((bFirerate - 130.384615385) / 287.140822718))
-    pred = z
-    pred = min(max(pred, 292.5), 457.5)
-    item_entry["SemiROF"] = int(round(pred))
-
-    # Target: ShotgunDispersion
-    z = 7.4
-    pred = z
-    pred = min(max(pred, 6.66), 8.14)
-    item_entry["ShotgunDispersion"] = r(pred)
-
-    # Target: Velocity
-    z = -0
-    pred = z
-    pred = min(max(pred, -19.495), 17.795)
-    item_entry["Velocity"] = r(pred)
-
-    # Target: VerticalRecoil
-    z = 6.03515380598 + (0.11923687204 * ((RecoilDampingHandRotation - 0.814230769231) / 0.038045830351)) + (0.119011213756 * ((RecoilCamera - 0.0160384615385) / 0.0166974912193)) + (0.194624407682 * ((HRecoilPerErgo - 3.78249643135) / 0.858097226347)) + (0.19383175956 * ((Ergonomics - 78.7307692308) / 9.85884098473)) + (0.0729039851786 * ((CameraSnap - 4.48076923077) / 1.78928847714))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, -19.5), 629.5)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: VisualMulti
-    z = 2.19787966637 + (-0.694353801057 * ((ErgoWeight - 132.158398031) / 33.9525920818)) + (0.035394035959 * ((Ergonomics - 78.7307692308) / 9.85884098473)) + (-0.174118365915 * ((Velocity - -1.26615384615) / 2.8818838349)) + (0.903274759723 * ((Weight - 0.454769230769) / 0.243351804168)) + (-1.30761078213 * ((FactoredWeight - 0.667154876327) / 0.386560701023)) + (-0.211350241959 * ((VRecoilPerErgo - 5.20947053404) / 1.52518058256)) + (0.211252306058 * ((HRecoilPerErgo - 3.78249643135) / 0.858097226347))
-    pred = z
-    pred = min(max(pred, 0.375), 3.125)
-    item_entry["VisualMulti"] = r(pred)
-
-    # Target: WeapAccuracy
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["WeapAccuracy"] = r(pred)
-
-    # Target: WeaponAllowADS
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["WeaponAllowADS"] = r(pred)
-
-    # Target: Weight
-    z = 0.454768483436 + (-4.26588708763e-05 * ((FactoredWeight - 0.667154876327) / 0.386560701023)) + (0.243394129538 * ((Weight - 0.454769230769) / 0.243351804168)) + (2.38668702854e-07 * ((ErgoWeight - 132.158398031) / 33.9525920818))
-    pred = z
-    pred = min(max(pred, 0.04625), 0.89875)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- PistolGrip (Mod) Formulas ---
-def apply_pistolgrip_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: PistolGrip (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    Accuracy = to_f(props.get("Accuracy", base_data.get("Accuracy", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    EffectiveDistance = to_f(props.get("EffectiveDistance", base_data.get("EffectiveDistance", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    Loudness = to_f(props.get("Loudness", base_data.get("Loudness", 0.0)))
-    Recoil = to_f(props.get("Recoil", base_data.get("Recoil", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: Accuracy
-    z = -7.62875879298e-12
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, -0.5), 10.5)
-    item_entry["Accuracy"] = r(pred)
-
-    # Target: AimSpeed
-    z = 0
-    pred = z
-    pred = min(max(pred, -0.5), 10.5)
-    item_entry["AimSpeed"] = r(pred)
-
-    # Target: AimStability
-    z = 4.57762413576 + (0.829941727767 * ((Weight - 0.0877837837838) / 0.0350290498248)) + (0.605197537562 * ((FactoredWeight - 0.108291242206) / 0.0488689526563)) + (1.50228956071 * ((Ergonomics - 8.60810810811) / 3.08907214079)) + (-1.13759151559 * ((ErgoWeight - 100.052142424) / 14.6024464416))
-    pred = z
-    pred = min(max(pred, -16.75), 21.75)
-    item_entry["AimStability"] = r(pred)
-
-    # Target: Dispersion
-    z = -4.13830932369e-09
-    pred = z
-    pred = min(max(pred, -11.25), 16.25)
-    item_entry["Dispersion"] = r(pred)
-
-    # Target: Ergonomics
-    z = 1.95809392372 + (0.383373609206 * ((ErgoWeight - 91.0455527451) / 19.6937840572)) + (-0.0604456693817 * ((Ergonomics - 7.35416666667) / 3.21998695218)) + (0.230604310506 * ((Weight - 0.0938416666667) / 0.037218050243))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, -0.75), 15.75)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: Handling
-    z = 4.39089323385 + (22.4304489888 * ((Weight - 0.0981587301587) / 0.0377410585854)) + (-20.6972017992 * ((FactoredWeight - 0.122432929724) / 0.0528051421218)) + (1.70162698481 * ((ErgoWeight - 93.8469191905) / 13.637564921)) + (0.3393069257 * ((Durability - 99.8412698413) / 1.24984251968)) + (-1.06544961848 * ((Ergonomics - 7.9126984127) / 2.65703570738))
-    pred = z
-    pred = min(max(pred, -16.6), 18.6)
-    item_entry["Handling"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = -0
-    pred = z
-    pred = min(max(pred, -10.875), 8.375)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: VerticalRecoil
-    z = -0
-    pred = z
-    pred = min(max(pred, -21), 1)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: Weight
-    z = 0.0938416666578 + (0.0372180504289 * ((Weight - 0.0938416666667) / 0.037218050243)) + (-1.8674431234e-10 * ((FactoredWeight - 0.116591339968) / 0.0517004681347)) + (-5.72084787812e-12 * ((ErgoWeight - 91.0455527451) / 19.6937840572))
-    pred = z
-    pred = min(max(pred, 0.02115), 0.28185)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- Receiver (Mod) Formulas ---
-def apply_receiver_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: Receiver (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    Accuracy = to_f(props.get("Accuracy", base_data.get("Accuracy", 0.0)))
-    CoolFactor = to_f(props.get("CoolFactor", base_data.get("CoolFactor", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    DurabilityBurnModificator = to_f(props.get("DurabilityBurnModificator", base_data.get("DurabilityBurnModificator", 0.0)))
-    EffectiveDistance = to_f(props.get("EffectiveDistance", base_data.get("EffectiveDistance", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    HeatFactor = to_f(props.get("HeatFactor", base_data.get("HeatFactor", 0.0)))
-    Loudness = to_f(props.get("Loudness", base_data.get("Loudness", 0.0)))
-    Recoil = to_f(props.get("Recoil", base_data.get("Recoil", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: Accuracy
-    z = 0.126322395916 + (1.22467511492 * ((Accuracy - 0.0526315789474) / 0.510282090254)) + (6.65945919736e-06 * ((Velocity - -0.347368421053) / 3.36786179568))
-    pred = z
-    pred = min(max(pred, -21.8), 17.8)
-    item_entry["Accuracy"] = r(pred)
-
-    # Target: ChamberSpeed
-    z = 6.04233551643 + (14.6141570222 * ((CoolFactor - 1.02893411765) / 0.035219515155)) + (-2.01334834217 * ((Recoil - -0.664705882353) / 1.22567684853)) + (12.1284608639 * ((HeatFactor - 0.984045882353) / 0.0296593663529)) + (0.31480553648 * ((ErgoWeight - 52.7860399153) / 16.9081274133)) + (0.863077567191 * ((Accuracy - 0.0588235294118) / 0.539126552348))
-    pred = z
-    pred = min(max(pred, -1.8), 37.8)
-    item_entry["ChamberSpeed"] = r(pred)
-
-    # Target: CoolFactor
-    z = 1.02759368419 + (0.0352727263148 * ((CoolFactor - 1.02759368421) / 0.0352727263373))
-    pred = z
-    pred = min(max(pred, 0.95499), 1.13121)
-    item_entry["CoolFactor"] = r(pred)
-
-    # Target: DurabilityBurnModificator
-    z = 0.988938922374 + (0.0125513961849 * ((DurabilityBurnModificator - 0.986894736842) / 0.0148710058303))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.475), 1.025)
-    item_entry["DurabilityBurnModificator"] = r(pred)
-
-    # Target: Ergonomics
-    z = 0
-    pred = z
-    pred = min(max(pred, -0.2), 4.2)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: HeatFactor
-    z = 0.985146315793 + (0.0292086822365 * ((HeatFactor - 0.985146315789) / 0.0292086822367))
-    pred = z
-    pred = min(max(pred, 0.91793), 1.06467)
-    item_entry["HeatFactor"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: MalfChance
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["MalfChance"] = r(pred)
-
-    # Target: ModMalfunctionChance
-    z = -1.89932646759 + (1.3057009999 * ((DurabilityBurnModificator - 0.986894736842) / 0.0148710058303)) + (-0.00319580834413 * ((ErgoWeight - 52.4478698721) / 17.4192656251)) + (0.365215676602 * ((CoolFactor - 1.02759368421) / 0.0352727263373)) + (22.718918792 * ((Weight - 0.278768421053) / 0.169303368489)) + (-22.2719497162 * ((FactoredWeight - 0.389980058299) / 0.264487393981))
-    pred = z
-    pred = min(max(pred, -6.3), 0.3)
-    item_entry["ModMalfunctionChance"] = r(pred)
-
-    # Target: VerticalRecoil
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: Weight
-    z = 0.278768420917 + (0.169303369495 * ((Weight - 0.278768421053) / 0.169303368489)) + (-7.48955447193e-10 * ((FactoredWeight - 0.389980058299) / 0.264487393981)) + (1.25511523665e-10 * ((ErgoWeight - 52.4478698721) / 17.4192656251))
-    pred = z
-    pred = min(max(pred, -0.0025), 1.1525)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- SMGs (Gun) Formulas ---
-def apply_smgs_gun_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: SMGs (Gun)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    AimPlane = to_f(props.get("AimPlane", base_data.get("AimPlane", 0.0)))
-    AimSensitivity = to_f(props.get("AimSensitivity", base_data.get("AimSensitivity", 0.0)))
-    BaseMalfunctionChance = to_f(props.get("BaseMalfunctionChance", base_data.get("BaseMalfunctionChance", 0.0)))
-    CameraSnap = to_f(props.get("CameraSnap", base_data.get("CameraSnap", 0.0)))
-    CameraToWeaponAngleStep = to_f(props.get("CameraToWeaponAngleStep", base_data.get("CameraToWeaponAngleStep", 0.0)))
-    CenterOfImpact = to_f(props.get("CenterOfImpact", base_data.get("CenterOfImpact", 0.0)))
-    CoolFactorGun = to_f(props.get("CoolFactorGun", base_data.get("CoolFactorGun", 0.0)))
-    CoolFactorGunMods = to_f(props.get("CoolFactorGunMods", base_data.get("CoolFactorGunMods", 0.0)))
-    DeviationCurve = to_f(props.get("DeviationCurve", base_data.get("DeviationCurve", 0.0)))
-    DeviationMax = to_f(props.get("DeviationMax", base_data.get("DeviationMax", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    DurabilityBurnRatio = to_f(props.get("DurabilityBurnRatio", base_data.get("DurabilityBurnRatio", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    HeatFactorByShot = to_f(props.get("HeatFactorByShot", base_data.get("HeatFactorByShot", 0.0)))
-    HeatFactorGun = to_f(props.get("HeatFactorGun", base_data.get("HeatFactorGun", 0.0)))
-    HipAccuracyRestorationDelay = to_f(props.get("HipAccuracyRestorationDelay", base_data.get("HipAccuracyRestorationDelay", 0.0)))
-    HipAccuracyRestorationSpeed = to_f(props.get("HipAccuracyRestorationSpeed", base_data.get("HipAccuracyRestorationSpeed", 0.0)))
-    HipInnaccuracyGain = to_f(props.get("HipInnaccuracyGain", base_data.get("HipInnaccuracyGain", 0.0)))
-    IronSightRange = to_f(props.get("IronSightRange", base_data.get("IronSightRange", 0.0)))
-    MaxRepairDegradation = to_f(props.get("MaxRepairDegradation", base_data.get("MaxRepairDegradation", 0.0)))
-    MinRepairDegradation = to_f(props.get("MinRepairDegradation", base_data.get("MinRepairDegradation", 0.0)))
-    RecoilAngle = to_f(props.get("RecoilAngle", base_data.get("RecoilAngle", 0.0)))
-    RecoilCamera = to_f(props.get("RecoilCamera", base_data.get("RecoilCamera", 0.0)))
-    RecoilCategoryMultiplierHandRotation = to_f(props.get("RecoilCategoryMultiplierHandRotation", base_data.get("RecoilCategoryMultiplierHandRotation", 0.0)))
-    RecoilDampingHandRotation = to_f(props.get("RecoilDampingHandRotation", base_data.get("RecoilDampingHandRotation", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    RecoilPosZMult = to_f(props.get("RecoilPosZMult", base_data.get("RecoilPosZMult", 0.0)))
-    RecoilReturnPathDampingHandRotation = to_f(props.get("RecoilReturnPathDampingHandRotation", base_data.get("RecoilReturnPathDampingHandRotation", 0.0)))
-    RecoilReturnPathOffsetHandRotation = to_f(props.get("RecoilReturnPathOffsetHandRotation", base_data.get("RecoilReturnPathOffsetHandRotation", 0.0)))
-    RecoilReturnSpeedHandRotation = to_f(props.get("RecoilReturnSpeedHandRotation", base_data.get("RecoilReturnSpeedHandRotation", 0.0)))
-    RecolDispersion = to_f(props.get("RecolDispersion", base_data.get("RecolDispersion", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    SingleFireRate = to_f(props.get("SingleFireRate", base_data.get("SingleFireRate", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-    bEffDist = to_f(props.get("bEffDist", base_data.get("bEffDist", 0.0)))
-    bFirerate = to_f(props.get("bFirerate", base_data.get("bFirerate", 0.0)))
-    bHearDist = to_f(props.get("bHearDist", base_data.get("bHearDist", 0.0)))
-    shotgunDispersion = to_f(props.get("shotgunDispersion", base_data.get("shotgunDispersion", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: AllowOverheat
-    z = 0.872173871936 + (0.0266719531796 * ((RecoilAngle - 90.4545454545) / 3.34021328561)) + (0.326160367759 * ((HeatFactorGun - 1.01639090909) / 0.0567916279769)) + (-0.0598084968038 * ((Ergonomics - 58.1818181818) / 15.1436646329)) + (0.0728695872169 * ((AimPlane - 0.173636363636) / 0.0911814103136)) + (-0.273162732283 * ((Velocity - 4.57636363636) / 11.3321323298)) + (0.0445482491232 * ((bEffDist - 209.090909091) / 104.050210384)) + (0.0990200468736 * ((RecoilDampingHandRotation - 0.844090909091) / 0.00576753524566))
-    pred = z
-    pred = min(max(pred, -0.05), 1.05)
-    item_entry["AllowOverheat"] = r(pred)
-
-    # Target: AutoROF
-    z = 893.181817887 + (146.97360216 * ((bFirerate - 893.181818182) / 146.973601947))
-    pred = z
-    pred = min(max(pred, 575), 1125)
-    item_entry["AutoROF"] = int(round(pred))
-
-    # Target: BaseChamberCheckSpeed
-    z = 0.699975382463 + (0.0087920829689 * ((DeviationMax - 11.2954545455) / 1.6831996783)) + (-0.0806495253681 * ((ErgoWeight - 80.0608249715) / 15.3775837237)) + (-0.0205655544793 * ((DeviationCurve - 2.26818181818) / 0.296013457367)) + (-0.0395860390181 * ((RecoilForceBack - 244.863636364) / 42.3087090267)) + (-0.934858091605 * ((Weight - 1.21481818182) / 0.504026662026)) + (0.888455307605 * ((FactoredWeight - 1.95347489381) / 0.884257483672)) + (0.019301231847 * ((Velocity - 4.57636363636) / 11.3321323298))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.775), 1.325)
-    item_entry["BaseChamberCheckSpeed"] = r(pred)
-
-    # Target: BaseChamberSpeedMulti
-    z = 1.00000000189 + (6.86800193285e-09 * ((Velocity - 4.57636363636) / 11.3321323298)) + (4.29996894774e-09 * ((HeatFactorGun - 1.01639090909) / 0.0567916279769)) + (-6.60238640041e-09 * ((RecoilForceBack - 244.863636364) / 42.3087090267)) + (-4.64447690685e-09 * ((Durability - 98.6363636364) / 2.22680885708)) + (1.10603019261e-09 * ((DeviationMax - 11.2954545455) / 1.6831996783)) + (-2.79515407589e-09 * ((HeatFactorByShot - 2.00681818182) / 0.31762451193)) + (-5.30916541228e-09 * ((Ergonomics - 58.1818181818) / 15.1436646329))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.8375), 1.1125)
-    item_entry["BaseChamberSpeedMulti"] = r(pred)
-
-    # Target: BaseFixSpeed
-    z = 0.694420050598 + (0.0279009186458 * ((DeviationMax - 11.2954545455) / 1.6831996783)) + (-0.00678424168435 * ((DeviationCurve - 2.26818181818) / 0.296013457367)) + (-0.0228635703294 * ((RecoilForceBack - 244.863636364) / 42.3087090267)) + (-0.223732489049 * ((Weight - 1.21481818182) / 0.504026662026)) + (0.216144130557 * ((FactoredWeight - 1.95347489381) / 0.884257483672)) + (-0.0158083530412 * ((ErgoWeight - 80.0608249715) / 15.3775837237)) + (-0.00149269808835 * ((bFirerate - 893.181818182) / 146.973601947))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.775), 1.325)
-    item_entry["BaseFixSpeed"] = r(pred)
-
-    # Target: BaseMalfunctionChance
-    z = 0.0403519372027 + (0.00474335611107 * ((bFirerate - 893.181818182) / 146.973601947)) + (-0.00210225372981 * ((RecoilPosZMult - 0.972727272727) / 0.0686348585025)) + (0.00210225372981 * ((shotgunDispersion - 1.36363636364) / 3.43174292512)) + (-0.000875537975573 * ((Ergonomics - 58.1818181818) / 15.1436646329)) + (0.0036418177132 * ((CameraSnap - 3.6) / 0.317661912903)) + (0.00429723023866 * ((IronSightRange - 50) / 13.0558241967)) + (-0.00220785555032 * ((DeviationMax - 11.2954545455) / 1.6831996783))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.00035), 0.00365)
-    item_entry["BaseMalfunctionChance"] = r(pred)
-
-    # Target: BaseReloadSpeedMulti
-    z = 0.917367055116 + (0.0148682189618 * ((FactoredWeight - 1.95347489381) / 0.884257483672)) + (-0.0378499979964 * ((Weight - 1.21481818182) / 0.504026662026)) + (0.0041135231056 * ((ErgoWeight - 80.0608249715) / 15.3775837237))
-    pred = z
-    pred = min(max(pred, 0.8425), 1.0075)
-    item_entry["BaseReloadSpeedMulti"] = r(pred)
-
-    # Target: BaseTorque
-    z = -0.295924377029 + (0.834519923131 * ((ErgoWeight - 80.0608249715) / 15.3775837237)) + (-2.21599736187 * ((Weight - 1.21481818182) / 0.504026662026)) + (2.68118993223 * ((FactoredWeight - 1.95347489381) / 0.884257483672)) + (-0.449511418925 * ((RecoilReturnSpeedHandRotation - 3.10681818182) / 0.507062721274)) + (0.0244809050878 * ((CoolFactorGun - 3.14181818182) / 0.082794178739)) + (-0.0938900940035 * ((DeviationMax - 11.2954545455) / 1.6831996783)) + (0.325468839553 * ((RecoilDampingHandRotation - 0.844090909091) / 0.00576753524566))
-    pred = z
-    pred = min(max(pred, -2.4625), 2.2125)
-    item_entry["BaseTorque"] = r(pred)
-
-    # Target: CameraRecoil
-    z = 0.198877530083 + (0.00114477077695 * ((RecoilCamera - 0.0322727272727) / 0.00516264395073)) + (0.00161934357421 * ((RecoilForceUp - 54.9545454545) / 9.46513829668)) + (-0.0062980075243 * ((RecoilReturnSpeedHandRotation - 3.10681818182) / 0.507062721274)) + (-0.00813537270982 * ((RecoilAngle - 90.4545454545) / 3.34021328561)) + (-0.000926516327433 * ((ErgoWeight - 80.0608249715) / 15.3775837237))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.0175), 0.0725)
-    item_entry["CameraRecoil"] = r(pred)
-
-    # Target: CenterOfImpact
-    z = 0.118648006331 + (0.0186547255514 * ((bFirerate - 893.181818182) / 146.973601947))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, -0.0125), 0.2625)
-    item_entry["CenterOfImpact"] = r(pred)
-
-    # Target: Convergence
-    z = 18.1957138547 + (4.12579309279 * ((CenterOfImpact - 0.191363636364) / 0.0762946116616)) + (-0.787492514002 * ((Ergonomics - 58.1818181818) / 15.1436646329)) + (-1.39357755686 * ((DeviationMax - 11.2954545455) / 1.6831996783)) + (-1.46595716916 * ((HRecoilPerErgo - 4.94555323825) / 3.28377322799)) + (-1.27312374713 * ((Velocity - 4.57636363636) / 11.3321323298))
-    pred = z
-    pred = min(max(pred, 8.275), 24.225)
-    item_entry["Convergence"] = r(pred)
-
-    # Target: CoolFactorGun
-    z = 0.0990399326498 + (-8.70702993068e-12 * ((CoolFactorGunMods - 1.02302727273) / 0.0526847500949)) + (-0.0117945139732 * ((CoolFactorGun - 3.14181818182) / 0.082794178739))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.08), 0.52)
-    item_entry["CoolFactorGun"] = r(pred)
-
-    # Target: CoolFactorGunMods
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["CoolFactorGunMods"] = r(pred)
-
-    # Target: Dispersion
-    z = 8.8248428969 + (-0.705773096125 * ((DeviationCurve - 2.26818181818) / 0.296013457367)) + (0.442363122757 * ((RecolDispersion - 11.5454545455) / 3.701686013)) + (-0.401943802926 * ((shotgunDispersion - 1.36363636364) / 3.43174292512)) + (-0.312839134683 * ((bEffDist - 209.090909091) / 104.050210384))
-    pred = z
-    pred = min(max(pred, 4.65), 12.35)
-    item_entry["Dispersion"] = r(pred)
-
-    # Target: DurabilityBurnRatio
-    z = 0.387745555477
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, -0.012), 0.472)
-    item_entry["DurabilityBurnRatio"] = r(pred)
-
-    # Target: Ergonomics
-    z = 4.40292177836 + (-0.237551050706 * ((FactoredWeight - 1.95347489381) / 0.884257483672)) + (0.233075986911 * ((Weight - 1.21481818182) / 0.504026662026)) + (0.00572811888173 * ((ErgoWeight - 80.0608249715) / 15.3775837237))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 69.2), 86.8)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: HasShoulderContact
-    z = 0.136363632805 + (-0.171587148359 * ((RecoilPosZMult - 0.972727272727) / 0.0686348585025)) + (0.171587148359 * ((shotgunDispersion - 1.36363636364) / 3.43174292512)) + (2.02717754257e-09 * ((CoolFactorGunMods - 1.02302727273) / 0.0526847500949)) + (-9.24759053681e-09 * ((HeatFactorByShot - 2.00681818182) / 0.31762451193)) + (-1.63095635383e-09 * ((Durability - 98.6363636364) / 2.22680885708)) + (1.72460333944e-09 * ((RecoilDampingHandRotation - 0.844090909091) / 0.00576753524566)) + (2.14478121026e-09 * ((bEffDist - 209.090909091) / 104.050210384))
-    pred = z
-    pred = min(max(pred, -0.05), 1.05)
-    item_entry["HasShoulderContact"] = r(pred)
-
-    # Target: HeatFactorByShot
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["HeatFactorByShot"] = r(pred)
-
-    # Target: HeatFactorGun
-    z = 0.455782515005 + (0.00145466773514 * ((HeatFactorByShot - 2.00681818182) / 0.31762451193)) + (0.0433080931178 * ((HeatFactorGun - 1.01639090909) / 0.0567916279769))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.0275), 0.5225)
-    item_entry["HeatFactorGun"] = r(pred)
-
-    # Target: HipAccuracyRestorationDelay
-    z = 0.2
-    pred = z
-    pred = min(max(pred, 0.199999), 0.200001)
-    item_entry["HipAccuracyRestorationDelay"] = r(pred)
-
-    # Target: HipAccuracyRestorationSpeed
-    z = 7
-    pred = z
-    pred = min(max(pred, 6.999999), 7.000001)
-    item_entry["HipAccuracyRestorationSpeed"] = r(pred)
-
-    # Target: HipInnaccuracyGain
-    z = 0.16
-    pred = z
-    pred = min(max(pred, 0.159999), 0.160001)
-    item_entry["HipInnaccuracyGain"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = 117 + (9.33757510676 * ((RecoilAngle - 90.4545454545) / 3.34021328561)) + (-2.76183863268 * ((CameraSnap - 3.6) / 0.317661912903)) + (7.11868377403 * ((RecoilPosZMult - 0.972727272727) / 0.0686348585025)) + (-7.63292764488 * ((CenterOfImpact - 0.191363636364) / 0.0762946116616)) + (8.56794173433 * ((RecoilForceUp - 54.9545454545) / 9.46513829668))
-    pred = z
-    pred = min(max(pred, 70.95), 160.05)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: MaxChamberSpeed
-    z = 1.49999999999 + (2.8519075317e-11 * ((DeviationMax - 11.2954545455) / 1.6831996783)) + (2.8133369785e-10 * ((Velocity - 4.57636363636) / 11.3321323298)) + (-2.40632167104e-10 * ((Durability - 98.6363636364) / 2.22680885708)) + (9.5971996663e-11 * ((ErgoWeight - 80.0608249715) / 15.3775837237)) + (-1.27850625578e-11 * ((Ergonomics - 58.1818181818) / 15.1436646329)) + (4.84131479452e-11 * ((bFirerate - 893.181818182) / 146.973601947)) + (9.76511625443e-11 * ((HeatFactorGun - 1.01639090909) / 0.0567916279769))
-    pred = z
-    pred = min(max(pred, 1.2375), 1.5125)
-    item_entry["MaxChamberSpeed"] = r(pred)
-
-    # Target: MinChamberSpeed
-    z = 0.840087886941 + (-0.00792925116849 * ((RecoilForceBack - 244.863636364) / 42.3087090267)) + (0.00410597673115 * ((HeatFactorGun - 1.01639090909) / 0.0567916279769)) + (0.00463793387368 * ((AimPlane - 0.173636363636) / 0.0911814103136)) + (-0.00156618001845 * ((HeatFactorByShot - 2.00681818182) / 0.31762451193)) + (-0.00303856365063 * ((CenterOfImpact - 0.191363636364) / 0.0762946116616)) + (0.0511921039543 * ((Weight - 1.21481818182) / 0.504026662026)) + (-0.0463315274101 * ((FactoredWeight - 1.95347489381) / 0.884257483672))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.6975), 0.7525)
-    item_entry["MinChamberSpeed"] = r(pred)
-
-    # Target: OffsetRotation
-    z = 0.104134459305 + (-0.00033771643929 * ((AimPlane - 0.173636363636) / 0.0911814103136)) + (-3.24517218084e-05 * ((HeatFactorByShot - 2.00681818182) / 0.31762451193)) + (-0.00214662131808 * ((RecoilPosZMult - 0.972727272727) / 0.0686348585025)) + (0.00214662131808 * ((shotgunDispersion - 1.36363636364) / 3.43174292512)) + (-0.000253053578027 * ((CoolFactorGunMods - 1.02302727273) / 0.0526847500949)) + (-0.0044931679519 * ((Durability - 98.6363636364) / 2.22680885708)) + (-0.00692452269291 * ((DeviationCurve - 2.26818181818) / 0.296013457367))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.00425), 0.02075)
-    item_entry["OffsetRotation"] = r(pred)
-
-    # Target: RecoilAngle
-    z = 103.841541689 + (52.7029901211 * ((CameraSnap - 3.6) / 0.317661912903)) + (0.818183107614 * ((RecoilAngle - 90.4545454545) / 3.34021328561)) + (-1.05932257205 * ((RecoilForceBack - 244.863636364) / 42.3087090267)) + (-58.6436867861 * ((FactoredWeight - 1.95347489381) / 0.884257483672)) + (59.1182449827 * ((Weight - 1.21481818182) / 0.504026662026))
-    pred = z
-    pred = min(max(pred, 70), 290)
-    item_entry["RecoilAngle"] = r(pred)
-
-    # Target: RecoilDamping
-    z = 0.850011242218 + (-0.00709990478923 * ((DeviationCurve - 2.26818181818) / 0.296013457367)) + (2.17373783717e-08 * ((RecoilCamera - 0.0322727272727) / 0.00516264395073)) + (0.00208694006201 * ((RecoilReturnPathOffsetHandRotation - 0.0100909090909) / 0.000416597790451)) + (7.88561116813e-06 * ((Velocity - 4.57636363636) / 11.3321323298)) + (-3.71039386415e-07 * ((Weight - 1.21481818182) / 0.504026662026))
-    pred = z
-    pred = min(max(pred, 0.797), 0.863)
-    item_entry["RecoilDamping"] = r(pred)
-
-    # Target: RecoilHandDamping
-    z = 0.488140282686 + (0.0387403950919 * ((CameraSnap - 3.6) / 0.317661912903)) + (-0.000488677822451 * ((RecoilAngle - 90.4545454545) / 3.34021328561)) + (0.406224314267 * ((FactoredWeight - 1.95347489381) / 0.884257483672)) + (-0.38191864381 * ((Weight - 1.21481818182) / 0.504026662026)) + (0.00860679039154 * ((Velocity - 4.57636363636) / 11.3321323298))
-    pred = z
-    pred = min(max(pred, 0.3875), 0.6625)
-    item_entry["RecoilHandDamping"] = r(pred)
-
-    # Target: RecoilIntensity
-    z = 0.217543536758 + (-0.00870512804559 * ((RecoilAngle - 90.4545454545) / 3.34021328561)) + (0.00374876095086 * ((CameraSnap - 3.6) / 0.317661912903)) + (0.00109450147706 * ((RecoilForceBack - 244.863636364) / 42.3087090267)) + (-0.0030610235909 * ((RecoilForceUp - 54.9545454545) / 9.46513829668)) + (-0.000320449786153 * ((CenterOfImpact - 0.191363636364) / 0.0762946116616))
-    pred = z
-    pred = min(max(pred, 0.19725), 0.25775)
-    item_entry["RecoilIntensity"] = r(pred)
-
-    # Target: SemiROF
-    z = 357.232592416 + (-5.53865836672 * ((bFirerate - 893.181818182) / 146.973601947))
-    pred = z
-    pred = min(max(pred, 303), 457)
-    item_entry["SemiROF"] = int(round(pred))
-
-    # Target: ShotgunDispersion
-    z = 1.36363636364
-    pred = z
-    pred = min(max(pred, 1.22727272727), 1.5)
-    item_entry["ShotgunDispersion"] = r(pred)
-
-    # Target: Velocity
-    z = 0
-    pred = z
-    pred = min(max(pred, -13.065), 14.765)
-    item_entry["Velocity"] = r(pred)
-
-    # Target: VerticalRecoil
-    z = 3.59535369051 + (0.148527584156 * ((RecoilAngle - 90.4545454545) / 3.34021328561)) + (-0.0179021200829 * ((CameraSnap - 3.6) / 0.317661912903)) + (0.0639254664601 * ((DeviationMax - 11.2954545455) / 1.6831996783)) + (-0.0454721744721 * ((CenterOfImpact - 0.191363636364) / 0.0762946116616)) + (-0.0241168801658 * ((DeviationCurve - 2.26818181818) / 0.296013457367))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 21.65), 51.35)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: VisualMulti
-    z = 0.837818968543 + (0.073090284546 * ((DeviationMax - 11.2954545455) / 1.6831996783)) + (-0.0497144754862 * ((Durability - 98.6363636364) / 2.22680885708)) + (0.0358600788556 * ((Velocity - 4.57636363636) / 11.3321323298)) + (0.0264358497416 * ((BaseMalfunctionChance - 0.1817) / 0.00813172798365)) + (0.0185852411431 * ((RecoilReturnSpeedHandRotation - 3.10681818182) / 0.507062721274)) + (0.0110342946193 * ((ErgoWeight - 80.0608249715) / 15.3775837237)) + (0.041850659122 * ((DeviationCurve - 2.26818181818) / 0.296013457367))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 1.055), 2.045)
-    item_entry["VisualMulti"] = r(pred)
-
-    # Target: WeapAccuracy
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["WeapAccuracy"] = r(pred)
-
-    # Target: WeaponAllowADS
-    z = 0.136363636364 + (-0.171587146256 * ((RecoilPosZMult - 0.972727272727) / 0.0686348585025)) + (0.171587146256 * ((shotgunDispersion - 1.36363636364) / 3.43174292512))
-    pred = z
-    pred = min(max(pred, -0.05), 1.05)
-    item_entry["WeaponAllowADS"] = r(pred)
-
-    # Target: Weight
-    z = 1.21481818248 + (-7.84199119083e-09 * ((FactoredWeight - 1.95347489381) / 0.884257483672)) + (0.504026669376 * ((Weight - 1.21481818182) / 0.504026662026)) + (-2.88241798498e-10 * ((ErgoWeight - 80.0608249715) / 15.3775837237))
-    pred = z
-    pred = min(max(pred, 0.2545), 2.3555)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- Shotguns (Gun) Formulas ---
-def apply_shotguns_gun_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: Shotguns (Gun)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    AimPlane = to_f(props.get("AimPlane", base_data.get("AimPlane", 0.0)))
-    AimSensitivity = to_f(props.get("AimSensitivity", base_data.get("AimSensitivity", 0.0)))
-    BaseMalfunctionChance = to_f(props.get("BaseMalfunctionChance", base_data.get("BaseMalfunctionChance", 0.0)))
-    CameraSnap = to_f(props.get("CameraSnap", base_data.get("CameraSnap", 0.0)))
-    CameraToWeaponAngleStep = to_f(props.get("CameraToWeaponAngleStep", base_data.get("CameraToWeaponAngleStep", 0.0)))
-    CenterOfImpact = to_f(props.get("CenterOfImpact", base_data.get("CenterOfImpact", 0.0)))
-    CoolFactorGun = to_f(props.get("CoolFactorGun", base_data.get("CoolFactorGun", 0.0)))
-    CoolFactorGunMods = to_f(props.get("CoolFactorGunMods", base_data.get("CoolFactorGunMods", 0.0)))
-    DeviationCurve = to_f(props.get("DeviationCurve", base_data.get("DeviationCurve", 0.0)))
-    DeviationMax = to_f(props.get("DeviationMax", base_data.get("DeviationMax", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    DurabilityBurnRatio = to_f(props.get("DurabilityBurnRatio", base_data.get("DurabilityBurnRatio", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    HeatFactorByShot = to_f(props.get("HeatFactorByShot", base_data.get("HeatFactorByShot", 0.0)))
-    HeatFactorGun = to_f(props.get("HeatFactorGun", base_data.get("HeatFactorGun", 0.0)))
-    HipAccuracyRestorationDelay = to_f(props.get("HipAccuracyRestorationDelay", base_data.get("HipAccuracyRestorationDelay", 0.0)))
-    HipAccuracyRestorationSpeed = to_f(props.get("HipAccuracyRestorationSpeed", base_data.get("HipAccuracyRestorationSpeed", 0.0)))
-    HipInnaccuracyGain = to_f(props.get("HipInnaccuracyGain", base_data.get("HipInnaccuracyGain", 0.0)))
-    IronSightRange = to_f(props.get("IronSightRange", base_data.get("IronSightRange", 0.0)))
-    MaxRepairDegradation = to_f(props.get("MaxRepairDegradation", base_data.get("MaxRepairDegradation", 0.0)))
-    MinRepairDegradation = to_f(props.get("MinRepairDegradation", base_data.get("MinRepairDegradation", 0.0)))
-    RecoilAngle = to_f(props.get("RecoilAngle", base_data.get("RecoilAngle", 0.0)))
-    RecoilCamera = to_f(props.get("RecoilCamera", base_data.get("RecoilCamera", 0.0)))
-    RecoilCategoryMultiplierHandRotation = to_f(props.get("RecoilCategoryMultiplierHandRotation", base_data.get("RecoilCategoryMultiplierHandRotation", 0.0)))
-    RecoilDampingHandRotation = to_f(props.get("RecoilDampingHandRotation", base_data.get("RecoilDampingHandRotation", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    RecoilPosZMult = to_f(props.get("RecoilPosZMult", base_data.get("RecoilPosZMult", 0.0)))
-    RecoilReturnPathDampingHandRotation = to_f(props.get("RecoilReturnPathDampingHandRotation", base_data.get("RecoilReturnPathDampingHandRotation", 0.0)))
-    RecoilReturnPathOffsetHandRotation = to_f(props.get("RecoilReturnPathOffsetHandRotation", base_data.get("RecoilReturnPathOffsetHandRotation", 0.0)))
-    RecoilReturnSpeedHandRotation = to_f(props.get("RecoilReturnSpeedHandRotation", base_data.get("RecoilReturnSpeedHandRotation", 0.0)))
-    RecolDispersion = to_f(props.get("RecolDispersion", base_data.get("RecolDispersion", 0.0)))
-    ShotgunDispersion = to_f(props.get("ShotgunDispersion", base_data.get("ShotgunDispersion", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    SingleFireRate = to_f(props.get("SingleFireRate", base_data.get("SingleFireRate", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-    bEffDist = to_f(props.get("bEffDist", base_data.get("bEffDist", 0.0)))
-    bFirerate = to_f(props.get("bFirerate", base_data.get("bFirerate", 0.0)))
-    bHearDist = to_f(props.get("bHearDist", base_data.get("bHearDist", 0.0)))
-    shotgunDispersion = to_f(props.get("shotgunDispersion", base_data.get("shotgunDispersion", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: AllowOverheat
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["AllowOverheat"] = r(pred)
-
-    # Target: AutoROF
-    z = 202.322317406 + (303.643670819 * ((bFirerate - 200) / 303.644529014)) + (-4.47895991108 * ((SingleFireRate - 422.142857143) / 53.7425837314))
-    pred = z
-    pred = min(max(pred, -13.5), 943.5)
-    item_entry["AutoROF"] = int(round(pred))
-
-    # Target: BaseChamberCheckSpeed
-    z = 0.700121924081 + (-0.0199958009827 * ((DurabilityBurnRatio - 1.13928571429) / 0.0386309065228)) + (-0.00721960499474 * ((HRecoilPerErgo - 11.0628691711) / 3.44436494484)) + (0.00357086682145 * ((RecolDispersion - 13.7857142857) / 5.42716147103)) + (-0.000880879975818 * ((CameraSnap - 2.48571428571) / 0.269542318059)) + (0.0133889453926 * ((RecoilForceBack - 484.857142857) / 130.95247619)) + (-0.00934447795664 * ((HeatFactorByShot - 6.79521428571) / 2.66473837308)) + (-0.0157574755838 * ((CoolFactorGunMods - 1.02782857143) / 0.0102055607091))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.7485), 1.2215)
-    item_entry["BaseChamberCheckSpeed"] = r(pred)
-
-    # Target: BaseChamberSpeedMulti
-    z = 0.997929409609 + (0.0527336497913 * ((RecoilReturnPathOffsetHandRotation - 0.0148571428571) / 0.000515078753638)) + (-1.21230366479e-08 * ((Ergonomics - 44.6428571429) / 5.72721751011)) + (0.026687950546 * ((HeatFactorGun - 0.976557142857) / 0.0231946026445)) + (-0.0710639648717 * ((RecoilForceUp - 348.857142857) / 117.708997801)) + (0.0548967652536 * ((bHearDist - 23.5714285714) / 35.6885621648)) + (0.104273485791 * ((RecolDispersion - 13.7857142857) / 5.42716147103)) + (0.194266708284 * ((AimPlane - 0.0922142857143) / 0.0536299204488))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.825), 1.375)
-    item_entry["BaseChamberSpeedMulti"] = r(pred)
-
-    # Target: BaseFixSpeed
-    z = 0.893640149454 + (-0.0584730863105 * ((VRecoilPerErgo - 7.8178028417) / 2.29272734445)) + (1.36223168685 * ((FactoredWeight - 2.61688512967) / 1.31560398731)) + (-1.32062327682 * ((Weight - 1.58371428571) / 0.717996759699)) + (-0.0576401743645 * ((CameraSnap - 2.48571428571) / 0.269542318059)) + (-0.16181183885 * ((Velocity - 0.707857142857) / 1.13801944856)) + (-0.0474424571077 * ((RecoilForceUp - 348.857142857) / 117.708997801)) + (-0.183348070268 * ((HeatFactorGun - 0.976557142857) / 0.0231946026445))
-    pred = z
-    pred = min(max(pred, 0.575), 1.125)
-    item_entry["BaseFixSpeed"] = r(pred)
-
-    # Target: BaseMalfunctionChance
-    z = 0.00167263688281 + (-0.0015592197821 * ((HeatFactorByShot - 6.79521428571) / 2.66473837308)) + (0.000403056812373 * ((CenterOfImpact - 0.405714285714) / 0.222829668636)) + (0.00180129874209 * ((BaseMalfunctionChance - 0.264475357143) / 0.0275013954493)) + (0.00108752126121 * ((bEffDist - 76.4285714286) / 12.3097770997)) + (-0.00108752126121 * ((shotgunDispersion - 15.7142857143) / 8.20651806648)) + (0.000593682335199 * ((bHearDist - 23.5714285714) / 35.6885621648)) + (-2.6176243327e-08 * ((CoolFactorGun - 4.176) / 0.541540659336))
-    pred = z
-    pred = min(max(pred, -0.000225), 0.004725)
-    item_entry["BaseMalfunctionChance"] = r(pred)
-
-    # Target: BaseReloadSpeedMulti
-    z = 1.04934765502 + (-1.0084263921 * ((FactoredWeight - 2.61688512967) / 1.31560398731)) + (0.87734741624 * ((Weight - 1.58371428571) / 0.717996759699)) + (-0.0945319714712 * ((ErgoWeight - 66.8356904001) / 10.0699535444))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.8435), 1.4265)
-    item_entry["BaseReloadSpeedMulti"] = r(pred)
-
-    # Target: BaseTorque
-    z = -1.00000000056 + (1.53225603874 * ((RecoilReturnPathOffsetHandRotation - 0.0148571428571) / 0.000515078753638)) + (2.39119615418 * ((HeatFactorGun - 0.976557142857) / 0.0231946026445)) + (-2.12731323856e-09 * ((RecoilForceUp - 348.857142857) / 117.708997801)) + (5.86418878075e-09 * ((AimPlane - 0.0922142857143) / 0.0536299204488)) + (-5.45368405207e-09 * ((CenterOfImpact - 0.405714285714) / 0.222829668636)) + (-1.07712472617e-09 * ((Ergonomics - 44.6428571429) / 5.72721751011)) + (1.30357325754 * ((Velocity - 0.707857142857) / 1.13801944856))
-    pred = z
-    pred = min(max(pred, -10.625), 3.125)
-    item_entry["BaseTorque"] = r(pred)
-
-    # Target: CameraRecoil
-    z = 0.342038717572 + (-0.0224692871424 * ((CenterOfImpact - 0.405714285714) / 0.222829668636)) + (-0.0107671070882 * ((ErgoWeight - 66.8356904001) / 10.0699535444)) + (-1.02620032909 * ((Weight - 1.58371428571) / 0.717996759699)) + (0.985769861087 * ((FactoredWeight - 2.61688512967) / 1.31560398731)) + (0.000683433163002 * ((Velocity - 0.707857142857) / 1.13801944856))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.0635), 0.2065)
-    item_entry["CameraRecoil"] = r(pred)
-
-    # Target: CenterOfImpact
-    z = 0.443797821389 + (-0.156116560697 * ((bFirerate - 200) / 303.644529014)) + (-0.00388894559767 * ((SingleFireRate - 422.142857143) / 53.7425837314))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, -0.025), 0.525)
-    item_entry["CenterOfImpact"] = r(pred)
-
-    # Target: Convergence
-    z = 7.50917756174 + (-1.49216377153 * ((RecoilCamera - 0.06) / 0.00925820099773)) + (2.17331927025 * ((Velocity - 0.707857142857) / 1.13801944856)) + (0.527522806152 * ((RecoilDampingHandRotation - 0.841428571429) / 0.015971914125)) + (-0.190291460921 * ((RecoilReturnPathOffsetHandRotation - 0.0148571428571) / 0.000515078753638)) + (-1.15105400998 * ((FactoredWeight - 2.61688512967) / 1.31560398731))
-    pred = z
-    pred = min(max(pred, 1.5), 12.5)
-    item_entry["Convergence"] = r(pred)
-
-    # Target: CoolFactorGun
-    z = 0.498139324371 + (0.428587531948 * ((CoolFactorGun - 4.176) / 0.541540659336)) + (-0.0849429448352 * ((CoolFactorGunMods - 1.02782857143) / 0.0102055607091))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, -0.183), 6.043)
-    item_entry["CoolFactorGun"] = r(pred)
-
-    # Target: CoolFactorGunMods
-    z = 0.693147182867 + (6.47217293744e-09 * ((CoolFactorGun - 4.176) / 0.541540659336)) + (-2.72681453028e-09 * ((CoolFactorGunMods - 1.02782857143) / 0.0102055607091))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.999), 1.021)
-    item_entry["CoolFactorGunMods"] = r(pred)
-
-    # Target: Dispersion
-    z = 1.77602240951 + (0.513194358539 * ((CenterOfImpact - 0.405714285714) / 0.222829668636)) + (-0.260702823472 * ((RecolDispersion - 13.7857142857) / 5.42716147103)) + (-0.259150222993 * ((shotgunDispersion - 15.7142857143) / 8.20651806648)) + (0.192262667215 * ((bEffDist - 76.4285714286) / 12.3097770997))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.45), 12.55)
-    item_entry["Dispersion"] = r(pred)
-
-    # Target: DurabilityBurnRatio
-    z = 0.40583309763
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.055), 1.045)
-    item_entry["DurabilityBurnRatio"] = r(pred)
-
-    # Target: EnableExtraBSGVisRecoil
-    z = 0.719675881044 + (0.113612075755 * ((CameraSnap - 2.50769230769) / 0.267356110723)) + (4.57871293912 * ((RecoilForceUp - 353) / 121.164859084)) + (0.624684629702 * ((RecoilReturnPathOffsetHandRotation - 0.0148461538462) / 0.000532938710021)) + (-1.94984480367 * ((Ergonomics - 44.6923076923) / 5.94053371579)) + (-3.86445107851 * ((VRecoilPerErgo - 7.90343802532) / 2.35760154285))
-    pred = z
-    pred = min(max(pred, -0.05), 1.05)
-    item_entry["EnableExtraBSGVisRecoil"] = r(pred)
-
-    # Target: Ergonomics
-    z = 80.0000000035 + (3.50940717795e-09 * ((Ergonomics - 44.6428571429) / 5.72721751011)) + (-4.54920909905e-09 * ((ErgoWeight - 66.8356904001) / 10.0699535444)) + (-3.45518463083e-09 * ((Weight - 1.58371428571) / 0.717996759699))
-    pred = z
-    pred = min(max(pred, 79.6), 88.4)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: HasShoulderContact
-    z = 0
-    pred = z
-    pred = min(max(pred, -0.05), 1.05)
-    item_entry["HasShoulderContact"] = r(pred)
-
-    # Target: HeatFactorByShot
-    z = 0.693147180531 + (1.53525886152e-10 * ((HeatFactorByShot - 6.79521428571) / 2.66473837308)) + (5.84921129969e-11 * ((HeatFactorGun - 0.976557142857) / 0.0231946026445))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.469), 12.151)
-    item_entry["HeatFactorByShot"] = r(pred)
-
-    # Target: HeatFactorGun
-    z = 0.579290317227 + (0.0799982360855 * ((HeatFactorByShot - 6.79521428571) / 2.66473837308)) + (0.00121725712977 * ((HeatFactorGun - 0.976557142857) / 0.0231946026445))
-    pred = z
-    pred = min(max(pred, 0.3705), 1.0195)
-    item_entry["HeatFactorGun"] = r(pred)
-
-    # Target: HipAccuracyRestorationDelay
-    z = 0.2
-    pred = z
-    pred = min(max(pred, 0.199999), 0.200001)
-    item_entry["HipAccuracyRestorationDelay"] = r(pred)
-
-    # Target: HipAccuracyRestorationSpeed
-    z = 7
-    pred = z
-    pred = min(max(pred, 6.999999), 7.000001)
-    item_entry["HipAccuracyRestorationSpeed"] = r(pred)
-
-    # Target: HipInnaccuracyGain
-    z = 0.4
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.159999), 0.160001)
-    item_entry["HipInnaccuracyGain"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = 5.8968760799 + (0.167831636605 * ((CenterOfImpact - 0.405714285714) / 0.222829668636)) + (-0.218932546801 * ((ErgoWeight - 66.8356904001) / 10.0699535444)) + (-0.0176421696936 * ((RecoilReturnSpeedHandRotation - 2.17142857143) / 0.504874201345)) + (-0.00933088477381 * ((Velocity - 0.707857142857) / 1.13801944856)) + (-0.203915653132 * ((Weight - 1.58371428571) / 0.717996759699))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 227), 513)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: MaxChamberSpeed
-    z = 0.882638651428 + (0.0678411600391 * ((RecoilAngle - 90.3571428571) / 1.28769688409)) + (-0.000388055913875 * ((RecoilReturnPathOffsetHandRotation - 0.0148571428571) / 0.000515078753638)) + (-0.166059673502 * ((RecoilForceUp - 348.857142857) / 117.708997801)) + (-0.0853359466033 * ((RecoilCamera - 0.06) / 0.00925820099773)) + (0.136984468698 * ((VRecoilPerErgo - 7.8178028417) / 2.29272734445)) + (0.0582301833861 * ((AimPlane - 0.0922142857143) / 0.0536299204488)) + (-0.0806562298202 * ((CenterOfImpact - 0.405714285714) / 0.222829668636))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.95), 2.05)
-    item_entry["MaxChamberSpeed"] = r(pred)
-
-    # Target: MinChamberSpeed
-    z = 0.805693627153 + (-0.758440819275 * ((FactoredWeight - 2.61688512967) / 1.31560398731)) + (0.724973100432 * ((Weight - 1.58371428571) / 0.717996759699)) + (-0.0585204713839 * ((ErgoWeight - 66.8356904001) / 10.0699535444)) + (-0.00644740096692 * ((RecoilForceUp - 348.857142857) / 117.708997801)) + (-0.0310770789483 * ((RecoilCategoryMultiplierHandRotation - 0.215714285714) / 0.0349927106112)) + (0.031089747854 * ((RecoilReturnSpeedHandRotation - 2.17142857143) / 0.504874201345)) + (-0.0114743072718 * ((SingleFireRate - 422.142857143) / 53.7425837314))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.54), 0.76)
-    item_entry["MinChamberSpeed"] = r(pred)
-
-    # Target: OffsetRotation
-    z = 0.0141290993537 + (-0.00303564216082 * ((RecoilForceBack - 484.857142857) / 130.95247619)) + (0.00426525172932 * ((DurabilityBurnRatio - 1.13928571429) / 0.0386309065228)) + (0.000183453704983 * ((HRecoilPerErgo - 11.0628691711) / 3.44436494484)) + (0.00722284633211 * ((RecolDispersion - 13.7857142857) / 5.42716147103)) + (0.00474706449062 * ((CoolFactorGun - 4.176) / 0.541540659336)) + (-0.00573807910624 * ((bHearDist - 23.5714285714) / 35.6885621648)) + (-0.00383319290486 * ((bFirerate - 200) / 303.644529014))
-    pred = z
-    pred = min(max(pred, 0.0108), 0.0152)
-    item_entry["OffsetRotation"] = r(pred)
-
-    # Target: RecoilAngle
-    z = 82.5704247021 + (10.4049919387 * ((ErgoWeight - 66.8356904001) / 10.0699535444)) + (1.76997542889 * ((RecoilAngle - 90.3571428571) / 1.28769688409)) + (-1.73877583395 * ((VRecoilPerErgo - 7.8178028417) / 2.29272734445)) + (-2.30870203284 * ((Ergonomics - 44.6428571429) / 5.72721751011)) + (7.59145307462 * ((Weight - 1.58371428571) / 0.717996759699))
-    pred = z
-    pred = min(max(pred, 69), 91)
-    item_entry["RecoilAngle"] = r(pred)
-
-    # Target: RecoilDamping
-    z = 0.845321774531 + (-0.00980232472053 * ((RecoilReturnSpeedHandRotation - 2.17142857143) / 0.504874201345)) + (0.0080682251831 * ((RecoilCategoryMultiplierHandRotation - 0.215714285714) / 0.0349927106112)) + (0.00213372843075 * ((RecoilCamera - 0.06) / 0.00925820099773)) + (-0.00458718059145 * ((RecoilForceBack - 484.857142857) / 130.95247619)) + (0.00224209819455 * ((RecoilAngle - 90.3571428571) / 1.28769688409))
-    pred = z
-    pred = min(max(pred, 0.8075), 0.8625)
-    item_entry["RecoilDamping"] = r(pred)
-
-    # Target: RecoilHandDamping
-    z = 0.511229083414 + (0.0286110361517 * ((RecoilForceBack - 484.857142857) / 130.95247619)) + (-0.0496863139875 * ((HRecoilPerErgo - 11.0628691711) / 3.44436494484)) + (0.0105975604351 * ((CenterOfImpact - 0.405714285714) / 0.222829668636)) + (-0.0820611685638 * ((ErgoWeight - 66.8356904001) / 10.0699535444)) + (-0.0792731507123 * ((Weight - 1.58371428571) / 0.717996759699))
-    pred = z
-    pred = min(max(pred, 0.42025), 0.52475)
-    item_entry["RecoilHandDamping"] = r(pred)
-
-    # Target: RecoilIntensity
-    z = 0.579692320465 + (0.0295185575531 * ((RecoilForceBack - 484.857142857) / 130.95247619)) + (0.171015292466 * ((ErgoWeight - 66.8356904001) / 10.0699535444)) + (-0.0538828295001 * ((CenterOfImpact - 0.405714285714) / 0.222829668636)) + (0.05317830218 * ((HRecoilPerErgo - 11.0628691711) / 3.44436494484)) + (0.157249935516 * ((Weight - 1.58371428571) / 0.717996759699))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.16225), 0.88275)
-    item_entry["RecoilIntensity"] = r(pred)
-
-    # Target: SemiROF
-    z = 422.142817542 + (53.7425132443 * ((SingleFireRate - 422.142857143) / 53.7425837314)) + (2.94225748736e-05 * ((bFirerate - 200) / 303.644529014))
-    pred = z
-    pred = min(max(pred, 324), 456)
-    item_entry["SemiROF"] = int(round(pred))
-
-    # Target: ShotgunDispersion
-    z = 0.928571428571
-    pred = z
-    pred = min(max(pred, 0.835714285714), 1.02142857143)
-    item_entry["ShotgunDispersion"] = r(pred)
-
-    # Target: Velocity
-    z = -0
-    pred = z
-    pred = min(max(pred, -9.765), 0.465)
-    item_entry["Velocity"] = r(pred)
-
-    # Target: VerticalRecoil
-    z = 201.671692907 + (76.1111064967 * ((RecoilCamera - 0.06) / 0.00925820099773)) + (12.4547578356 * ((VRecoilPerErgo - 7.8178028417) / 2.29272734445)) + (0.763221059245 * ((RecoilDampingHandRotation - 0.841428571429) / 0.015971914125)) + (-11.3536647428 * ((Ergonomics - 44.6428571429) / 5.72721751011)) + (-25.8807984374 * ((HRecoilPerErgo - 11.0628691711) / 3.44436494484))
-    pred = z
-    pred = min(max(pred, 98.25), 466.75)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: VisualMulti
-    z = 1.00036937721 + (0.167689817265 * ((SingleFireRate - 422.142857143) / 53.7425837314)) + (-0.193131275017 * ((RecoilCategoryMultiplierHandRotation - 0.215714285714) / 0.0349927106112)) + (0.0426203552348 * ((RecoilDampingHandRotation - 0.841428571429) / 0.015971914125)) + (-0.100933926028 * ((CoolFactorGunMods - 1.02782857143) / 0.0102055607091)) + (-0.00415456540897 * ((CenterOfImpact - 0.405714285714) / 0.222829668636)) + (-0.0377582067718 * ((Velocity - 0.707857142857) / 1.13801944856)) + (-0.0982842306698 * ((Weight - 1.58371428571) / 0.717996759699))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.7675), 2.5825)
-    item_entry["VisualMulti"] = r(pred)
-
-    # Target: WeapAccuracy
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["WeapAccuracy"] = r(pred)
-
-    # Target: WeaponAllowADS
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["WeaponAllowADS"] = r(pred)
-
-    # Target: Weight
-    z = 1.58371429068 + (0.717997232048 * ((Weight - 1.58371428571) / 0.717996759699)) + (-4.43176598573e-07 * ((FactoredWeight - 2.61688512967) / 1.31560398731)) + (3.78493366906e-09 * ((ErgoWeight - 66.8356904001) / 10.0699535444))
-    pred = z
-    pred = min(max(pred, 0.623), 3.637)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- Sights (Mod) Formulas ---
-def apply_sights_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: Sights (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    Accuracy = to_f(props.get("Accuracy", base_data.get("Accuracy", 0.0)))
-    AdjustableOpticSensitivity = to_f(props.get("AdjustableOpticSensitivity", base_data.get("AdjustableOpticSensitivity", 0.0)))
-    AdjustableOpticSensitivityMax = to_f(props.get("AdjustableOpticSensitivityMax", base_data.get("AdjustableOpticSensitivityMax", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    EffectiveDistance = to_f(props.get("EffectiveDistance", base_data.get("EffectiveDistance", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    Loudness = to_f(props.get("Loudness", base_data.get("Loudness", 0.0)))
-    Recoil = to_f(props.get("Recoil", base_data.get("Recoil", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: Accuracy
-    z = 0.600609756098
-    pred = z
-    pred = min(max(pred, -32.75), 27.75)
-    item_entry["Accuracy"] = r(pred)
-
-    # Target: AimSpeed
-    z = -6.73481221274 + (-8.59676907916 * ((SightingRange - 503.125) / 518.928809544)) + (-3.11366813894 * ((FactoredWeight - 0.623487459457) / 0.417996523013)) + (1.66087303003 * ((Weight - 0.4256875) / 0.262919716537)) + (3.26132089263 * ((Ergonomics - -3.2734375) / 2.1793234463)) + (3.35877894066 * ((AdjustableOpticSensitivity - 0.069209375) / 0.166716823647))
-    pred = z
-    pred = min(max(pred, -52.3), 20.3)
-    item_entry["AimSpeed"] = r(pred)
-
-    # Target: Ergonomics
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: VerticalRecoil
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: Weight
-    z = 0.425687499955 + (0.262919715146 * ((Weight - 0.4256875) / 0.262919716537)) + (1.41946134454e-09 * ((FactoredWeight - 0.623487459457) / 0.417996523013))
-    pred = z
-    pred = min(max(pred, -0.0294), 1.1674)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- SniperRifles (Gun) Formulas ---
-def apply_sniperrifles_gun_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: SniperRifles (Gun)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    AimPlane = to_f(props.get("AimPlane", base_data.get("AimPlane", 0.0)))
-    AimSensitivity = to_f(props.get("AimSensitivity", base_data.get("AimSensitivity", 0.0)))
-    BaseMalfunctionChance = to_f(props.get("BaseMalfunctionChance", base_data.get("BaseMalfunctionChance", 0.0)))
-    CameraSnap = to_f(props.get("CameraSnap", base_data.get("CameraSnap", 0.0)))
-    CameraToWeaponAngleStep = to_f(props.get("CameraToWeaponAngleStep", base_data.get("CameraToWeaponAngleStep", 0.0)))
-    CenterOfImpact = to_f(props.get("CenterOfImpact", base_data.get("CenterOfImpact", 0.0)))
-    CoolFactorGun = to_f(props.get("CoolFactorGun", base_data.get("CoolFactorGun", 0.0)))
-    CoolFactorGunMods = to_f(props.get("CoolFactorGunMods", base_data.get("CoolFactorGunMods", 0.0)))
-    DeviationCurve = to_f(props.get("DeviationCurve", base_data.get("DeviationCurve", 0.0)))
-    DeviationMax = to_f(props.get("DeviationMax", base_data.get("DeviationMax", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    DurabilityBurnRatio = to_f(props.get("DurabilityBurnRatio", base_data.get("DurabilityBurnRatio", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    HeatFactorByShot = to_f(props.get("HeatFactorByShot", base_data.get("HeatFactorByShot", 0.0)))
-    HeatFactorGun = to_f(props.get("HeatFactorGun", base_data.get("HeatFactorGun", 0.0)))
-    HipAccuracyRestorationDelay = to_f(props.get("HipAccuracyRestorationDelay", base_data.get("HipAccuracyRestorationDelay", 0.0)))
-    HipAccuracyRestorationSpeed = to_f(props.get("HipAccuracyRestorationSpeed", base_data.get("HipAccuracyRestorationSpeed", 0.0)))
-    HipInnaccuracyGain = to_f(props.get("HipInnaccuracyGain", base_data.get("HipInnaccuracyGain", 0.0)))
-    IronSightRange = to_f(props.get("IronSightRange", base_data.get("IronSightRange", 0.0)))
-    MaxRepairDegradation = to_f(props.get("MaxRepairDegradation", base_data.get("MaxRepairDegradation", 0.0)))
-    MinRepairDegradation = to_f(props.get("MinRepairDegradation", base_data.get("MinRepairDegradation", 0.0)))
-    RecoilAngle = to_f(props.get("RecoilAngle", base_data.get("RecoilAngle", 0.0)))
-    RecoilCamera = to_f(props.get("RecoilCamera", base_data.get("RecoilCamera", 0.0)))
-    RecoilCategoryMultiplierHandRotation = to_f(props.get("RecoilCategoryMultiplierHandRotation", base_data.get("RecoilCategoryMultiplierHandRotation", 0.0)))
-    RecoilDampingHandRotation = to_f(props.get("RecoilDampingHandRotation", base_data.get("RecoilDampingHandRotation", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    RecoilPosZMult = to_f(props.get("RecoilPosZMult", base_data.get("RecoilPosZMult", 0.0)))
-    RecoilReturnPathDampingHandRotation = to_f(props.get("RecoilReturnPathDampingHandRotation", base_data.get("RecoilReturnPathDampingHandRotation", 0.0)))
-    RecoilReturnPathOffsetHandRotation = to_f(props.get("RecoilReturnPathOffsetHandRotation", base_data.get("RecoilReturnPathOffsetHandRotation", 0.0)))
-    RecoilReturnSpeedHandRotation = to_f(props.get("RecoilReturnSpeedHandRotation", base_data.get("RecoilReturnSpeedHandRotation", 0.0)))
-    RecolDispersion = to_f(props.get("RecolDispersion", base_data.get("RecolDispersion", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    SingleFireRate = to_f(props.get("SingleFireRate", base_data.get("SingleFireRate", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-    bEffDist = to_f(props.get("bEffDist", base_data.get("bEffDist", 0.0)))
-    bFirerate = to_f(props.get("bFirerate", base_data.get("bFirerate", 0.0)))
-    bHearDist = to_f(props.get("bHearDist", base_data.get("bHearDist", 0.0)))
-    shotgunDispersion = to_f(props.get("shotgunDispersion", base_data.get("shotgunDispersion", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: AllowOverheat
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["AllowOverheat"] = r(pred)
-
-    # Target: AutoROF
-    z = 30
-    pred = z
-    pred = min(max(pred, 29.999999), 30.000001)
-    item_entry["AutoROF"] = int(round(pred))
-
-    # Target: BaseChamberCheckSpeed
-    z = 0.913566008005 + (-0.122262339793 * ((CenterOfImpact - 0.010125) / 0.00337036719068)) + (0.201158062592 * ((Velocity - 3.545) / 1.51122466894)) + (-0.473467184408 * ((HeatFactorByShot - 6.808125) / 1.06333184349)) + (-0.0142474979614 * ((AimPlane - 0.29375) / 0.0338886042793)) + (0.0990232056725 * ((RecoilCamera - 0.10875) / 0.0161535599792)) + (0.101894751481 * ((CoolFactorGunMods - 0.98035) / 0.0519890132624)) + (-0.252183562861 * ((Weight - 0.834) / 0.311049835235))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.9), 3.1)
-    item_entry["BaseChamberCheckSpeed"] = r(pred)
-
-    # Target: BaseChamberSpeedMulti
-    z = 0.814072997792 + (0.679794720553 * ((ErgoWeight - 69.8192734906) / 12.0775922708)) + (19.2205328837 * ((Weight - 0.834) / 0.311049835235)) + (-19.004095196 * ((FactoredWeight - 1.28841422301) / 0.532518784861)) + (-0.314847102635 * ((HeatFactorByShot - 6.808125) / 1.06333184349)) + (0.242259222763 * ((bHearDist - 100) / 24.4948974278)) + (0.458899400566 * ((IronSightRange - 53.125) / 36.3092188707)) + (-0.0899438087844 * ((CenterOfImpact - 0.010125) / 0.00337036719068))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.795), 2.005)
-    item_entry["BaseChamberSpeedMulti"] = r(pred)
-
-    # Target: BaseFixSpeed
-    z = 1.23038292554 + (-0.124035181405 * ((CenterOfImpact - 0.010125) / 0.00337036719068)) + (0.221169804728 * ((Velocity - 3.545) / 1.51122466894)) + (0.102432165746 * ((CoolFactorGunMods - 0.98035) / 0.0519890132624)) + (-0.0156314658803 * ((AimPlane - 0.29375) / 0.0338886042793)) + (0.100746231762 * ((RecoilCamera - 0.10875) / 0.0161535599792)) + (-0.493221545434 * ((HeatFactorByShot - 6.808125) / 1.06333184349)) + (-0.268739668811 * ((Weight - 0.834) / 0.311049835235))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.9), 3.1)
-    item_entry["BaseFixSpeed"] = r(pred)
-
-    # Target: BaseMalfunctionChance
-    z = 0.001375 + (0.000799814855869 * ((RecoilCamera - 0.10875) / 0.0161535599792)) + (0.000529171205935 * ((IronSightRange - 53.125) / 36.3092188707)) + (0.000227055632122 * ((AimPlane - 0.29375) / 0.0338886042793)) + (0.00146794872786 * ((HRecoilPerErgo - 30.2586092142) / 15.9964271246)) + (0.00047345869887 * ((Ergonomics - 28.5) / 9.30053761887)) + (-0.000948342047417 * ((RecoilDampingHandRotation - 0.84) / 0.01)) + (-0.00049155916129 * ((VRecoilPerErgo - 10.5370821416) / 6.84667850958))
-    pred = z
-    pred = min(max(pred, 1e-05), 0.00419)
-    item_entry["BaseMalfunctionChance"] = r(pred)
-
-    # Target: BaseReloadSpeedMulti
-    z = 0.820818995909 + (0.103635864049 * ((Ergonomics - 28.5) / 9.30053761887)) + (-0.380493686627 * ((ErgoWeight - 69.8192734906) / 12.0775922708)) + (-0.285883826611 * ((FactoredWeight - 1.28841422301) / 0.532518784861))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.95), 2.05)
-    item_entry["BaseReloadSpeedMulti"] = r(pred)
-
-    # Target: BaseTorque
-    z = -0.75 + (5.11553871993 * ((CoolFactorGunMods - 0.98035) / 0.0519890132624)) + (-0.617551055689 * ((CenterOfImpact - 0.010125) / 0.00337036719068)) + (99.8435643296 * ((FactoredWeight - 1.28841422301) / 0.532518784861)) + (-97.7492348279 * ((Weight - 0.834) / 0.311049835235)) + (0.56505271954 * ((IronSightRange - 53.125) / 36.3092188707))
-    pred = z
-    pred = min(max(pred, -8.5), 2.5)
-    item_entry["BaseTorque"] = r(pred)
-
-    # Target: CameraRecoil
-    z = 0.378676784584 + (0.108489942938 * ((RecoilForceUp - 243.125) / 103.88507773)) + (2.60398053142 * ((Weight - 0.834) / 0.311049835235)) + (-2.56342826393 * ((FactoredWeight - 1.28841422301) / 0.532518784861)) + (0.0455385104835 * ((ErgoWeight - 69.8192734906) / 12.0775922708)) + (-0.0591896448528 * ((VRecoilPerErgo - 10.5370821416) / 6.84667850958))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.12125), 0.20375)
-    item_entry["CameraRecoil"] = r(pred)
-
-    # Target: CenterOfImpact
-    z = 0.104880884805
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, -0.001), 0.021)
-    item_entry["CenterOfImpact"] = r(pred)
-
-    # Target: Convergence
-    z = 1.81095853763 + (-0.382160873327 * ((RecoilForceBack - 718.125) / 162.690225198)) + (0.0600678744322 * ((Velocity - 3.545) / 1.51122466894)) + (0.155711604424 * ((RecoilReturnSpeedHandRotation - 2.5) / 0.409267638594)) + (0.203822646121 * ((VRecoilPerErgo - 10.5370821416) / 6.84667850958)) + (-0.246670594648 * ((Ergonomics - 28.5) / 9.30053761887))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 3.3), 7.7)
-    item_entry["Convergence"] = r(pred)
-
-    # Target: CoolFactorGun
-    z = 0.1
-    pred = z
-    pred = min(max(pred, 0.099999), 0.100001)
-    item_entry["CoolFactorGun"] = r(pred)
-
-    # Target: CoolFactorGunMods
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["CoolFactorGunMods"] = r(pred)
-
-    # Target: Dispersion
-    z = 1.15019221894 + (0.0486964778919 * ((AimPlane - 0.29375) / 0.0338886042793)) + (0.0724741922378 * ((Velocity - 3.545) / 1.51122466894)) + (0.0324738085729 * ((CenterOfImpact - 0.010125) / 0.00337036719068))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 1.85), 5.15)
-    item_entry["Dispersion"] = r(pred)
-
-    # Target: DurabilityBurnRatio
-    z = 0.587645414355
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.465), 1.235)
-    item_entry["DurabilityBurnRatio"] = r(pred)
-
-    # Target: Ergonomics
-    z = 80
-    pred = z
-    pred = min(max(pred, 79.999999), 80.000001)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: HasShoulderContact
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["HasShoulderContact"] = r(pred)
-
-    # Target: HeatFactorByShot
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["HeatFactorByShot"] = r(pred)
-
-    # Target: HeatFactorGun
-    z = 1.13953488372 + (-0.0276755834986 * ((HeatFactorByShot - 6.808125) / 1.06333184349))
-    pred = z
-    pred = min(max(pred, 0.855), 1.845)
-    item_entry["HeatFactorGun"] = r(pred)
-
-    # Target: HipAccuracyRestorationDelay
-    z = 0.2
-    pred = z
-    pred = min(max(pred, 0.199999), 0.200001)
-    item_entry["HipAccuracyRestorationDelay"] = r(pred)
-
-    # Target: HipAccuracyRestorationSpeed
-    z = 7
-    pred = z
-    pred = min(max(pred, 6.999999), 7.000001)
-    item_entry["HipAccuracyRestorationSpeed"] = r(pred)
-
-    # Target: HipInnaccuracyGain
-    z = 0.16
-    pred = z
-    pred = min(max(pred, 0.159999), 0.160001)
-    item_entry["HipInnaccuracyGain"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = 6.22892951087 + (0.333435283969 * ((RecoilForceUp - 243.125) / 103.88507773)) + (-0.376383370886 * ((VRecoilPerErgo - 10.5370821416) / 6.84667850958)) + (0.217072164281 * ((RecoilForceBack - 718.125) / 162.690225198)) + (-0.000204381434944 * ((RecoilReturnSpeedHandRotation - 2.5) / 0.409267638594)) + (0.0808668770507 * ((Velocity - 3.545) / 1.51122466894))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 469), 711)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: MaxChamberSpeed
-    z = 0.763951081967 + (0.505620943249 * ((RecoilReturnSpeedHandRotation - 2.5) / 0.409267638594)) + (-0.207897192186 * ((RecoilForceUp - 243.125) / 103.88507773)) + (0.226061284713 * ((VRecoilPerErgo - 10.5370821416) / 6.84667850958)) + (0.443592760854 * ((RecoilDampingHandRotation - 0.84) / 0.01)) + (-0.0299145042443 * ((bHearDist - 100) / 24.4948974278)) + (0.185367690382 * ((RecoilForceBack - 718.125) / 162.690225198)) + (0.193349102498 * ((Ergonomics - 28.5) / 9.30053761887))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.765), 1.535)
-    item_entry["MaxChamberSpeed"] = r(pred)
-
-    # Target: MinChamberSpeed
-    z = 0.821293543946 + (-0.024632221046 * ((bHearDist - 100) / 24.4948974278)) + (0.0457329802169 * ((IronSightRange - 53.125) / 36.3092188707)) + (0.0345404890223 * ((RecoilForceUp - 243.125) / 103.88507773)) + (2.47764060035 * ((Weight - 0.834) / 0.311049835235)) + (-2.46838458027 * ((FactoredWeight - 1.28841422301) / 0.532518784861)) + (-0.0462017008536 * ((HeatFactorByShot - 6.808125) / 1.06333184349)) + (0.0899844604798 * ((ErgoWeight - 69.8192734906) / 12.0775922708))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.595), 0.705)
-    item_entry["MinChamberSpeed"] = r(pred)
-
-    # Target: OffsetRotation
-    z = 0.01
-    pred = z
-    pred = min(max(pred, 0.009999), 0.010001)
-    item_entry["OffsetRotation"] = r(pred)
-
-    # Target: RecoilAngle
-    z = 88.4799766622 + (-14.4337775361 * ((RecoilForceUp - 243.125) / 103.88507773)) + (18.3299385043 * ((VRecoilPerErgo - 10.5370821416) / 6.84667850958)) + (-11.4683977275 * ((RecoilForceBack - 718.125) / 162.690225198)) + (-0.0591243592326 * ((RecoilReturnSpeedHandRotation - 2.5) / 0.409267638594)) + (-3.60137578379 * ((Velocity - 3.545) / 1.51122466894))
-    pred = z
-    pred = min(max(pred, 74.25), 90.75)
-    item_entry["RecoilAngle"] = r(pred)
-
-    # Target: RecoilDamping
-    z = 0.895553155333 + (0.0106919022714 * ((RecoilForceUp - 243.125) / 103.88507773)) + (-0.0135780208685 * ((VRecoilPerErgo - 10.5370821416) / 6.84667850958)) + (0.00849526930389 * ((RecoilForceBack - 718.125) / 162.690225198)) + (4.37871052034e-05 * ((RecoilReturnSpeedHandRotation - 2.5) / 0.409267638594)) + (0.00266772616655 * ((Velocity - 3.545) / 1.51122466894))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.799), 0.821)
-    item_entry["RecoilDamping"] = r(pred)
-
-    # Target: RecoilHandDamping
-    z = 0.408356215197 + (-0.0051409645762 * ((ErgoWeight - 69.8192734906) / 12.0775922708)) + (-0.000889838678336 * ((Velocity - 3.545) / 1.51122466894)) + (0.00713589132062 * ((RecoilForceBack - 718.125) / 162.690225198)) + (0.00382317869377 * ((Ergonomics - 28.5) / 9.30053761887)) + (0.00553426589416 * ((RecoilReturnSpeedHandRotation - 2.5) / 0.409267638594))
-    pred = z
-    pred = min(max(pred, 0.3995), 0.4105)
-    item_entry["RecoilHandDamping"] = r(pred)
-
-    # Target: RecoilIntensity
-    z = 0.557265223323 + (0.0411265798345 * ((ErgoWeight - 69.8192734906) / 12.0775922708)) + (0.616128793709 * ((Weight - 0.834) / 0.311049835235)) + (-0.588540369232 * ((FactoredWeight - 1.28841422301) / 0.532518784861)) + (0.024300409265 * ((RecoilForceUp - 243.125) / 103.88507773)) + (0.0114010240022 * ((RecoilCamera - 0.10875) / 0.0161535599792))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.2975), 0.3525)
-    item_entry["RecoilIntensity"] = r(pred)
-
-    # Target: SemiROF
-    z = 450
-    pred = z
-    pred = min(max(pred, 449.999999), 450.000001)
-    item_entry["SemiROF"] = int(round(pred))
-
-    # Target: ShotgunDispersion
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["ShotgunDispersion"] = r(pred)
-
-    # Target: Velocity
-    z = 0.818540960567 + (0.885271484755 * ((Velocity - 3.545) / 1.51122466894))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, -0.295), 6.195)
-    item_entry["Velocity"] = r(pred)
-
-    # Target: VerticalRecoil
-    z = 4.97295655129 + (0.627977978226 * ((RecoilForceUp - 243.125) / 103.88507773)) + (0.882039737811 * ((RecoilForceBack - 718.125) / 162.690225198)) + (-1.23882476161 * ((VRecoilPerErgo - 10.5370821416) / 6.84667850958)) + (-0.13553909923 * ((RecoilReturnSpeedHandRotation - 2.5) / 0.409267638594)) + (0.127526779954 * ((Velocity - 3.545) / 1.51122466894))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 81), 279)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: VisualMulti
-    z = 1.875 + (-1.22868940736 * ((bHearDist - 100) / 24.4948974278)) + (32.8423106967 * ((Weight - 0.834) / 0.311049835235)) + (0.866908043223 * ((ErgoWeight - 69.8192734906) / 12.0775922708)) + (-32.9453850946 * ((FactoredWeight - 1.28841422301) / 0.532518784861)) + (1.30839363465 * ((RecoilForceUp - 243.125) / 103.88507773)) + (-0.570040951558 * ((HeatFactorByShot - 6.808125) / 1.06333184349)) + (-0.0180996321132 * ((AimPlane - 0.29375) / 0.0338886042793))
-    pred = z
-    pred = min(max(pred, 1.475), 2.025)
-    item_entry["VisualMulti"] = r(pred)
-
-    # Target: WeapAccuracy
-    z = -0.624999961842 + (1.32033529295 * ((AimPlane - 0.29375) / 0.0338886042793)) + (7.51490882257e-08 * ((Velocity - 3.545) / 1.51122466894)) + (-1.53198508306 * ((CenterOfImpact - 0.010125) / 0.00337036719068))
-    pred = z
-    pred = min(max(pred, -7), 37)
-    item_entry["WeapAccuracy"] = r(pred)
-
-    # Target: WeaponAllowADS
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["WeaponAllowADS"] = r(pred)
-
-    # Target: Weight
-    z = 1.00395776204 + (9.08337517848 * ((Weight - 0.834) / 0.311049835235)) + (-8.70633421614 * ((FactoredWeight - 1.28841422301) / 0.532518784861)) + (0.172828613585 * ((ErgoWeight - 69.8192734906) / 12.0775922708))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.4665), 2.3035)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- Stock (Mod) Formulas ---
-def apply_stock_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: Stock (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    Accuracy = to_f(props.get("Accuracy", base_data.get("Accuracy", 0.0)))
-    CoolFactor = to_f(props.get("CoolFactor", base_data.get("CoolFactor", 0.0)))
-    Durability = to_f(props.get("Durability", base_data.get("Durability", 0.0)))
-    DurabilityBurnModificator = to_f(props.get("DurabilityBurnModificator", base_data.get("DurabilityBurnModificator", 0.0)))
-    EffectiveDistance = to_f(props.get("EffectiveDistance", base_data.get("EffectiveDistance", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    HeatFactor = to_f(props.get("HeatFactor", base_data.get("HeatFactor", 0.0)))
-    Loudness = to_f(props.get("Loudness", base_data.get("Loudness", 0.0)))
-    Recoil = to_f(props.get("Recoil", base_data.get("Recoil", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    SightingRange = to_f(props.get("SightingRange", base_data.get("SightingRange", 0.0)))
-    Velocity = to_f(props.get("Velocity", base_data.get("Velocity", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: Accuracy
-    z = 0.171748777963 + (1.94322063673 * ((Accuracy - 0.0717299578059) / 0.57287707799)) + (-1.09935601541 * ((Velocity - 0.0084388185654) / 0.129639590681))
-    pred = z
-    pred = min(max(pred, -23.5), 53.5)
-    item_entry["Accuracy"] = r(pred)
-
-    # Target: AimSpeed
-    z = -0.0142785000852 + (-0.114524250419 * ((Accuracy - 0.071129707113) / 0.570512486998)) + (-7.8058796379e-08 * ((ErgoWeight - 45.5974067234) / 26.6414755613)) + (-1.29512665481e-07 * ((Recoil - -14.4518828452) / 10.0774607973)) + (-6.16353862762e-08 * ((CoolFactor - 0.996658995816) / 0.0230113177683)) + (-3.6367418881e-08 * ((FactoredWeight - 0.728142558856) / 0.752303391698))
-    pred = z
-    pred = min(max(pred, -6.2), 20.2)
-    item_entry["AimSpeed"] = r(pred)
-
-    # Target: AimStability
-    z = 4.75327847121 + (-4.96290918536 * ((Recoil - -18.8636363636) / 8.03993133477)) + (-7.04362181189 * ((Weight - 0.500090909091) / 0.465759184556)) + (8.94438459545 * ((FactoredWeight - 0.755377937495) / 0.793061297967)) + (3.48373357128 * ((Accuracy - 0.121212121212) / 0.728534259404)) + (-0.316644082946 * ((Ergonomics - 9.53535353535) / 7.46786128338))
-    pred = z
-    pred = min(max(pred, -22.9), 40.9)
-    item_entry["AimStability"] = r(pred)
-
-    # Target: AutoROF
-    z = 0.0569620253165
-    pred = z
-    pred = min(max(pred, -5.55), 6.55)
-    item_entry["AutoROF"] = int(round(pred))
-
-    # Target: BlocksFolding
-    z = 0
-    pred = z
-    pred = min(max(pred, -0.05), 1.05)
-    item_entry["BlocksFolding"] = r(pred)
-
-    # Target: CameraRecoil
-    z = -3.45764038781 + (2.20832682846 * ((Recoil - -14.4915966387) / 10.0799291367)) + (-0.368649193643 * ((ErgoWeight - 45.5844252547) / 26.6966320641)) + (-0.810349126884 * ((Weight - 0.477844537815) / 0.441148230809))
-    pred = z
-    pred = min(max(pred, -44.5), 54.5)
-    item_entry["CameraRecoil"] = r(pred)
-
-    # Target: Convergence
-    z = 0.802392023223 + (-2.39464484172 * ((Weight - 0.155857142857) / 0.0624463851669)) + (-2.43919695402 * ((FactoredWeight - 0.203719596296) / 0.0913107029522)) + (4.74866641661 * ((Ergonomics - 0.142857142857) / 1.55182578446))
-    pred = z
-    pred = min(max(pred, -21.5), 11.5)
-    item_entry["Convergence"] = r(pred)
-
-    # Target: CoolFactor
-    z = 0.693147180559 + (-8.44560662281e-12 * ((CoolFactor - 0.984686046512) / 0.0515433914353))
-    pred = expm1_clamped(z)
-    pred = min(max(pred, 0.895), 1.005)
-    item_entry["CoolFactor"] = r(pred)
-
-    # Target: Dispersion
-    z = -0
-    pred = z
-    pred = min(max(pred, -53.5), 23.5)
-    item_entry["Dispersion"] = r(pred)
-
-    # Target: DurabilityBurnModificator
-    z = 1.00180064513
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.8375), 1.1125)
-    item_entry["DurabilityBurnModificator"] = r(pred)
-
-    # Target: Ergonomics
-    z = 5.96714690912 + (2.39177322298 * ((Ergonomics - 7.25523012552) / 7.31206115512)) + (24.587052339 * ((Weight - 0.483041841004) / 0.447466571911)) + (-23.454418047 * ((FactoredWeight - 0.728142558856) / 0.752303391698))
-    pred = z
-    pred = min(max(pred, -11.9), 29.9)
-    item_entry["Ergonomics"] = r(pred)
-
-    # Target: Handling
-    z = 6.68350699926 + (15.0778193129 * ((Weight - 0.537463157895) / 0.452390581374)) + (-12.888945711 * ((FactoredWeight - 0.814503286651) / 0.762297022886)) + (-0.025551593951 * ((Ergonomics - 8.05263157895) / 6.80459352752)) + (-1.27729479504 * ((DurabilityBurnModificator - 0.999578947368) / 0.00247760048336)) + (0.468315437282 * ((CoolFactor - 0.999857894737) / 0.024545196031))
-    pred = z
-    pred = min(max(pred, -16.8), 22.8)
-    item_entry["Handling"] = r(pred)
-
-    # Target: HasShoulderContact
-    z = 0.713629755009 + (-0.304280334443 * ((Recoil - -14.4518828452) / 10.0774607973)) + (0.161542725257 * ((ErgoWeight - 45.5974067234) / 26.6414755613)) + (-0.0850166247752 * ((Ergonomics - 7.25523012552) / 7.31206115512)) + (0.659238655044 * ((Weight - 0.483041841004) / 0.447466571911)) + (-0.592584602965 * ((FactoredWeight - 0.728142558856) / 0.752303391698))
-    pred = z
-    pred = min(max(pred, -0.05), 1.05)
-    item_entry["HasShoulderContact"] = r(pred)
-
-    # Target: HeatFactor
-    z = 1.00000000005 + (-4.7020311385e-11 * ((HeatFactor - 1.02125581395) / 0.0570618159393))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.995), 1.105)
-    item_entry["HeatFactor"] = r(pred)
-
-    # Target: HorizontalRecoil
-    z = -6.20592156262 + (3.88392556482 * ((Recoil - -14.4518828452) / 10.0774607973)) + (-9.14796283719 * ((Weight - 0.483041841004) / 0.447466571911)) + (7.67852143399 * ((FactoredWeight - 0.728142558856) / 0.752303391698))
-    pred = z
-    pred = min(max(pred, -41.95), 22.95)
-    item_entry["HorizontalRecoil"] = r(pred)
-
-    # Target: ModMalfunctionChance
-    z = 0.0843036317366 + (2.03737916833 * ((Velocity - 0.0084388185654) / 0.129639590681)) + (7.5973251384e-08 * ((Accuracy - 0.0717299578059) / 0.57287707799)) + (-2.41722741454e-10 * ((Recoil - -14.3797468354) / 10.0891224344)) + (0.258515034862 * ((DurabilityBurnModificator - 0.999324894515) / 0.00361197207747)) + (-1.1211200732e-09 * ((ErgoWeight - 45.3418209354) / 26.6073598081))
-    pred = z
-    pred = min(max(pred, -33.5), 43.5)
-    item_entry["ModMalfunctionChance"] = r(pred)
-
-    # Target: RecoilAngle
-    z = -12.5 + (-2.5 * ((Ergonomics - 2) / 2))
-    pred = z
-    pred = min(max(pred, -15.25), -9.75)
-    item_entry["RecoilAngle"] = r(pred)
-
-    # Target: SemiROF
-    z = 0.200421940928
-    pred = z
-    pred = min(max(pred, -3.75), 12.75)
-    item_entry["SemiROF"] = int(round(pred))
-
-    # Target: StockAllowADS
-    z = 0
-    pred = z
-    pred = min(max(pred, -0.05), 1.05)
-    item_entry["StockAllowADS"] = r(pred)
-
-    # Target: VerticalRecoil
-    z = -0
-    pred = z
-    pred = min(max(pred, -42.75), 17.75)
-    item_entry["VerticalRecoil"] = r(pred)
-
-    # Target: Weight
-    z = 0.483041841984 + (0.447466573478 * ((Weight - 0.483041841004) / 0.447466571911)) + (-1.39962721847e-09 * ((FactoredWeight - 0.728142558856) / 0.752303391698)) + (-1.30501935266e-09 * ((ErgoWeight - 45.5974067234) / 26.6414755613))
-    pred = z
-    pred = min(max(pred, -0.10145), 2.79045)
-    item_entry["Weight"] = r(pred)
-
-    return item_entry
-
-# --- Vest (Mod) Formulas ---
-def apply_vest_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: Vest (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    BluntThroughput = to_f(props.get("BluntThroughput", base_data.get("BluntThroughput", 0.0)))
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    RecoilForceBack = to_f(props.get("RecoilForceBack", base_data.get("RecoilForceBack", 0.0)))
-    RecoilForceUp = to_f(props.get("RecoilForceUp", base_data.get("RecoilForceUp", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-    armorClass = to_f(props.get("armorClass", base_data.get("armorClass", 0.0)))
-    mousePenalty = to_f(props.get("mousePenalty", base_data.get("mousePenalty", 0.0)))
-    speedPenaltyPercent = to_f(props.get("speedPenaltyPercent", base_data.get("speedPenaltyPercent", 0.0)))
-    weaponErgonomicPenalty = to_f(props.get("weaponErgonomicPenalty", base_data.get("weaponErgonomicPenalty", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    mm_match = re.search(r'(\d+)mm', name_str)
-    inch_match = re.search(r'(\d+\.?\d*)"', name_str)
-    BarrelLengthMM = float(mm_match.group(1)) if mm_match else (float(inch_match.group(1)) * 25.4 if inch_match else 0.0)
-    caliber_match = re.search(r'(\d+\.?\d*)x', name_str)
-    CaliberNumeric = float(caliber_match.group(1)) if caliber_match else 0.0
-    position_mult = 0.0
-    if 'suppressor' in name_str or 'muzzle' in name_str or 'barrel' in name_str: position_mult = -1.0
-    elif 'stock' in name_str or 'buttpad' in name_str: position_mult = 1.0
-    Torque = Weight * position_mult * 10.0
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-    VRecoilPerErgo = RecoilForceUp / Ergonomics if Ergonomics != 0 else 0.0
-    HRecoilPerErgo = RecoilForceBack / Ergonomics if Ergonomics != 0 else 0.0
-    dura = to_f(props.get('MaxDurability', base_data.get('MaxDurability', 100.0)))
-    dura_factor = 2.0 - (dura / 100.0) if dura > 0 else 2.0
-    DurabilityMalfRisk = pow(max(0, dura_factor), 3.0)
-
-    # 3. Calculate all target values
-
-    # Target: Comfort
-    z = 0.91991450576 + (-0.0234277597755 * ((weaponErgonomicPenalty - -0.857142857143) / 1.36837457576)) + (0.569074037165 * ((FactoredWeight - 4.1717750175) / 4.23161329401)) + (-0.558259236289 * ((Weight - 2.37091071429) / 2.12782650069)) + (-0.00802792514524 * ((BluntThroughput - 0.138344642857) / 0.207507504098))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.675), 1.225)
-    item_entry["Comfort"] = r(pred)
-
-    # Target: Price
-    z = 174.404342305
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 14800), 41200)
-    item_entry["Price"] = r(pred)
-
-    # Target: ReloadSpeedMulti
-    z = 1.00439503425 + (-0.341555142866 * ((FactoredWeight - 4.1717750175) / 4.23161329401)) + (0.340080937318 * ((Weight - 2.37091071429) / 2.12782650069))
-    pred = z*z if z >= 0 else 0.0
-    pred = min(max(pred, 0.8445), 1.1855)
-    item_entry["ReloadSpeedMulti"] = r(pred)
-
-    # Target: mousePenalty
-    z = 0
-    pred = z
-    pred = min(max(pred, -1e-06), 1e-06)
-    item_entry["mousePenalty"] = r(pred)
-
-    # Target: speedPenaltyPercent
-    z = -0.789564520161 + (0.362199285514 * ((weaponErgonomicPenalty - -0.857142857143) / 1.36837457576)) + (0.566249098652 * ((speedPenaltyPercent - -1.03571428571) / 1.51143599782)) + (0.0846352633735 * ((BluntThroughput - 0.138344642857) / 0.207507504098))
-    pred = z
-    pred = min(max(pred, -6.3), 0.3)
-    item_entry["speedPenaltyPercent"] = r(pred)
-
-    # Target: weaponErgonomicPenalty
-    z = -0.537408188875 + (0.545812158183 * ((speedPenaltyPercent - -1.03571428571) / 1.51143599782)) + (0.355655391452 * ((weaponErgonomicPenalty - -0.857142857143) / 1.36837457576)) + (0.0411806503994 * ((BluntThroughput - 0.138344642857) / 0.207507504098))
-    pred = z
-    pred = min(max(pred, -5.775), 0.275)
-    item_entry["weaponErgonomicPenalty"] = r(pred)
-
-    return item_entry
-
-# --- Visor (Mod) Formulas ---
-def apply_visor_mod_formulas(item_entry: dict, base_data: dict, template: dict = None, context: dict = None) -> dict:
-    """Auto-generated formulas for parent class: Visor (Mod)"""
-    # Helper functions
-    def to_f(x, d=0.0):
-        try: return float(x)
-        except: return d
-    def r(x, d=3):
-        try: return round(float(x), d)
-        except: return x
-    def expm1_clamped(z, cap=20.0):
-        z = min(max(z, -cap), cap)
-        return math.expm1(z)
-    props = base_data.get("_props", base_data)
-
-    # 1. Bind base features from props
-    Ergonomics = to_f(props.get("Ergonomics", base_data.get("Ergonomics", 0.0)))
-    Weight = to_f(props.get("Weight", base_data.get("Weight", 0.0)))
-
-    # 2. Engineer new features
-    name_str = str(base_data.get('Name', '') or base_data.get('shortName', '')).lower()
-    FactoredWeight = pow(Weight * 1.5, 1.1) if Weight > 0 else 0.0
-    base_ergo_calc_val = Ergonomics / (Weight * 100) if Weight > 0 else 0.0
-    ErgoWeight = pow(max(0, base_ergo_calc_val), 0.35) * 100.0
-
-    # 3. Calculate all target values
-
-    # Target: ReloadSpeedMulti
-    z = 1
-    pred = z
-    pred = min(max(pred, 0.999999), 1.000001)
-    item_entry["ReloadSpeedMulti"] = r(pred)
-
-    return item_entry
-
-import re
-import math
+def r_half(x):
+    try: return round(float(x) * 2.0) / 2.0
+    except: return x
+
+def clampz(z, lim=4.0):
+    # Clamp a standardized (z-score) feature term. A real item whose feature sits far
+    # outside the (often tiny) training distribution would otherwise produce an absurd
+    # intermediate value that slams the prediction straight to a clip bound. +/-4 sigma
+    # keeps extrapolation sane while leaving in-distribution items untouched.
+    try:
+        z = float(z)
+    except (TypeError, ValueError):
+        return 0.0
+    if z > lim: return lim
+    if z < -lim: return -lim
+    return z
+
+def explicit_override_value(base_data, keys):
+    ov = base_data.get('overrideProperties', {})
+    props = base_data.get('_props', base_data)
+    explicit_keys = set(base_data.get('_explicit_override_keys', ()) or ())
+    if isinstance(keys, str):
+        keys = [keys]
+    for key in keys:
+        if isinstance(ov, dict) and key in ov:
+            return ov.get(key)
+        if key in explicit_keys:
+            return props.get(key)
+        # Weight is the only one of these where the vanilla prop and the
+        # Realism field share a scale. DurabilityBurnRatio, HeatFactorGun,
+        # CoolFactorGun etc. are all rescaled by Realism (1.15 -> 0.18,
+        # 1.0 -> 0.2), so reading _props for them poisoned the prediction.
+        if key in props and key == 'Weight':
+            return props.get(key)
+    return None
 
 PARENT_CLASSES = {
     "5b47574386f77428ca22b346": "Ammo",
     "5b47574386f77428ca22b33c": "AmmoBoxes",
-    "5448e54d4bdc2dcc718b4568": "Armor",
-    "5b5f701386f774093f2ecf0f": "ArmorVests",
+    "543be5cb4bdc2deb348b4568": "AmmoBoxes",
+    "5448e5284bdc2dcb718b4567": "TacticalRigs",
+    "5a74651486f7744e73386dd1": "FunctionalMods",
+    "550aa4154bdc2dd8348b456b": "FunctionalMods",
+    "5448e54d4bdc2dcc718b4568": "ArmorVests",
+    "5b5f701386f774093f2ecf0f": "ArmorPlates",
+    "5a341c4b86f77401e2507e28": "ArmorMasks",
     "5b5f78e986f77447ed5636b1": "AssaultCarbines",
     "5447b5fc4bdc2d87278b4567": "AssaultCarbines",
     "5b5f78fc86f77409407a7f90": "AssaultRifles",
     "5447b5f14bdc2d61278b4567": "AssaultRifles",
-    "5b5f740a86f77447ec5d7706": "AssaultScopes",
-    "5b5f74cc86f77447ec5d770a": "AuxiliaryParts",
-    "5a74651486f7744e73386dd1": "AuxiliaryParts",
-    "5448e53e4bdc2d60728b4567": "Backpack",
+    "5448e53e4bdc2d60728b4567": "Backpacks",
     "5b5f6f6c86f774093f2ecf0b": "Backpacks",
     "555ef6e44bdc2de9068b457e": "Barrel",
     "5b5f75c686f774094242f19f": "Barrels",
@@ -4856,9 +87,6 @@ PARENT_CLASSES = {
     "5b5f798886f77447ed5636b5": "BoltActionRifles",
     "55818a6f4bdc2db9688b456b": "ChargingHandle",
     "5b5f751486f77447ec5d770c": "ChargingHandles",
-    "5b5f742686f774093e6cb4ff": "Collimators",
-    "5b5f744786f774094242f197": "CompactCollimators",
-    "5b5f724c86f774093f2ecf15": "FlashhidersBrakes",
     "5b5f73ab86f774094242f195": "Flashlights",
     "5b5f71de86f774093f2ecf13": "ForeGrips",
     "55818af64bdc2d5b648b4570": "Foregrip",
@@ -4876,8 +104,6 @@ PARENT_CLASSES = {
     "5b5f6f3c86f774094242ef87": "Headsets",
     "5a341c4086f77401f2541505": "Headwear",
     "5b47574386f77428ca22b330": "Headwear",
-    "5b5f746686f77447ec5d7708": "IronSights",
-    "5b5f73c486f77447ec5d7704": "LaserTargetPointers",
     "55818b014bdc2ddc698b456b": "Launcher",
     "5b5f752e86f774093e6cb505": "Launchers",
     "55818b0e4bdc2dde698b456e": "LightLasers",
@@ -4889,10 +115,6 @@ PARENT_CLASSES = {
     "5447b6194bdc2d67278b4567": "MarksmanRifles",
     "5b5f755f86f77447ec5d770e": "Mounts",
     "55818b224bdc2dde698b456f": "Mounts",
-    "5448fe394bdc2d0d028b456c": "Muzzle",
-    "5b5f72f786f77447ec5d7702": "MuzzleAdapters",
-    "5b5f724186f77447ed5636ad": "MuzzleDevices",
-    "5b5f748386f774093e6cb501": "Optics",
     "5447b5cf4bdc2d65278b4567": "Pistol",
     "5b5f761f86f774094242f1a1": "PistolGrips",
     "55818a684bdc2ddd698b456d": "PistolGrip",
@@ -4903,82 +125,10883 @@ PARENT_CLASSES = {
     "5485a8684bdc2da71d8b4567": "Rounds",
     "5b5f794b86f77409407a7f92": "Shotguns",
     "5447b6094bdc2dc3278b4567": "Shotguns",
-    "5b5f73ec86f774093e6cb4fd": "Sights",
-    "5448fe7a4bdc2d6f028b456b": "Sights",
     "5b5f796a86f774093f2ed3c0": "SMGs",
     "5447b5e04bdc2d62278b4567": "SMGs",
     "5447b6254bdc2dc3278b4568": "SniperRifles",
     "55818a594bdc2db9688b456a": "Stock",
     "5b5f757486f774093e6cb507": "StocksChassis",
-    "5b5f731a86f774093e6cb4f9": "Suppressors",
     "5b5f737886f774093e6cb4fb": "TacticalComboDevices",
     "5b5f6f8786f77447ed563642": "TacticalRigs",
-    "5448e5284bdc2dcb718b4567": "Vest",
     "5448e5724bdc2ddf718b4568": "Visor",
     "5b47574386f77428ca22b331": "Visors",
     "5b5f75b986f77447ec5d7710": "VitalParts",
     "5b5f71a686f77447ed5636ab": "WeaponPartsMods",
     "5b5f78dc86f77409407a7f8e": "Weapons",
-    "55818b164bdc2ddc698b456c": "CombTactDevice"
+    "55818b164bdc2ddc698b456c": "CombTactDevice",
+    "5b5f746686f77447ec5d7708": "IronSights",
+    "5b5f73ec86f774093e6cb4fd": "Sights",
+    "5448fe7a4bdc2d6f028b456b": "Sights",
+    "5b5f748386f774093e6cb501": "Sights",
+    "5b5f742686f774093e6cb4ff": "Sights",
+    "5b5f744786f774094242f197": "Sights",
+    "5b5f740a86f77447ec5d7706": "Sights",
+    "5448fe394bdc2d0d028b456c": "Muzzle",
+    "5b5f72f786f77447ec5d7702": "Muzzle",
+    "5b5f724186f77447ed5636ad": "Muzzle",
+    "5b5f724c86f774093f2ecf15": "Muzzle",
+    "5b5f731a86f774093e6cb4f9": "Muzzle"
+}
+CATEGORY_ALIASES = {}
+
+# Exact bore diameter per item id, resolved from the slot graph at
+# generation time (see build_caliber_index). Consulted before the name
+# regex, which misreads model numbers as calibres on mods.
+CALIBER_BY_ITEM_ID = {
+    "5422acb9af1c889c16000029": 9.27,
+    "5447a9cd4bdc2dbd208b4567": 5.7,
+    "5447ac644bdc2d6c208b4567": 5.7,
+    "5447b5cf4bdc2d65278b4567": 9.27,
+    "5447b5e04bdc2d62278b4567": 9.27,
+    "5447b5f14bdc2d61278b4567": 9.27,
+    "5447b5fc4bdc2d87278b4567": 9.27,
+    "5447b6094bdc2dc3278b4567": 9.27,
+    "5447b6194bdc2d67278b4567": 9.27,
+    "5447b6254bdc2dc3278b4568": 9.27,
+    "5447bed64bdc2d97278b4568": 9.27,
+    "5447bedf4bdc2d87278b4568": 9.27,
+    "5448bd6b4bdc2dfc2f8b4569": 9.27,
+    "5448c12b4bdc2d02308b456f": 9.27,
+    "54491c4f4bdc2db1078b4568": 18.5,
+    "5580169d4bdc2d9d138b4585": 18.5,
+    "55801eed4bdc2d89578b4588": 7.92,
+    "5580223e4bdc2d1c128b457f": 18.5,
+    "559ba5b34bdc2d1f1a8b4582": 7.92,
+    "55d355e64bdc2d962f8b4569": 5.7,
+    "55d35ee94bdc2d61338b4568": 5.7,
+    "55d3632e4bdc2d972f8b4569": 5.7,
+    "55d447bb4bdc2d892f8b456f": 18.5,
+    "55d448594bdc2d8c2f8b4569": 18.5,
+    "55d4491a4bdc2d882f8b456e": 18.5,
+    "55d449444bdc2d962f8b456d": 18.5,
+    "55d459824bdc2d892f8b4573": 5.7,
+    "55d45d3f4bdc2d972f8b456c": 18.5,
+    "55d45f484bdc2d972f8b456d": 18.5,
+    "55d480c04bdc2d1d4e8b456a": 5.6,
+    "55d481904bdc2d8c2f8b456a": 5.6,
+    "55d482194bdc2d1d4e8b456b": 5.6,
+    "55d4837c4bdc2d1d4e8b456c": 5.6,
+    "55d484b44bdc2d1d4e8b456d": 18.5,
+    "55d485804bdc2d8c2f8b456b": 18.5,
+    "55d485be4bdc2d962f8b456f": 9.27,
+    "55d48a634bdc2d8b2f8b456a": 18.5,
+    "55d48ebc4bdc2d8c2f8b456c": 18.5,
+    "55f84c3c4bdc2d5f408b4576": 5.7,
+    "560835c74bdc2dc8488b456f": 18.5,
+    "560836484bdc2d20478b456e": 18.5,
+    "560836b64bdc2d57468b4567": 18.5,
+    "560836fb4bdc2d773f8b4569": 18.5,
+    "560837154bdc2da74d8b4568": 18.5,
+    "5608373c4bdc2dc8488b4570": 18.5,
+    "560837544bdc2de22e8b456e": 18.5,
+    "560837824bdc2d57468b4568": 18.5,
+    "5608379a4bdc2d26448b4569": 18.5,
+    "560838c94bdc2d77798b4569": 18.5,
+    "56083a334bdc2dc8488b4571": 18.5,
+    "56083be64bdc2d20478b456f": 18.5,
+    "56083cba4bdc2de22e8b456f": 18.5,
+    "56083e1b4bdc2dc8488b4572": 7.92,
+    "56083eab4bdc2d26448b456a": 7.92,
+    "560d5e524bdc2d25448b4571": 18.5,
+    "560d75f54bdc2da74d8b4573": 7.92,
+    "560e620e4bdc2d724b8b456b": 7.92,
+    "5644bd2b4bdc2d3b4c8b4572": 5.6,
+    "5649aa744bdc2ded0b8b457e": 5.6,
+    "5649ed104bdc2d3d1c8b458b": 7.9,
+    "564ca99c4bdc2d16268b4589": 5.6,
+    "564ca9df4bdc2d35148b4569": 5.6,
+    "564caa3d4bdc2d17108b458e": 5.6,
+    "56d59856d2720bd8418b456a": 9.02,
+    "56d59948d2720bb7418b4582": 9.02,
+    "56d59d3ad2720bdb418b4577": 9.02,
+    "56d5a1f7d2720bb3418b456a": 9.02,
+    "56d5a2bbd2720bb8418b456a": 9.02,
+    "56d5a407d2720bb3418b456b": 9.02,
+    "56d5a661d2720bd8418b456b": 9.02,
+    "56d5a77ed2720b90418b4568": 9.02,
+    "56dee2bdd2720bc8328b4567": 18.5,
+    "56deec93d2720bec348b4568": 18.5,
+    "56deed6ed2720b4c698b4583": 18.5,
+    "56deee15d2720bee328b4567": 18.5,
+    "56deeefcd2720bc8328b4568": 18.5,
+    "56e0598dd2720bb5668b45a6": 9.27,
+    "56e05a6ed2720bd0748b4567": 9.27,
+    "56e05b06d2720bb2668b4586": 9.27,
+    "56ea7293d2720b8d4b8b45ba": 9.02,
+    "56ea8222d2720b69698b4567": 7.92,
+    "56ea8d2fd2720b7c698b4570": 5.7,
+    "56eabcd4d2720b66698b4574": 5.7,
+    "571a12c42459771f627b58a0": 7.85,
+    "571a26d524597720680fbe8a": 7.85,
+    "571a279b24597720b4066566": 7.85,
+    "571a282c2459771fb2755a69": 7.85,
+    "571a28e524597720b4066567": 7.85,
+    "571a29dc2459771fb2755a6a": 7.85,
+    "573722e82459776104581c21": 9.27,
+    "573724b42459776125652ac2": 9.27,
+    "5737250c2459776125652acc": 9.27,
+    "5737256c2459776125652acd": 9.27,
+    "573725b0245977612125bae2": 9.27,
+    "5737260b24597761224311f2": 9.27,
+    "5737266524597761006c6a8c": 9.27,
+    "573726d824597765d96be361": 9.27,
+    "5737273924597765dd374461": 9.27,
+    "573727c624597765cc785b5b": 9.27,
+    "5737280e24597765cc785b5c": 9.27,
+    "5737287724597765e1625ae2": 9.27,
+    "573728cc24597765cc785b5d": 9.27,
+    "573728f324597765e5728561": 9.27,
+    "5737292724597765e5728562": 9.27,
+    "57372a7f24597766fe0de0c1": 9.27,
+    "57372ac324597767001bc261": 9.27,
+    "57372b832459776701014e41": 9.27,
+    "57372bad245977670b7cd242": 9.27,
+    "57372bd3245977670b7cd243": 9.27,
+    "57372c21245977670937c6c2": 9.27,
+    "57372c56245977685e584582": 9.27,
+    "57372c89245977685d4159b1": 9.27,
+    "57372d1b2459776862260581": 5.6,
+    "57372d4c245977685a3da2a1": 9.27,
+    "57372db0245977685d4159b2": 5.6,
+    "57372deb245977685d4159b3": 9.27,
+    "57372e1924597768553071c1": 9.27,
+    "57372e4a24597768553071c2": 9.27,
+    "57372e73245977685d4159b4": 9.27,
+    "57372e94245977685648d3e1": 9.27,
+    "57372ebf2459776862260582": 9.27,
+    "57372ee1245977685d4159b5": 9.27,
+    "57372f2824597769a270a191": 9.27,
+    "57372f5c24597769917c0131": 9.27,
+    "57372f7d245977699b53e301": 9.27,
+    "57372fc52459776998772ca1": 9.27,
+    "5737300424597769942d5a01": 9.27,
+    "5737330a2459776af32363a1": 9.27,
+    "5737339e2459776af261abeb": 9.27,
+    "573733c72459776b0b7b51b0": 9.27,
+    "5739d41224597779c3645501": 9.27,
+    "574d967124597745970e7c94": 7.9,
+    "574dad8024597745964bf05c": 7.9,
+    "574db213245977459a2f3f5d": 7.9,
+    "576165642459773c7a400233": 18.5,
+    "576167ab2459773cad038c43": 18.5,
+    "576169e62459773c69055191": 18.5,
+    "57616a9e2459773c7a400234": 18.5,
+    "57616c112459773cce774d66": 18.5,
+    "57616ca52459773c69055192": 18.5,
+    "576a581d2459771e7b1bc4f1": 9.02,
+    "576a5ed62459771e9c2096cb": 9.02,
+    "576a63cd2459771e796e0e11": 9.02,
+    "576a7c512459771e796e0e17": 9.02,
+    "57838ad32459774a17445cd2": 9.25,
+    "57838c962459774a1651ec63": 9.25,
+    "57838e1b2459774a256959b1": 9.25,
+    "57838f0b2459774a256959b2": 9.25,
+    "57838f9f2459774a150289a0": 9.25,
+    "578395402459774a256959b5": 9.25,
+    "578395e82459774a0e553c7b": 9.25,
+    "579204f224597773d619e051": 9.27,
+    "57a3459f245977764a01f703": 9.25,
+    "57a9b9ce2459770ee926038d": 18.5,
+    "57c44b372459772d2b39b8ce": 9.25,
+    "57c44dd02459772d2e0ae249": 9.25,
+    "57c44e7b2459772d28133248": 9.25,
+    "57c44f4f2459772d2c627113": 9.25,
+    "57c44fa82459772d2d75e415": 9.25,
+    "57c450252459772d28133253": 9.25,
+    "57c9a89124597704ee6faec1": 9.02,
+    "57d14d2524597714373db789": 9.27,
+    "57d14e1724597714010c3f4b": 9.27,
+    "57d1519e24597714373db79d": 9.27,
+    "57d152ec245977144076ccdf": 9.27,
+    "57dc2fa62459775949412633": 5.6,
+    "57dc324a24597759501edc20": 5.6,
+    "57dc32dc245977596d4ef3d3": 5.6,
+    "57dc334d245977597164366f": 5.6,
+    "57dc347d245977596754e7a1": 5.6,
+    "57ee59b42459771c7b045da5": 9.27,
+    "57f3c6bd24597738e730fa2f": 9.27,
+    "57f3c7e024597738ea4ba286": 9.27,
+    "57f3c8cc2459773ec4480328": 9.27,
+    "57ffa9f4245977728561e844": 5.6,
+    "57ffb0062459777a045af529": 5.6,
+    "57ffb0e42459777d047111c5": 5.6,
+    "5827272a24597748c74bdeea": 18.5,
+    "58272b392459774b4c7b3ccd": 18.5,
+    "58272b842459774abc128d50": 18.5,
+    "58272d7f2459774f6311ddfd": 18.5,
+    "583990e32459771419544dd2": 5.6,
+    "5839a40f24597726f856b511": 5.6,
+    "5839a7742459773cf9693481": 5.6,
+    "587de4282459771bca0ec90b": 9.02,
+    "587de5ba2459771c0f1e8a58": 9.02,
+    "587df3a12459772c28142567": 7.9,
+    "587df583245977373c4f1129": 7.9,
+    "587e02ff24597743df3deaeb": 7.9,
+    "587e0531245977466077a0f7": 7.9,
+    "587e08ee245977446b4410cf": 7.9,
+    "588200af24597742fa221dfb": 18.5,
+    "588200c224597743990da9ed": 18.5,
+    "588200cf2459774414733d55": 18.5,
+    "58820d1224597753c90aeb13": 18.5,
+    "5882163224597757561aa920": 18.5,
+    "5882163824597757561aa922": 18.5,
+    "5882163e24597758206fee8c": 18.5,
+    "58864a4f2459770fcc257101": 9.02,
+    "588892092459774ac91d4b11": 7.82,
+    "5888945a2459774bf43ba385": 7.82,
+    "5888956924597752983e182d": 7.82,
+    "5888976c24597754281f93f5": 7.82,
+    "5888988e24597752fe43a6fa": 7.82,
+    "5888996c24597754281f9419": 7.82,
+    "58889c7324597754281f9439": 7.82,
+    "58889d0c2459775bc215d981": 7.82,
+    "588b56d02459771481110ae2": 5.7,
+    "58948c8e86f77409493f7266": 9.02,
+    "58949dea86f77409483e16a8": 9.02,
+    "58949edd86f77409483e16a9": 9.02,
+    "58949fac86f77409483e16aa": 9.02,
+    "5894a05586f774094708ef75": 9.02,
+    "5894a2c386f77427140b8342": 9.02,
+    "5894a42086f77426d2590762": 9.02,
+    "5894a51286f77426d13baf02": 9.02,
+    "5894a5b586f77426d2590767": 9.02,
+    "58a56f8d86f774651579314c": 9.02,
+    "58a5c12e86f7745d585a2b9e": 9.02,
+    "58aeaaa886f7744fc1560f81": 9.02,
+    "58aeac1b86f77457c419f475": 9.02,
+    "5926bb2186f7744b1c6c6e60": 9.02,
+    "5926c0df86f77462f647f764": 9.02,
+    "5926c32286f774616e42de99": 9.02,
+    "5926c36d86f77467a92a8629": 9.02,
+    "5926c3b286f774640d189b6b": 9.02,
+    "5926d2be86f774134d668e4e": 9.02,
+    "5926d33d86f77410de68ebc0": 9.02,
+    "5926d3c686f77410de68ebc8": 9.02,
+    "5926d40686f7740f152b6b7e": 9.02,
+    "5926dad986f7741f82604363": 9.02,
+    "5926e16e86f7742f5a0f7ecb": 9.02,
+    "5926f2e086f7745aae644231": 9.02,
+    "5926f34786f77469195bfe92": 9.02,
+    "593d1fa786f7746da62d61ac": 7.9,
+    "593d490386f7745ee97a1555": 7.9,
+    "593d493f86f7745e6b2ceb22": 5.6,
+    "5943eeeb86f77412d6384f6b": 5.6,
+    "59984ab886f7743e98271174": 9.02,
+    "599851db86f77467372f0a18": 9.02,
+    "5998529a86f774647f44f421": 9.02,
+    "5998597786f77414ea6da093": 9.02,
+    "5998598e86f7740b3f498a86": 9.02,
+    "59985a6c86f77414ec448d17": 9.02,
+    "59985a8086f77414ec448d1a": 9.02,
+    "599860ac86f77436b225ed1a": 9.02,
+    "599860e986f7743bb57573a6": 9.02,
+    "59bfc5c886f7743bf6794e62": 9.02,
+    "59bfe68886f7746004266202": 5.7,
+    "59c0ec5b86f77435b128bfca": 18.5,
+    "59c63b4486f7747afb151c1c": 9.02,
+    "59ccd11386f77428f24a488f": 9.02,
+    "59d36a0086f7747e673f3946": 5.6,
+    "59d6088586f774275f37482f": 7.9,
+    "59d650cf86f7741b846413a4": 7.9,
+    "59e6152586f77473dc057aa1": 7.9,
+    "59e61eb386f77440d64f5daf": 7.9,
+    "59e6687d86f77411d949b251": 9.5,
+    "59e8977386f77415a553c453": 9.5,
+    "59eb7ebe86f7740b373438ce": 9.25,
+    "59ecc28286f7746d7a68aa8c": 5.6,
+    "59f98b4986f7746f546d2cef": 9.02,
+    "59f99a7d86f7745b134aa97b": 9.02,
+    "59f9cabd86f7743a10721f46": 9.02,
+    "59fb137a86f7740adb646af1": 18.5,
+    "59ff346386f77477562ff5e2": 7.9,
+    "59ff3b6a86f77477562ff5ed": 7.9,
+    "5a0eb980fcdbcb001a3b00a6": 7.9,
+    "5a0ec13bfcdbcb00165aa685": 7.9,
+    "5a17f98cfcdbcb0980087290": 9.27,
+    "5a17fb03fcdbcbcae668728f": 9.27,
+    "5a17fb9dfcdbcbcae6687291": 9.27,
+    "5a17fc70fcdbcb0176308b3d": 9.27,
+    "5a27b281c4a28200741e1e52": 9.02,
+    "5a27b3d0c4a282000d721ec1": 9.02,
+    "5a27b6bec4a282000e496f78": 9.02,
+    "5a27bad7c4a282000b15184b": 9.02,
+    "5a32aa0cc4a28232996e405f": 9.02,
+    "5a34f7f1c4a2826c6e06d75d": 7.82,
+    "5a34fae7c4a2826c6e06d760": 7.82,
+    "5a34fbadc4a28200741e230a": 7.82,
+    "5a351711c4a282000b1521a4": 9.02,
+    "5a367e5dc4a282000e49738f": 7.82,
+    "5a38e6bac4a2826c6e06d79b": 15.6,
+    "5a38ed75c4a28232996e40c6": 15.6,
+    "5a38ee51c4a282000c5a955c": 15.6,
+    "5a38eecdc4a282329a73b512": 15.6,
+    "5a38ef1fc4a282000b1521f6": 15.6,
+    "5a3c16fe86f77452b62de32a": 9.02,
+    "5a69a2ed8dc32e000d46d1f1": 9.25,
+    "5a6b585a8dc32e5a9c28b4f1": 9.02,
+    "5a6b592c8dc32e00094b97bf": 9.02,
+    "5a6b59a08dc32e000b452fb7": 9.02,
+    "5a6b5b8a8dc32e001207faf3": 9.02,
+    "5a6b5e468dc32e001207faf5": 9.02,
+    "5a6b5ed88dc32e000c52ec86": 9.02,
+    "5a6b5f868dc32e000a311389": 9.02,
+    "5a6b60158dc32e000a31138b": 9.02,
+    "5a6f58f68dc32e000a311390": 9.02,
+    "5a6f5d528dc32e00094b97d9": 9.02,
+    "5a6f5e048dc32e00094b97da": 9.02,
+    "5a6f5f078dc32e00094b97dd": 9.02,
+    "5a702d198dc32e000b452fc3": 9.02,
+    "5a7033908dc32e000a311392": 9.02,
+    "5a70366c8dc32e001207fb06": 9.02,
+    "5a7037338dc32e000d46d257": 9.02,
+    "5a705e128dc32e000d46d258": 9.02,
+    "5a718b548dc32e000d46d262": 9.02,
+    "5a718da68dc32e000d46d264": 9.02,
+    "5a718f958dc32e00094b97e7": 9.02,
+    "5a71e0048dc32e000c52ecc8": 9.02,
+    "5a71e0fb8dc32e00094b97f2": 9.02,
+    "5a71e1868dc32e00094b97f3": 9.02,
+    "5a71e22f8dc32e00094b97f4": 9.02,
+    "5a71e4f48dc32e001207fb26": 9.02,
+    "5a7828548dc32e5a9c28b516": 18.5,
+    "5a787ebcc5856700142fdd98": 18.5,
+    "5a787f25c5856700186c4ab9": 18.5,
+    "5a787f7ac5856700177af660": 18.5,
+    "5a787fadc5856700155a6ca1": 18.5,
+    "5a787fdfc5856700142fdd9a": 18.5,
+    "5a788031c585673f2b5c1c79": 18.5,
+    "5a788068c5856700137e4c8f": 18.5,
+    "5a788089c5856700142fdd9c": 18.5,
+    "5a7880d0c5856700142fdd9d": 18.5,
+    "5a78813bc5856700186c4abe": 18.5,
+    "5a788169c5856700142fdd9e": 18.5,
+    "5a7882dcc5856700177af662": 18.5,
+    "5a78830bc5856700137e4c90": 18.5,
+    "5a78832ec5856700155a6ca3": 18.5,
+    "5a789261c5856700186c65d3": 18.5,
+    "5a7893c1c585673f2b5c374d": 18.5,
+    "5a78948ec5856700177b1124": 18.5,
+    "5a7ad0c451dfba0013379712": 9.02,
+    "5a7ad1fb51dfba0013379715": 9.02,
+    "5a7ad2e851dfba0016153692": 9.02,
+    "5a7ad4af51dfba0013379717": 9.02,
+    "5a7ad55551dfba0015068f42": 9.02,
+    "5a7ad74e51dfba0015068f45": 9.02,
+    "5a7ae0c351dfba0017554310": 9.02,
+    "5a7afa25e899ef00135e31b0": 9.02,
+    "5a7b32a2e899ef00135e345a": 9.02,
+    "5a7b4960e899ef197b331a2d": 9.02,
+    "5a7d90eb159bd400165484f1": 9.02,
+    "5a7d9104159bd400134c8c21": 9.02,
+    "5a7d9122159bd4001438dbf4": 9.02,
+    "5a7d912f159bd400165484f3": 9.02,
+    "5a9548c9159bd400133e97b3": 9.02,
+    "5a957c3fa2750c00137fa5f7": 5.6,
+    "5a966ec8a2750c00171b3f36": 9.02,
+    "5a966f51a2750c00156aacf6": 18.5,
+    "5a9685b1a2750c0032157104": 9.02,
+    "5a9e81fba2750c00164f6b11": 9.25,
+    "5a9fb739a2750c003215717f": 9.02,
+    "5a9fbb74a2750c0032157181": 9.5,
+    "5a9fc7e6a2750c0032157184": 9.25,
+    "5aaa4194e5b5b055d06310a5": 5.6,
+    "5aaf8a0be5b5b00015693243": 7.82,
+    "5aaf8e43e5b5b00015693246": 7.82,
+    "5aaf9d53e5b5b00015042a52": 7.82,
+    "5aafa1c2e5b5b00015042a56": 7.82,
+    "5aafa49ae5b5b00015042a58": 7.82,
+    "5aafa857e5b5b00018480968": 7.82,
+    "5ab24ef9e5b5b00fe93c9209": 7.82,
+    "5ab372a310e891001717f0d8": 7.82,
+    "5ab3afb2d8ce87001660304d": 7.82,
+    "5ab626e4d8ce87272e4c6e43": 5.6,
+    "5ab8e9fcd8ce870019439434": 5.6,
+    "5aba62f8d8ce87001943946b": 9.27,
+    "5aba637ad8ce87001773e17f": 9.27,
+    "5aba639ed8ce8700182ece67": 9.27,
+    "5abcbb20d8ce87001773e258": 7.82,
+    "5abcbc27d8ce8700182eceeb": 7.9,
+    "5abcc328d8ce8700194394f3": 9.27,
+    "5abccb7dd8ce87001773e277": 9.27,
+    "5abcd472d8ce8700166032ae": 7.9,
+    "5ac4cd105acfc40016339859": 5.6,
+    "5ac66cb05acfc40198510a10": 5.7,
+    "5ac66d015acfc400180ae6e4": 5.7,
+    "5ac66d2e5acfc43b321d4b53": 7.9,
+    "5ac66d725acfc43b321d4b60": 7.9,
+    "5ac66d9b5acfc4001633997a": 5.6,
+    "5ac72e615acfc43f67248aa0": 5.7,
+    "5ac72e725acfc400180ae701": 5.7,
+    "5ac72e945acfc43f3b691116": 5.6,
+    "5ac7655e5acfc40016339a19": 5.6,
+    "5addba3e5acfc4001669f0ab": 7.82,
+    "5addbac75acfc400194dbc56": 7.82,
+    "5addbb6e5acfc408fb1393fd": 7.82,
+    "5addbb825acfc408fb139400": 7.82,
+    "5addbb945acfc4001a5fc44e": 7.82,
+    "5addbba15acfc400185c2854": 7.82,
+    "5addbbb25acfc40015621bd9": 7.82,
+    "5addbf175acfc408fb13965b": 7.82,
+    "5addbfbb5acfc400194dbcf7": 7.82,
+    "5addbfd15acfc40015621bde": 7.82,
+    "5addbfe15acfc4001a5fc58b": 7.82,
+    "5addbfef5acfc400185c2857": 7.82,
+    "5addbffe5acfc4001714dfac": 7.82,
+    "5addc00b5acfc4001669f144": 7.82,
+    "5addc7005acfc4001669f275": 7.82,
+    "5addc7ac5acfc400194dbd90": 7.82,
+    "5addc7db5acfc4001669f279": 7.82,
+    "5addcce35acfc4001a5fc635": 7.82,
+    "5addccf45acfc400185c2989": 7.82,
+    "5adf23995acfc400185c2aeb": 15.6,
+    "5ae083b25acfc4001a5fc702": 9.27,
+    "5ae08f0a5acfc408fb1398a1": 7.92,
+    "5ae096d95acfc400185c2c81": 7.92,
+    "5ae0973a5acfc4001562206c": 7.92,
+    "5ae099875acfc4001714e593": 7.92,
+    "5ae099925acfc4001a5fc7b3": 7.92,
+    "5ae09bff5acfc4001562219d": 7.92,
+    "5ae30db85acfc408fb139a05": 5.7,
+    "5ae30e795acfc408fb139a0b": 5.7,
+    "5ae35b315acfc4001714e8b0": 18.5,
+    "5afd7ded5acfc40017541f5e": 7.9,
+    "5afd7e095acfc40017541f61": 7.9,
+    "5afd7e445acfc4001637e35a": 7.9,
+    "5b099a765acfc47a8607efe3": 7.82,
+    "5b099a9d5acfc47a8607efe7": 7.82,
+    "5b099ac65acfc400186331e1": 7.82,
+    "5b099b7d5acfc400186331e4": 7.82,
+    "5b099b965acfc400186331e6": 7.82,
+    "5b099bb25acfc400186331e8": 7.82,
+    "5b099bf25acfc4001637e683": 7.82,
+    "5b0bbe4e5acfc40dc528a72d": 7.82,
+    "5b0bc22d5acfc47a8607f085": 7.82,
+    "5b1fa9b25acfc40018633c01": 9.02,
+    "5b1fa9ea5acfc40018633c0a": 9.02,
+    "5b1faa0f5acfc40dc528aeb5": 9.02,
+    "5b363dd25acfc4001a598fd2": 18.5,
+    "5b363dea5acfc4771e1c5e7e": 18.5,
+    "5b363e1b5acfc4771e1c5e80": 18.5,
+    "5b39ffbd5acfc47a8773fb06": 9.02,
+    "5b3a08b25acfc4001754880c": 9.02,
+    "5b3b713c5acfc4330140bd8d": 7.85,
+    "5b3baf8f5acfc40dc5296692": 7.85,
+    "5b3cadf35acfc400194776a0": 7.85,
+    "5b3f7bf05acfc433000ecf6b": 7.92,
+    "5b3f7c005acfc4704b4a1de8": 7.92,
+    "5b3f7c1c5acfc40dc5296b1d": 7.92,
+    "5b7be1125acfc4001876c0e5": 7.82,
+    "5b7be1265acfc400161d0798": 7.82,
+    "5b7be1ca5acfc400170e2d2f": 7.82,
+    "5b7be2345acfc400196d524a": 7.82,
+    "5b7bebc85acfc43bca706666": 7.82,
+    "5b7bed205acfc400161d08cc": 7.82,
+    "5b7bedd75acfc43d825283f9": 7.82,
+    "5b7bee755acfc400196d5383": 7.82,
+    "5b7bef1e5acfc43d82528402": 7.82,
+    "5b7bef5d5acfc43bca7067a3": 7.82,
+    "5b7bef9c5acfc43d102852ec": 7.82,
+    "5b7c2d1d5acfc43d1028532a": 7.82,
+    "5b7d37845acfc400170e2f87": 7.82,
+    "5b7d63b75acfc400170e2f8a": 7.82,
+    "5b7d63cf5acfc4001876c8df": 7.82,
+    "5b7d63de5acfc400170e2f8d": 7.82,
+    "5b7d64555acfc4001876c8e2": 7.82,
+    "5b7d645e5acfc400170e2f90": 7.82,
+    "5b7d671b5acfc43d82528ddd": 7.82,
+    "5b7d678a5acfc4001a5c4022": 7.82,
+    "5b7d679f5acfc4001a5c4024": 7.82,
+    "5b7d68af5acfc400170e30c3": 7.82,
+    "5b7d6c105acfc40015109a5f": 7.82,
+    "5b86a0e586f7745b600ccb23": 7.92,
+    "5ba26383d4351e00334c93d9": 4.6,
+    "5ba264f6d4351e0034777d52": 4.6,
+    "5ba2657ed4351e0035628ff2": 4.6,
+    "5ba26586d4351e44f824b340": 4.6,
+    "5ba26acdd4351e003562908e": 4.6,
+    "5ba26ae8d4351e00367f9bdb": 4.6,
+    "5bae13bad4351e00320204af": 7.92,
+    "5bae13ded4351e44f824bf38": 7.92,
+    "5bb20d53d4351e4502010a69": 5.7,
+    "5bb20d92d4351e00853263eb": 5.7,
+    "5bb20d9cd4351e00334c9d8a": 5.7,
+    "5bb20da5d4351e0035629dbf": 5.7,
+    "5bb20dadd4351e00367faeff": 5.7,
+    "5bb20dcad4351e3bac1212da": 5.7,
+    "5bb20de5d4351e0035629e59": 5.7,
+    "5bb20df1d4351e00347787d5": 5.7,
+    "5bb20dfcd4351e00334c9e24": 5.7,
+    "5bb2475ed4351e00853264e3": 5.7,
+    "5bbdb811d4351e45020113c7": 7.92,
+    "5bbdb83fd4351e44f824c44b": 7.92,
+    "5bbdb870d4351e00367fb67d": 7.92,
+    "5bbde41ed4351e003562b038": 7.92,
+    "5bc5a351d4351e003477a414": 7.92,
+    "5bc5a35cd4351e450201232f": 7.92,
+    "5bc5a372d4351e44f824d17f": 7.92,
+    "5bcf0213d4351e0085327c17": 4.6,
+    "5bd70322209c4d00d7167b8f": 4.6,
+    "5bd704e7209c4d00d7167c31": 4.6,
+    "5bed61680db834001d2c45ab": 5.6,
+    "5bed625c0db834001c062946": 5.6,
+    "5beec1bd0db834001e6006f3": 5.6,
+    "5beec2820db834001b095426": 5.6,
+    "5beec3420db834001b095429": 5.6,
+    "5beec3e30db8340019619424": 5.6,
+    "5beec91a0db834001961942d": 5.6,
+    "5beec9450db83400970084fd": 5.6,
+    "5beecbb80db834001d2c465e": 5.6,
+    "5beed0f50db834001c062b12": 5.6,
+    "5bf3e03b0db834001d2c4a9c": 5.6,
+    "5bf3e0490db83400196199af": 5.6,
+    "5bfd297f0db834001a669119": 7.92,
+    "5bfd35380db83400232fe5cc": 7.92,
+    "5bfd36290db834001966869a": 7.92,
+    "5bfd36ad0db834001c38ef66": 7.92,
+    "5bfd37c80db834001d23e842": 7.92,
+    "5bfd384c0db834001a6691d3": 7.92,
+    "5bfd4c980db834001b73449d": 7.92,
+    "5bfd4cbe0db834001b73449f": 7.92,
+    "5bfd4cc90db834001d23e846": 7.92,
+    "5bfd4cd60db834001c38f095": 7.92,
+    "5bfe7fb30db8340018089fed": 18.5,
+    "5bfe86a20db834001d23e8f7": 18.5,
+    "5bfe86bd0db83400232fe959": 18.5,
+    "5bfe89510db834001808a127": 18.5,
+    "5bfea6e90db834001b7347f3": 7.82,
+    "5bfea7ad0db834001c38f1ee": 7.82,
+    "5bfeaa0f0db834001b734927": 7.82,
+    "5bfeb32b0db834001a6694d9": 7.82,
+    "5bfebc250db834001a6694e1": 7.82,
+    "5bfebc320db8340019668d79": 7.82,
+    "5bfebc530db834001d23eb65": 7.82,
+    "5bfebc5e0db834001a6694e5": 7.82,
+    "5bffcf7a0db83400232fea79": 7.85,
+    "5bffd7ed0db834001d23ebf9": 7.85,
+    "5bffe7c50db834001d23ece1": 9.02,
+    "5bffec120db834001c38f5fa": 9.02,
+    "5bffef760db8340019668fe4": 9.02,
+    "5c0000c00db834001a6697fc": 9.02,
+    "5c0006470db834001a6697fe": 9.02,
+    "5c00076d0db834001d23ee1f": 9.02,
+    "5c0009510db834001966907f": 9.02,
+    "5c010a700db834001d23ef5d": 9.02,
+    "5c0111ab0db834001966914d": 18.5,
+    "5c0125fc0db834001a669aa3": 9.02,
+    "5c0672ed0db834001b7353f3": 9.02,
+    "5c0673fb0db8340023300271": 9.02,
+    "5c0684e50db834002a12585a": 7.85,
+    "5c079ec50db834001966a706": 7.85,
+    "5c079ed60db834001a66b372": 7.85,
+    "5c07a8770db8340023300450": 5.7,
+    "5c07b36c0db834002a1259e9": 9.02,
+    "5c07b3850db834002330045b": 9.02,
+    "5c07c5ed0db834001b73571c": 9.02,
+    "5c07c60e0db834002330051f": 5.7,
+    "5c07c9660db834001a66b588": 9.02,
+    "5c0d56a986f774449d5de529": 9.02,
+    "5c0d591486f7744c505b416f": 18.5,
+    "5c0e2f26d174af02a9625114": 5.7,
+    "5c0e2f5cd174af02a012cfc9": 5.7,
+    "5c0e2f94d174af029f650d56": 5.7,
+    "5c11279ad174af029d64592b": 5.7,
+    "5c1127bdd174af44217ab8b9": 9.27,
+    "5c1127d0d174af29be75cf68": 18.5,
+    "5c1260dc86f7746b106e8748": 9.25,
+    "5c12619186f7743f871c8a32": 9.25,
+    "5c1262a286f7743f8a69aab2": 5.7,
+    "5c3df7d588a4501f290594e5": 9.02,
+    "5c46fbd72e2216398b5a8c9c": 7.92,
+    "5c471b5d2e221602b21d4e14": 7.92,
+    "5c471b7e2e2216152006e46c": 7.92,
+    "5c471ba12e221602b3137d76": 7.92,
+    "5c471bd12e221602b4129c3a": 7.92,
+    "5c471be12e221602b66cd9ac": 7.92,
+    "5c471bfc2e221602b21d4e17": 7.92,
+    "5c471c2d2e22164bef5d077f": 7.92,
+    "5c471c442e221602b542a6f8": 7.92,
+    "5c471c6c2e221602b66cd9ae": 7.92,
+    "5c471c842e221615214259b5": 7.92,
+    "5c471cb32e221602b177afaa": 7.92,
+    "5c488a752e221602b412af63": 5.7,
+    "5c48a2852e221602b21d5923": 5.7,
+    "5c4ee3d62e2216152006f302": 7.92,
+    "5c4eec9b2e2216398b5aaba2": 7.92,
+    "5c4eecc32e221602b412b440": 7.92,
+    "5c4eecde2e221602b3140418": 7.92,
+    "5c501a4d2e221602b412b540": 7.82,
+    "5c5039be2e221602b177c9ff": 7.82,
+    "5c503ac82e221602b21d6e9a": 7.82,
+    "5c503ad32e2216398b5aada2": 7.82,
+    "5c503af12e221602b177ca02": 7.82,
+    "5c503b1c2e221602b21d6e9d": 7.82,
+    "5c503d0a2e221602b542b7ef": 7.82,
+    "5c59529a2e221602b177d160": 9.02,
+    "5c5970672e221602b21d7855": 7.9,
+    "5c5db5852e2216003a0fe71a": 9.02,
+    "5c5db5962e2216000e5e46eb": 9.02,
+    "5c5db5b82e2216003a0fe71d": 9.02,
+    "5c5db5c62e22160012542255": 9.02,
+    "5c5db5f22e2216000e5e47e8": 9.02,
+    "5c5db5fc2e2216000f1b2842": 9.02,
+    "5c5db6302e2216000e5e47f0": 9.02,
+    "5c5db63a2e2216000f1b284a": 9.02,
+    "5c5db6552e2216001026119d": 9.02,
+    "5c5db6652e221600113fba51": 9.02,
+    "5c5db6742e2216000f1b2852": 9.02,
+    "5c5db6b32e221600102611a0": 9.02,
+    "5c6161fb2e221600113fbde5": 15.6,
+    "5c6162682e22160010261a2b": 15.6,
+    "5c61627a2e22160012542c55": 15.6,
+    "5c6beec32e221601da3578f2": 9.02,
+    "5c6c2c9c2e2216000f2002e4": 5.7,
+    "5c6d10e82e221601da357b07": 5.7,
+    "5c6d10fa2e221600106f3f23": 5.7,
+    "5c6d11072e2216000e69d2e4": 5.7,
+    "5c6d11152e2216000f2003e7": 5.7,
+    "5c6d5d8b2e221644fc630b39": 5.7,
+    "5c6d85e02e22165df16b81f4": 5.7,
+    "5c78f26f2e221601da3581d1": 5.7,
+    "5c78f2792e221600106f4683": 5.7,
+    "5c88f24b2e22160bc12c69a6": 7.92,
+    "5c920e902e221644f31c3c99": 9.02,
+    "5c925fa22e221601da359b7b": 9.02,
+    "5c99f3592e221644fc633070": 15.6,
+    "5c9a25172e2216000f20314e": 5.7,
+    "5c9a26332e2216001219ea70": 5.7,
+    "5cadc190ae921500103bb3b6": 9.02,
+    "5cadc1c6ae9215000f2775a4": 9.02,
+    "5cadc2e0ae9215051e1c21e7": 9.02,
+    "5cadc390ae921500126a77f1": 9.02,
+    "5cadc431ae921500113bb8d5": 9.02,
+    "5cadc55cae921500103bb3be": 9.02,
+    "5cadd919ae921500126a77f3": 9.02,
+    "5cadd940ae9215051e1c2316": 9.02,
+    "5cadd954ae921500103bb3c2": 9.02,
+    "5cadf6ddae9215051e1c23b2": 12.7,
+    "5cadf6e5ae921500113bb973": 12.7,
+    "5cadf6eeae921500134b2799": 12.7,
+    "5cadfbf7ae92152ac412eeef": 12.7,
+    "5caf1041ae92157c28402e3f": 12.7,
+    "5caf1109ae9215753c44119f": 12.7,
+    "5caf1691ae92152ac412efb9": 12.7,
+    "5caf16a2ae92152ac412efbc": 12.7,
+    "5caf17c9ae92150b30006be1": 12.7,
+    "5caf187cae92157c28402e43": 12.7,
+    "5cbdaf89ae9215000e5b9c94": 5.6,
+    "5cc6ea78e4a949000e1ea3c1": 5.7,
+    "5cc6ea85e4a949000e1ea3c3": 5.7,
+    "5cc70093e4a949033c734312": 5.7,
+    "5cc700b9e4a949000f0f0f25": 5.7,
+    "5cc700cae4a949035e43ba72": 5.7,
+    "5cc700d4e4a949000f0f0f28": 5.7,
+    "5cc700ede4a949033c734315": 5.7,
+    "5cc70102e4a949035e43ba74": 5.7,
+    "5cc7012ae4a949001252b43e": 5.7,
+    "5cc70146e4a949000d73bf6b": 5.7,
+    "5cc7015ae4a949001152b4c6": 5.7,
+    "5cc701aae4a949000e1ea45c": 5.7,
+    "5cc701d7e4a94900100ac4e7": 5.7,
+    "5cc82796e24e8d000f5859a8": 5.7,
+    "5cc82d76e24e8d00134b4b83": 5.7,
+    "5cdaa99dd7f00c002412d0b2": 12.7,
+    "5cde739cd7f00c0010373bd3": 7.82,
+    "5cde77a9d7f00c000f261009": 7.82,
+    "5cde7afdd7f00c000d36b89d": 7.82,
+    "5cde7b43d7f00c000d36b93e": 7.82,
+    "5cdeac22d7f00c000f26168f": 7.82,
+    "5cdeac42d7f00c000d36ba73": 7.82,
+    "5cdeac5cd7f00c000f261694": 7.82,
+    "5cdeaca5d7f00c00b61c4b70": 7.82,
+    "5cdeb229d7f00c000e7ce174": 5.6,
+    "5ce69cbad7f00c00b61c5098": 7.82,
+    "5cebec00d7f00c065c53522a": 5.7,
+    "5cebec10d7f00c065703d185": 5.7,
+    "5cebec38d7f00c00110a652a": 5.7,
+    "5cf12a15d7f00c05464b293f": 7.82,
+    "5cf13123d7f00c1085616a50": 7.82,
+    "5cf67a1bd7f00c06585fb6f3": 7.92,
+    "5cf67cadd7f00c065a5abab7": 7.9,
+    "5cf6935bd7f00c06585fb791": 9.02,
+    "5cf79389d7f00c10941a0c4d": 7.92,
+    "5cf79599d7f00c10875d9212": 7.92,
+    "5cf7acfcd7f00c1084477cf2": 5.7,
+    "5cf8f3b0d7f00c00217872ef": 18.5,
+    "5cffa483d7ad1a049e54ef1c": 5.6,
+    "5d00e0cbd7ad1a6c6566a42d": 5.7,
+    "5d00ec68d7ad1a04a067e5be": 5.7,
+    "5d00f63bd7ad1a59283b1c1e": 5.7,
+    "5d010d1cd7ad1a59283b1ce7": 9.02,
+    "5d0236dad7ad1a0940739d29": 7.9,
+    "5d023784d7ad1a049d4aa7f2": 7.9,
+    "5d024f5cd7ad1a04a067e91a": 7.92,
+    "5d15ce51d7ad1a1eff619092": 5.6,
+    "5d19cd96d7ad1a4a992c9f52": 9.02,
+    "5d1c702ad7ad1a632267f429": 9.02,
+    "5d25a4a98abbc30b917421a4": 7.82,
+    "5d25a6538abbc306c62e630d": 7.82,
+    "5d25a6a48abbc306c62e6310": 7.82,
+    "5d25a7b88abbc3054f3e60bc": 7.82,
+    "5d25af8f8abbc3055079fec5": 7.82,
+    "5d25d0ac8abbc3054f3e61f7": 7.82,
+    "5d2702e88abbc31ed91efc44": 7.82,
+    "5d2703038abbc3105103d94c": 7.82,
+    "5d2f0d8048f0356c925bc3b0": 9.02,
+    "5d2f213448f0355009199284": 9.02,
+    "5d2f259b48f0355a844acd74": 9.02,
+    "5d2f25bc48f03502573e5d85": 9.02,
+    "5d2f261548f03576f500e7b7": 9.02,
+    "5d2f2d5748f03572ec0c0139": 9.02,
+    "5d3eb3b0a4b93615055e84d2": 5.7,
+    "5d3eb44aa4b93650d64e4979": 5.7,
+    "5d3eb4aba4b93650d64e497d": 5.7,
+    "5d3eb536a4b9363b1f22f8e2": 5.7,
+    "5d3eb59ea4b9361c284bb4b2": 5.7,
+    "5d3eb5b6a4b9361eab311902": 5.7,
+    "5d3eb5eca4b9363b1f22f8e4": 5.7,
+    "5d3ef698a4b9361182109872": 5.7,
+    "5d43021ca4b9362eab4b5e25": 5.7,
+    "5d4405aaa4b9361e6a4e6bd3": 5.7,
+    "5d440b93a4b9364276578d4b": 5.7,
+    "5d440b9fa4b93601354d480c": 5.7,
+    "5d67abc1a4b93614ec50137f": 5.7,
+    "5d6e6772a4b936088465b17c": 18.5,
+    "5d6e67fba4b9361bc73bc779": 18.5,
+    "5d6e6806a4b936088465b17e": 18.5,
+    "5d6e6869a4b9361c140bcfde": 18.5,
+    "5d6e6891a4b9361bd473feea": 18.5,
+    "5d6e689ca4b9361bc8618956": 18.5,
+    "5d6e68a8a4b9360b6c0d54e2": 18.5,
+    "5d6e68b3a4b9361bca7e50b5": 18.5,
+    "5d6e68c4a4b9361b93413f79": 18.5,
+    "5d6e68d1a4b93622fe60e845": 18.5,
+    "5d6e68dea4b9361bcc29e659": 18.5,
+    "5d6e68e6a4b9361c140bcfe0": 18.5,
+    "5d6e6911a4b9361bd5780d52": 18.5,
+    "5d7b6bafa4b93652786f4c76": 5.7,
+    "5dcbd56fdbd3d91b3e5468d5": 7.82,
+    "5dcbe9431e1f4616d354987e": 7.82,
+    "5de652c31b7e3716273428be": 9.5,
+    "5de653abf76fdc1ce94a5a2a": 9.5,
+    "5de65547883dde217541644b": 9.5,
+    "5de6556a205ddc616a6bc4f7": 9.5,
+    "5de6558e9f98ac2bc65950fc": 9.5,
+    "5de655be4a9f347bc92edb88": 9.5,
+    "5de7bd7bfd6b4e6e2276dc25": 9.02,
+    "5de8e67c4a9f347bc92edbd7": 9.02,
+    "5de8e8dafd6b4e6e2276dc32": 9.02,
+    "5de8ea8ffd6b4e6e2276dc35": 9.02,
+    "5de8eaadbbaf010b10528a6d": 9.02,
+    "5de8eac42a78646d96665d91": 9.02,
+    "5de8f237bbaf010b10528a70": 9.02,
+    "5de8f2d5b74cd90030650c72": 9.02,
+    "5de8fb539f98ac2bc659513a": 9.02,
+    "5de8fbad2fbe23140d3ee9c4": 9.02,
+    "5de8fbf2b74cd90030650c79": 9.02,
+    "5de8fc0b205ddc616a6bc51b": 9.02,
+    "5de910da8b6c4240ba2651b5": 9.02,
+    "5de922d4b11454561e39239f": 9.02,
+    "5df24cf80dee1b22f862e9bc": 7.82,
+    "5df256570dee1b22f862e9c4": 7.82,
+    "5df25b6c0b92095fd441e4cf": 7.82,
+    "5df25d3bfd6b4e6e2276dc9a": 7.82,
+    "5df35ddddfc58d14537c2036": 7.82,
+    "5df35e59c41b2312ea3334d5": 7.82,
+    "5df35e7f2a78646d96665dd4": 7.82,
+    "5df35e970b92095fd441e4d2": 7.82,
+    "5df35ea9c41b2312ea3334d8": 7.82,
+    "5df35eb2b11454561e3923e2": 7.82,
+    "5df36948bb49d91fb446d5ad": 7.82,
+    "5df38a5fb74cd90030650cb6": 7.82,
+    "5df8ce05b11454561e39243b": 7.82,
+    "5df8e053bb49d91fb446d6a6": 7.82,
+    "5df8e085bb49d91fb446d6a8": 7.82,
+    "5df8e4080b92095fd441e594": 7.82,
+    "5df917564a9f347bc92edca3": 7.82,
+    "5dfa397fb11454561e39246c": 7.82,
+    "5dfcd0e547101c39625f66f9": 7.92,
+    "5dfce88fe9dc277128008b2e": 7.92,
+    "5dfe14f30b92095fd441edaf": 18.5,
+    "5e00903ae9dc277128008b87": 9.02,
+    "5e0090f7e9dc277128008b93": 9.02,
+    "5e01e9e273d8eb11426f5bc3": 7.92,
+    "5e01ea19e9dc277128008c0b": 7.92,
+    "5e56991336989c75ab4f03f6": 7.92,
+    "5e5699df2161e06ac158df6f": 7.92,
+    "5e569a0156edd02abe09f27d": 7.92,
+    "5e569a132642e66b0b68015c": 7.92,
+    "5e81c3cbac2bb513793cdc75": 11.5,
+    "5e81c4ca763d9f754677befa": 11.5,
+    "5e81c519cb2b95385c177551": 11.5,
+    "5e81c539cb2b95385c177553": 11.5,
+    "5e81c550763d9f754677befd": 11.5,
+    "5e81c6a2ac2bb513793cdc7f": 11.5,
+    "5e81c6bf763d9f754677beff": 11.5,
+    "5e81ebcd8e146c7080625e15": 40,
+    "5e81edc13397a21db957f6a1": 11.5,
+    "5e81ee213397a21db957f6a6": 11.5,
+    "5e81ee4dcb2b95385c177582": 11.5,
+    "5e848cc2988a8701445df1e8": 23,
+    "5e848d1c264f7c180b5e35a9": 23,
+    "5e848d2eea0a7c419c2f9bfd": 23,
+    "5e848d51e4dbc5266a4ec63b": 23,
+    "5e848d99865c0f329958c83b": 23,
+    "5e848db4681bea2ada00daa9": 23,
+    "5e848dc4e4dbc5266a4ec63d": 23,
+    "5e870397991fd70db46995c8": 18.5,
+    "5e87071478f43e51ca2de5e1": 18.5,
+    "5e87076ce2db31558c75a11d": 18.5,
+    "5e87080c81c4ed43e83cefda": 18.5,
+    "5e8708d4ae379e67d22e0102": 18.5,
+    "5e87114fe2db31558c75a120": 18.5,
+    "5e87116b81c4ed43e83cefdd": 18.5,
+    "5ea02bb600685063ec28bfa1": 7.85,
+    "5ea034eb5aad6446a939737b": 7.85,
+    "5ea034f65aad6446a939737e": 7.85,
+    "5ea03e5009aa976f2e7a514b": 7.85,
+    "5ea03e9400685063ec28bfa4": 7.85,
+    "5ea03f7400685063ec28bfa8": 7.85,
+    "5ea16acdfadf1d18c87b0784": 5.7,
+    "5ea16ada09aa976f2e7a51be": 5.7,
+    "5ede4739e0350d05467f73e8": 40,
+    "5ede47405b097655935d7d16": 40,
+    "5ede474b0c226a66f5402622": 40,
+    "5ede475339ee016e8c534742": 40,
+    "5ede475b549eed7c6d5c18fb": 40,
+    "5ede47641cf3836a88318df1": 40,
+    "5eea21647547d6330471b3c9": 18.5,
+    "5eea217fc64c5d0dfc05712a": 18.5,
+    "5eeb2ff5ea4f8b73c827350b": 18.5,
+    "5ef1b9f0c64c5d0dfc0571a1": 18.5,
+    "5ef32e4d1c1fd62aea6a150d": 11.5,
+    "5ef3448ab37dfd6af863525c": 11.5,
+    "5ef3553c43cb350a955a7ccb": 11.5,
+    "5ef35bc243cb350a955a7ccd": 11.5,
+    "5ef35d2ac64c5d0dfc0571b0": 11.5,
+    "5ef35f46382a846010715a96": 11.5,
+    "5ef366938cef260c0642acad": 11.5,
+    "5ef369b08cef260c0642acaf": 11.5,
+    "5ef5d994dfbc9f3c660ded95": 11.5,
+    "5ef61964ec7f42238c31e0c1": 11.5,
+    "5efb0da7a29a85116f6ea05f": 9.02,
+    "5efb0e16aeb21837e749c7ff": 9.02,
+    "5f0c892565703e5c461894e9": 40,
+    "5f2a9575926fd9352339381f": 7.82,
+    "5f2aa43ba9b91d26f20ae6d2": 7.82,
+    "5f2aa4464b50c14bcf07acdb": 7.82,
+    "5f2aa4559b44de6b1b4e68d1": 7.82,
+    "5f2aa46b878ef416f538b567": 7.82,
+    "5f2aa47a200e2c0ee46efa71": 7.82,
+    "5f2aa493cd375f14e15eea72": 7.82,
+    "5f2aa49f9b44de6b1b4e68d4": 7.82,
+    "5f36a0e5fbf956000b716b65": 11.5,
+    "5f3e76d86cda304dcc634054": 11.5,
+    "5f3e772a670e2a7b01739a52": 11.5,
+    "5f3e777688ca2d00ad199d25": 11.5,
+    "5f3e778efcd9b651187d7201": 11.5,
+    "5f3e77b26cda304dcc634057": 11.5,
+    "5f3e77f59103d430b93f94c1": 11.5,
+    "5f3e7801153b8571434a924c": 11.5,
+    "5f3e7823ddc4f03b010e2045": 11.5,
+    "5f3e7897ddc4f03b010e204a": 11.5,
+    "5f3e78a7fbf956000b716b8e": 11.5,
+    "5f63405df5750b524b45f114": 7.82,
+    "5f63407e1b231926f2329f15": 7.82,
+    "5f63418ef5750b524b45f116": 18.5,
+    "5f647d9f8499b57dc40ddb93": 23,
+    "5fb64bc92b1b027b1f50bcf2": 11.5,
+    "5fb651b52b1b027b1f50bcff": 11.5,
+    "5fb651dc85f90547f674b6f4": 11.5,
+    "5fb65363d1409e5ca04b54f5": 11.5,
+    "5fb653962b1b027b1f50bd03": 11.5,
+    "5fb65424956329274326f316": 11.5,
+    "5fb6548dd1409e5ca04b54f9": 11.5,
+    "5fbbc3324e8a554c40648348": 9.02,
+    "5fbbc34106bde7524f03cbe9": 9.02,
+    "5fbbc366ca32ed67276c1557": 9.02,
+    "5fbbc383d5cb881a7363194a": 9.02,
+    "5fbbfabed5cb881a7363194e": 7.82,
+    "5fbbfacda56d053a3543f799": 7.82,
+    "5fbc210bf24b94483f726481": 7.82,
+    "5fbc226eca32ed67276c155d": 7.82,
+    "5fbc227aa56d053a3543f79e": 7.82,
+    "5fbcc1d9016cce60e8341ab3": 7.82,
+    "5fbcc3e4d6fa9c00c571bb58": 7.82,
+    "5fbcc640016cce60e8341acc": 7.82,
+    "5fc22d7c187fea44d52eda44": 8.6,
+    "5fc23426900b1d5091531e15": 8.6,
+    "5fc235db2770a0045c59c683": 8.6,
+    "5fc2360f900b1d5091531e19": 8.6,
+    "5fc23636016cce60e8341b05": 8.6,
+    "5fc23678ab884124df0cd590": 8.6,
+    "5fc278107283c4046c581489": 8.6,
+    "5fc3e272f8b6a877a729eac5": 11.5,
+    "5fc3e466187fea44d52eda90": 11.5,
+    "5fc3e4a27283c4046c5814ab": 11.5,
+    "5fc3e4ee7283c4046c5814af": 11.5,
+    "5fc3f2d5900b1d5091531e57": 9.02,
+    "5fc4b97bab884124df0cd5e3": 11.5,
+    "5fc4b992187fea44d52edaa9": 11.5,
+    "5fc4b9b17283c4046c5814d7": 11.5,
+    "5fc53954f8b6a877a729eaeb": 11.5,
+    "5fc5396e900b1d5091531e72": 11.5,
+    "602286df23506e50807090c6": 9.02,
+    "60228924961b8d75ee233c32": 9.02,
+    "60228a76d62c9b14ed777a66": 9.02,
+    "60228a850ddce744014caf69": 9.02,
+    "602293f023506e50807090cb": 9.02,
+    "60229948cacb6b0506369e27": 9.02,
+    "602a95edda11d6478d5a06da": 9.02,
+    "602a95fe4e02ce1eaa358729": 9.02,
+    "602a97060ddce744014caf6f": 9.02,
+    "602a9740da11d6478d5a06dc": 9.02,
+    "602e63fb6335467b0c5ac94d": 9.02,
+    "602f85fd9b513876d4338d9c": 9.02,
+    "603372b4da11d6478d5a07ff": 9.02,
+    "603372d154072b51b239f9e1": 9.02,
+    "603372f153a60014f970616d": 9.02,
+    "603373004e02ce1eaa358814": 9.02,
+    "60337f5dce399e10262255d1": 9.02,
+    "60338ff388382f4fab3fd2c8": 9.02,
+    "60339954d62c9b14ed777c06": 9.02,
+    "606587252535c57a13424cfd": 7.9,
+    "60658776f2cb2e02a42ace2b": 7.9,
+    "6065878ac9cf8012264142fd": 7.9,
+    "606587a88900dc2d9a55b659": 7.9,
+    "606587bd6d0bd7580617bacc": 7.9,
+    "606dae0ab0e443224b421bb7": 18.5,
+    "606ee5c81246154cad35d65e": 18.5,
+    "606eef46232e5a31c233d500": 18.5,
+    "606eef756d0bd7580617baf8": 18.5,
+    "606ef0812535c57a13424d20": 18.5,
+    "606f262c6d0bd7580617bafa": 18.5,
+    "606f263a8900dc2d9a55b68d": 18.5,
+    "606f26752535c57a13424d22": 18.5,
+    "606f2696f2cb2e02a42aceb1": 18.5,
+    "6076c1b9f2cb2e02a42acedc": 18.5,
+    "6076c87f232e5a31c233d50e": 18.5,
+    "60785c0d232e5a31c233d51c": 18.5,
+    "60785ce5132d4d12c81fd918": 18.5,
+    "607d5a891246154cad35d6aa": 18.5,
+    "607d5aa50494a626335e12ed": 18.5,
+    "607ea812232e5a31c233d53c": 18.5,
+    "6086b5392535c57a13424d70": 18.5,
+    "6086b5731246154cad35d6c7": 18.5,
+    "609a4b4fe2ff132951242d04": 7.82,
+    "609b9e31506cf869cf3eaf41": 18.5,
+    "60db29ce99594040e04c4a27": 18.5,
+    "60dc519adf4c47305f6d410d": 18.5,
+    "611a30addbdd8440277441dc": 18.5,
+    "611a31ce5b7ffe001b4649d1": 18.5,
+    "6123649463849f3d843da7c4": 18.5,
+    "612368f58b401f4f51239b33": 18.5,
+    "612781056f3d944a17348d60": 18.5,
+    "612e0d81290d254f5e6b291a": 8.6,
+    "6130c3dffaa1272e43151c7d": 11.5,
+    "6130c4d51cb55961fa0fd49f": 11.5,
+    "615d8da4d3a39d50044c10e8": 9.02,
+    "615d8dbd290d254f5e6b2ed6": 9.02,
+    "615d8df08004cc50514c3236": 9.02,
+    "615d8e9867085e45ef1409c6": 7.9,
+    "615d8f5dd92c473c770212ef": 5.6,
+    "615d8f8567085e45ef1409ca": 5.6,
+    "6165ac306ef05c2ce828ef74": 7.82,
+    "6165adcdd3a39d50044c120f": 7.82,
+    "6165aeedfaa1272e431521e3": 7.82,
+    "61695095d92c473c7702147a": 7.9,
+    "61702be9faa1272e431522c3": 7.82,
+    "61702d8a67085e45ef140b24": 7.82,
+    "61702f1b67085e45ef140b26": 7.82,
+    "61703001d92c473c77021497": 7.82,
+    "61712eae6c780c1e710c9a1d": 7.82,
+    "617130016c780c1e710c9a24": 7.82,
+    "617131a4568c120fdd29482d": 7.82,
+    "61713308d92c473c770214a0": 7.82,
+    "6171367e1cb55961fa0fdb36": 7.82,
+    "61713a8fd92c473c770214a4": 7.82,
+    "617153016c780c1e710c9a2f": 7.82,
+    "617154aa1cb55961fa0fdb3b": 7.82,
+    "617155ee50224f204c1da3cd": 7.82,
+    "61715e7e67085e45ef140b33": 7.82,
+    "6176aca650224f204c1da3fb": 7.82,
+    "617f1ef5e8b54b0998387733": 9.27,
+    "618168b350224f204c1da4d8": 7.82,
+    "618168dc8004cc50514c34fc": 7.82,
+    "6183afd850224f204c1da514": 7.82,
+    "6183b0711cb55961fa0fdcad": 7.82,
+    "6183b084a112697a4b3a6e6c": 7.82,
+    "6183d53f1cb55961fa0fdcda": 7.82,
+    "6183fc15d3a39d50044c13e9": 5.7,
+    "6183fd911cb55961fa0fdce9": 5.7,
+    "6183fd9e8004cc50514c358f": 5.7,
+    "618405198004cc50514c3594": 5.7,
+    "6184055050224f204c1da540": 5.7,
+    "618407a850224f204c1da549": 5.7,
+    "618426d96c780c1e710c9b9f": 5.7,
+    "618428466ef05c2ce828f218": 5.7,
+    "6193a720f8ee7e52e42109ed": 11.5,
+    "6193d3149fb0c665d5490e32": 11.5,
+    "6193d338de3cdf1d2614a6fc": 11.5,
+    "6193d382ed0429009f543e65": 11.5,
+    "6193d3be7c6c7b169525f0da": 11.5,
+    "6193d3cded0429009f543e6a": 11.5,
+    "6193d5d4f8ee7e52e4210a1b": 11.5,
+    "6194ef39de3cdf1d2614a768": 11.5,
+    "6194efe07c6c7b169525f11b": 11.5,
+    "6194eff92d2c397d6600348b": 11.5,
+    "6194f017ed0429009f543eaa": 11.5,
+    "6194f02d9bb3d20b0946d2f0": 11.5,
+    "6194f1f918a3974e5e7421e4": 11.5,
+    "6194f2912d2c397d6600348d": 11.5,
+    "6194f2df645b5d229654ad77": 11.5,
+    "6194f3286db0f2477964e67d": 11.5,
+    "6194f35c18a3974e5e7421e6": 11.5,
+    "6194f41f9fb0c665d5490e75": 11.5,
+    "6194f5722d2c397d6600348f": 11.5,
+    "6194f5a318a3974e5e7421eb": 11.5,
+    "6194f5d418a3974e5e7421ef": 11.5,
+    "619621a4de3cdf1d2614a7a7": 11.5,
+    "619624b26db0f2477964e6b0": 11.5,
+    "6196255558ef8c428c287d1c": 11.5,
+    "61963a852d2c397d660036ad": 11.5,
+    "6197b229af1f5202c57a9bea": 7.92,
+    "619b5db699fb192e7430664f": 5.7,
+    "619d36da53b4d42ee724fae4": 18.5,
+    "619f4cee4c58466fe1228435": 9.07,
+    "619f4f8c4c58466fe1228439": 9.07,
+    "619f54a1d25cbd424731fb99": 9.07,
+    "61a4c8884f95bc3b2c5dc96f": 9.07,
+    "61f4012adfc9f01a816adda1": 7.92,
+    "61f7b234ea4ab34f2f59c3ec": 7.92,
+    "61f7b85367ddd414173fdb36": 7.92,
+    "61f7c9e189e6fb1a5e3ea78d": 7.92,
+    "61f8024263dc1250e26eb029": 7.92,
+    "61f803b8ced75b2e852e35f8": 7.92,
+    "61f804acfcba9556ea304cb8": 7.92,
+    "61faa91878830f069b6b7967": 7.92,
+    "620109578d82e67e7911abf2": 26,
+    "6217726288ed9f0845317459": 26,
+    "62178be9d0050232da3485d9": 26,
+    "62178c4d4ecf221597654e3d": 26,
+    "622b327b267a1b13a44abea3": 5.7,
+    "622b379bf9cfc87d675d2de5": 5.7,
+    "622b3858034a3e17ad0b81f5": 5.7,
+    "622b38c56762c718e457e246": 5.7,
+    "622b397c9a3d4327e41843b6": 5.7,
+    "622b3c081b89c677a33bcda6": 5.7,
+    "622b3d5cf9cfc87d675d2de9": 5.7,
+    "622b4d7df9cfc87d675d2ded": 5.7,
+    "622b4f54dc8dcc0ba8742f85": 5.7,
+    "622efbcb99f4ea1a4d6c9a15": 5.7,
+    "622efdf8ec80d870d349b4e5": 5.7,
+    "622f02437762f55aaa68ac85": 5.7,
+    "622f039199f4ea1a4d6c9a17": 5.7,
+    "622f07cfae33bc505b2c4dd5": 5.7,
+    "622f0ee47762f55aaa68ac87": 5.7,
+    "622f128cec80d870d349b4e8": 5.7,
+    "622f140da5958f63c67f1735": 5.7,
+    "622f14e899892a7f9e08f6c5": 5.7,
+    "622f16a1a5958f63c67f1737": 5.7,
+    "623063e994fc3f7b302a9696": 5.7,
+    "62307b7b10d2321fa8741921": 5.7,
+    "6231654c71b5bc3baa1078e5": 5.7,
+    "623166e08c43374ca1567195": 5.7,
+    "6231670f0b8aa5472d060095": 5.7,
+    "62330b3ed4dc74626d570b95": 9.07,
+    "62330bfadc5883093563729b": 9.07,
+    "62330c18744e5e31df12f516": 9.07,
+    "62330c40bdd19b369e1e53d1": 9.07,
+    "62386b2adf47d66e835094b2": 5.7,
+    "62386b7153757417e93a4e9f": 5.7,
+    "623b2e9d11c3296b440d1638": 7.92,
+    "623c3c1f37b4b31470357737": 7.92,
+    "62444cb99f47004c781903eb": 5.7,
+    "62444cd3674028188b052799": 5.7,
+    "624c0b3340357b5f566e8766": 26,
+    "624c29ce09cd027dff2f8cd7": 7.92,
+    "624c2e8614da335f1e034d8c": 9.02,
+    "624c3074dbbd335e8e6becf3": 9.02,
+    "6259b864ebedf17603599e88": 18.5,
+    "6259bdcabd28e4721447a2aa": 18.5,
+    "6259c2c1d714855d182bad85": 18.5,
+    "6259c3387d6aab70bc23a18d": 18.5,
+    "6259c3d8012d6678ec38eeb8": 18.5,
+    "6259c4347d6aab70bc23a190": 18.5,
+    "625eb0faa6e3a82193267ad9": 18.5,
+    "625ebcef6f53af4aa66b44dc": 18.5,
+    "625ec45bb14d7326ac20f572": 18.5,
+    "625ed7c64d9b6612df732146": 18.5,
+    "625ff2ccb8c587128c1a01dd": 18.5,
+    "625ff2eb9f5537057932257d": 18.5,
+    "625ff3046d721f05d93bf2ee": 18.5,
+    "625ff31daaaa8c1130599f64": 18.5,
+    "626a8ae89e664a2e2a75f409": 15.6,
+    "626a9cb151cb5849f6002890": 11.5,
+    "6275303a9f372d6ea97f9ec7": 40,
+    "627bce33f21bc425b06ab967": 40,
+    "627e14b21713922ded6f2c15": 8.6,
+    "62811cd7308cb521f87a8f99": 8.6,
+    "62811d61578c54356d6d67ea": 8.6,
+    "62811e2510e26c1f344e6554": 8.6,
+    "62811e335631d45211793c95": 8.6,
+    "62811f828193841aca4a45c3": 8.6,
+    "62811fa609427b40ab14e765": 8.6,
+    "62811fbf09427b40ab14e767": 8.6,
+    "628120415631d45211793c99": 8.6,
+    "6281204f308cb521f87a8f9b": 8.6,
+    "628120621d5df4475f46a335": 8.6,
+    "62812081d23f207deb0ab216": 8.6,
+    "6281209662cba23f6c4d7a19": 8.6,
+    "628120c21d5df4475f46a337": 8.6,
+    "628120f210e26c1f344e6558": 8.6,
+    "628120fd5631d45211793c9f": 8.6,
+    "6281212a09427b40ab14e770": 8.6,
+    "628121434fa03b6b6c35dc6a": 8.6,
+    "6281214c1d5df4475f46a33a": 8.6,
+    "6281215b4fa03b6b6c35dc6c": 8.6,
+    "628121651d5df4475f46a33c": 8.6,
+    "6284bd5f95250a29bc628a30": 40,
+    "628a60ae6b1d481ff772e9c8": 7.9,
+    "628a83c29179c324ed269508": 7.9,
+    "628b5638ad252a16da6dd245": 5.6,
+    "628b8d83717774443b15e248": 5.6,
+    "628b916469015a4e1711ed8d": 5.6,
+    "628b9471078f94059a4b9bfb": 5.6,
+    "628b9a40717774443b15e9f2": 5.6,
+    "628b9be6cff66b70c002b14c": 5.6,
+    "628b9c37a733087d0d7fe84b": 5.6,
+    "62e14904c2699c0ec93adc47": 9.02,
+    "62e153bcdb1a5c41971c1b5b": 9.02,
+    "62e15547db1a5c41971c1b5e": 9.02,
+    "62e27a7865f0b1592a49e17b": 9.02,
+    "62e281349ecd3f493f6df954": 9.02,
+    "62e292e7b6c0ee2f230cee00": 9.02,
+    "62e2969582ebf260c20539c2": 9.02,
+    "62e2a7138e1ac9380579c122": 9.02,
+    "62e2a754b6c0ee2f230cee0f": 9.02,
+    "62e7c4fba689e8c9c50dfc38": 5.7,
+    "62e7c72df68e7a0676050c77": 5.7,
+    "62e7c7f3c34ea971710c32fc": 5.7,
+    "62e7c880f68e7a0676050c7c": 5.7,
+    "62e7c8f91cd3fde4d503d690": 5.7,
+    "62e7c98b550c8218d602cbb4": 5.7,
+    "62ea7c793043d74a0306e19f": 5.7,
+    "62ebba1fb658e07ef9082b5a": 5.7,
+    "62ebbc53e3c1e1ec7c02c44f": 5.7,
+    "62ebd290c427473eff0baafb": 5.7,
+    "62ed189fb3608410ef5a2bfc": 9.02,
+    "62ed1921b3608410ef5a2c04": 9.02,
+    "62ff9920fe938a24c90c10d2": 9.02,
+    "62ff9faffe938a24c90c10df": 9.02,
+    "63075cc5962d0247b029dc2a": 9.02,
+    "630764fea987397c0816d219": 9.02,
+    "630765777d50ff5e8a1ea718": 9.02,
+    "630765cb962d0247b029dc45": 9.02,
+    "63076701a987397c0816d21b": 9.02,
+    "630767c37d50ff5e8a1ea71a": 9.02,
+    "630769c4962d0247b029dc60": 9.02,
+    "63088377b5cd696784087147": 9.02,
+    "630e1adbbd357927e4007c09": 5.7,
+    "630e295c984633f1fb0e7c30": 5.7,
+    "630e39c3bd357927e4007c15": 5.7,
+    "630f27f04f3f6281050b94d7": 5.7,
+    "630f2872911356c17d06abc5": 5.7,
+    "630f28f0cadb1fe05e06f004": 5.7,
+    "630f291b9f66a28b37094bb8": 5.7,
+    "630f2982cdb9e392db0cbcc7": 5.7,
+    "63171672192e68c5460cebc5": 5.7,
+    "6333f05d1bc0e6217a0e9d34": 5.7,
+    "633a98eab8b0506e48497c1a": 9.02,
+    "633ec6ee025b096d320a3b15": 12.7,
+    "633ec7c2a6918cb895019c6c": 12.7,
+    "633ec8e4025b096d320a3b1e": 12.7,
+    "634e61b0767cb15c4601a877": 5.7,
+    "634eba08f69c710e0108d386": 5.7,
+    "634eff66517ccc8a960fc735": 7.9,
+    "634f02331f9f536910079b51": 7.9,
+    "634f02d7517ccc8a960fc744": 7.9,
+    "634f036a517ccc8a960fc746": 7.9,
+    "634f03d40384a3ba4f06f874": 7.9,
+    "634f04d82e5def262d0b30c6": 7.9,
+    "634f05a21f9f536910079b56": 7.9,
+    "634f05ca517ccc8a960fc748": 7.9,
+    "634f06262e5def262d0b30ca": 7.9,
+    "634f08a21f9f536910079b5a": 7.9,
+    "6357c98711fb55120211f7e1": 5.7,
+    "6374a7e7417239a7bf00f042": 9.27,
+    "6374a822e629013b9c0645c8": 9.27,
+    "637784c5f7b3f4ac1a0d1a9a": 9.27,
+    "637b6d610aef6cfc5e02dd14": 9.27,
+    "637b9c37b7e3bc41b21ce71a": 9.02,
+    "637ba19df7ca6372bf2613d7": 9.02,
+    "637ba29bf7ca6372bf2613db": 9.02,
+    "637f57a68d137b27f70c4968": 5.7,
+    "637f57b78d137b27f70c496a": 5.7,
+    "637f589af5ef8c33840d36d3": 5.7,
+    "63888bbd28e5cc32cc09d2b6": 5.7,
+    "6388c4478d895f557a0c6512": 5.7,
+    "6388c4ac8d895f557a0c6515": 5.7,
+    "6388c5d19c00405f4717c0f0": 5.7,
+    "638f1ff84822287cad04be9d": 5.7,
+    "638f2003bbd47aeb9e0ff637": 5.7,
+    "63969c9019971040b005049b": 5.7,
+    "6396aaa9a52ace83df0840ab": 5.7,
+    "639af924d0446708ee62294e": 40,
+    "639c3fbbd0446708ee622ee9": 40,
+    "63c6adcfb4ba094317063742": 9.27,
+    "63d3ce0446bd475bcb50f55f": 5.7,
+    "63d3ce281fe77d0f2801859e": 5.7,
+    "63d3d44a2a49307baf09386d": 5.7,
+    "63f5ed14534b2c3d5479a677": 5.7,
+    "640b20359ab20e15ee445fa9": 5.7,
+    "6410733d5dd49d77bd07847e": 7.92,
+    "6410745d5dd49d77bd078485": 7.92,
+    "641074a07fd350b98c0b3f96": 7.92,
+    "6410758c857473525b08bb77": 7.92,
+    "64119cdbdcf48d656f0aa272": 7.92,
+    "64119d1f2c6d6f921a0929f8": 7.92,
+    "64119d672c6d6f921a0929fb": 7.92,
+    "64119d90dcf48d656f0aa275": 7.92,
+    "6415c694da439c6a97048b56": 7.9,
+    "6415d33eda439c6a97048b5b": 7.9,
+    "641dc35e19604f20c800be18": 7.92,
+    "6422e1ea3c0f06190302161a": 7.92,
+    "643ea5b23db6f9f57107d9fd": 7.92,
+    "644674a13d52156624001fbc": 9.25,
+    "644675573d52156624001fc9": 9.25,
+    "6448f2f6d4928d46d30be3f6": 9.25,
+    "6450ec2e7da7133e5a09ca96": 9.25,
+    "6450f21a3d52156624001fcf": 9.25,
+    "6451167ad4928d46d30be3fd": 9.25,
+    "645122f6d4928d46d30be3ff": 9.25,
+    "645123013d52156624001fd1": 9.25,
+    "6452519e3d52156624001fd5": 9.25,
+    "64527a263d52156624001fd7": 9.25,
+    "64527a3a7da7133e5a09ca99": 9.25,
+    "645e0c6b3b381ede770e1cc9": 9.25,
+    "64637076203536ad5600c990": 7.92,
+    "646371779f5f0ea59a04c204": 7.92,
+    "646371a9f2404ab67905c8e6": 7.92,
+    "646371faf2404ab67905c8e9": 7.92,
+    "646372518610c40fc20204e8": 7.92,
+    "64639a9aab86f8fd4300146c": 7.92,
+    "6464d870bb2c580352070cc4": 7.92,
+    "64748cb8de82c85eaf0a273a": 18.5,
+    "64748d02d1c009260702b526": 18.5,
+    "647db1eca8d3399c380d195c": 5.6,
+    "647de824196bf69818044c93": 5.7,
+    "647def638295ebcb5b02f05b": 5.7,
+    "648983d6b5a2df1c815a04ec": 12.7,
+    "6489848173c462723909a14b": 8.6,
+    "648984b8d5b4df6140000a1a": 7.92,
+    "648984e3f09d032aa9399d53": 7.82,
+    "6489851fc827d4637f01791b": 7.9,
+    "6489854673c462723909a14e": 9.25,
+    "64898583d5b4df6140000a1d": 5.7,
+    "648985c074a806211e4fb682": 7.82,
+    "64898602f09d032aa9399d56": 5.6,
+    "648986bbc827d4637f01791e": 5.7,
+    "6489870774a806211e4fb685": 4.6,
+    "6489875745f9ca4ba51c4808": 9.02,
+    "6489879db5a2df1c815a04ef": 11.5,
+    "648987d673c462723909a151": 9.02,
+    "64898838d5b4df6140000a20": 18.5,
+    "648afce7ec6bb25b2608defb": 9.27,
+    "6491c6f6ef312a876705191b": 7.92,
+    "6492c6dd60fdb10a020621a2": 7.92,
+    "6492c8bba6e68e06fb0bae87": 7.92,
+    "6492d7847363b8a52206bc52": 7.92,
+    "6492e3a97df7d749100e29ee": 7.92,
+    "6492ef63cfcf7c89e701abf1": 7.92,
+    "6492efb8cfcf7c89e701abf3": 7.92,
+    "6492efe46cc7e29a6f03b2a0": 7.92,
+    "6492fb8253acae0af00a29b6": 7.92,
+    "64942bfc6ee699f6890dff95": 7.9,
+    "6499849fc93611967b034949": 5.6,
+    "649ec107961514b22506b10c": 5.6,
+    "649ec127c93611967b034957": 5.6,
+    "649ec2af961514b22506b10f": 5.6,
+    "649ec2da59cbb3c813042dca": 5.6,
+    "649ec2f3961514b22506b111": 5.6,
+    "649ec30cb013f04a700e60fb": 5.6,
+    "64ace9d9b5bf5e95f50a4c1d": 7.9,
+    "64ace9f9c4eda9354b0226aa": 7.9,
+    "64ace9ff03378853630da538": 7.9,
+    "64acea09c4eda9354b0226ad": 7.9,
+    "64acea0d03378853630da53b": 7.9,
+    "64acea16c4eda9354b0226b0": 7.9,
+    "64acea2c03378853630da53e": 7.9,
+    "64aceab0426a303417060654": 7.92,
+    "64aceac0c4eda9354b0226b3": 7.92,
+    "64aceaecc4eda9354b0226b6": 4.6,
+    "64aceafcb5bf5e95f50a4c20": 9.02,
+    "64acee6903378853630da544": 7.92,
+    "64b7bbb74b75259c590fa897": 9.02,
+    "64b8ee384b75259c590fa89b": 18.5,
+    "64b9e2037fdfb81df81e3c25": 7.82,
+    "64b9e265c94d0d15c5027e35": 5.6,
+    "64c196ad26a15b84aa07132f": 5.6,
+    "64ca3d3954fc657e230529cc": 7.92,
+    "64cbad529f7cf7f75c077fd5": 7.92,
+    "651178336cad06c37c049eb4": 9.25,
+    "65118f531b90b4fc77015083": 9.25,
+    "6513ef33e06849f06c0957ca": 7.9,
+    "6513eff1e06849f06c0957d4": 7.9,
+    "6513f037e06849f06c0957d7": 7.9,
+    "6513f05a94c72326990a3866": 7.9,
+    "6513f0a194c72326990a3868": 7.9,
+    "6513f0f5e63f29908d0ffab8": 7.9,
+    "6513f13a8cb24472490ee32f": 7.9,
+    "6513f153e63f29908d0ffaba": 7.9,
+    "6513f1798cb24472490ee331": 7.9,
+    "65144f546ddb773afa0e35e1": 9.25,
+    "65144ff50e00edc79406836f": 9.25,
+    "651450ce0e00edc794068371": 9.25,
+    "6516b129609aaf354b34b3a8": 7.92,
+    "651bfe4d1065f87f082e7209": 9.02,
+    "65266fd43341ed9aa903dd56": 7.9,
+    "65268d8ecb944ff1e90ea385": 7.9,
+    "65290f395ae2ae97b80fdf2d": 7,
+    "652910565ae2ae97b80fdf35": 7,
+    "6529109524cbe3c74a05e5b7": 7,
+    "652910bc24cbe3c74a05e5b9": 7,
+    "652910ef50dc782999054b97": 7,
+    "6529113b5ae2ae97b80fdf39": 7,
+    "6529119424cbe3c74a05e5bb": 7,
+    "652911e650dc782999054b9d": 7,
+    "65329ebcc0d50d0c9204ace1": 9.25,
+    "653ecc425a1690d9d90491e4": 7.9,
+    "653ecd065a1690d9d90491e6": 7.9,
+    "653ece125a1690d9d90491e8": 7.9,
+    "653ecef836fae5a82f02b869": 7.9,
+    "653ed132896b99b40a0292e6": 7.9,
+    "653ed19d22e1ef3d9002c328": 7.9,
+    "65434a4e4e3a01736a6c9706": 9.02,
+    "655cb6b5d680a544f30607fa": 5.6,
+    "6565b91666492762f5029c0b": 9.25,
+    "6565bb7eb4b12a56eb04b084": 9.25,
+    "6565c0c2ff7eb7070409084c": 9.25,
+    "6565c3ab977bcc2dbb01c2e7": 9.25,
+    "6568a6bf2c5fb7afc70bc424": 9.25,
+    "657023a9126cc4a57d0e17a6": 7.82,
+    "657023b1cfc010a0f50069e5": 7.82,
+    "657023b71419851aef03e6e8": 7.82,
+    "657023bebfc87b3a34093207": 7.82,
+    "657023c61419851aef03e6eb": 7.82,
+    "657023ccbfc87b3a3409320a": 8.6,
+    "657023d6cfc010a0f50069e9": 8.6,
+    "657023dabfc87b3a3409320d": 8.6,
+    "657023decfc010a0f50069ec": 9.07,
+    "657023e31419851aef03e6ee": 9.07,
+    "657023e7c5d7d4cb4d078552": 9.07,
+    "657023eccfc010a0f50069ef": 9.07,
+    "657023f1bfc87b3a34093210": 9.5,
+    "657023f81419851aef03e6f1": 9.5,
+    "657023fcbfc87b3a34093213": 9.5,
+    "657024011419851aef03e6f4": 9.5,
+    "65702406bfc87b3a34093216": 11.5,
+    "6570240a1419851aef03e6f7": 11.5,
+    "6570240ecfc010a0f50069f2": 11.5,
+    "65702414c5d7d4cb4d078555": 11.5,
+    "6570241bcfc010a0f50069f5": 12.7,
+    "65702420bfc87b3a34093219": 12.7,
+    "65702426cfc010a0f50069f8": 18.5,
+    "65702432bfc87b3a3409321c": 18.5,
+    "657024361419851aef03e6fa": 18.5,
+    "6570243bbfc87b3a3409321f": 18.5,
+    "6570243fcfc010a0f50069fb": 18.5,
+    "657024431419851aef03e6fd": 18.5,
+    "65702449bfc87b3a34093223": 18.5,
+    "6570244ec5d7d4cb4d078558": 18.5,
+    "65702452cfc010a0f50069fe": 18.5,
+    "657024581419851aef03e700": 18.5,
+    "65702469c5d7d4cb4d07855b": 18.5,
+    "6570246fcfc010a0f5006a01": 18.5,
+    "65702474bfc87b3a34093226": 18.5,
+    "65702479c5d7d4cb4d07855e": 18.5,
+    "6570247ebfc87b3a34093229": 18.5,
+    "657024831419851aef03e703": 15.6,
+    "6570248dcfc010a0f5006a04": 15.6,
+    "657024921419851aef03e706": 15.6,
+    "65702495c5d7d4cb4d078561": 15.6,
+    "6570249bcfc010a0f5006a07": 15.6,
+    "6570249f1419851aef03e709": 15.6,
+    "657024a4bfc87b3a3409322c": 15.6,
+    "657024a91419851aef03e70c": 15.6,
+    "657024aebfc87b3a3409322f": 23,
+    "657024b31419851aef03e70f": 23,
+    "657024b8bfc87b3a34093232": 23,
+    "657024bdc5d7d4cb4d078564": 23,
+    "657024c81419851aef03e712": 4.6,
+    "657024cecfc010a0f5006a0a": 4.6,
+    "657024d2bfc87b3a34093235": 4.6,
+    "657024d8c5d7d4cb4d078567": 5.7,
+    "657024debfc87b3a34093238": 5.7,
+    "657024e3c5d7d4cb4d07856a": 5.7,
+    "657024e8cfc010a0f5006a0d": 5.7,
+    "657024ecc5d7d4cb4d07856d": 5.7,
+    "657024f01419851aef03e715": 5.7,
+    "657024f5cfc010a0f5006a10": 5.7,
+    "657024f9bfc87b3a3409323b": 5.7,
+    "657025161419851aef03e718": 5.7,
+    "6570251ccfc010a0f5006a13": 5.7,
+    "65702520bfc87b3a3409323e": 5.7,
+    "65702524cfc010a0f5006a16": 5.7,
+    "657025281419851aef03e71b": 5.7,
+    "6570252dbfc87b3a34093241": 5.7,
+    "65702532cfc010a0f5006a19": 7.85,
+    "65702536c5d7d4cb4d078570": 7.85,
+    "6570253acfc010a0f5006a1c": 7.85,
+    "6570253ec5d7d4cb4d078573": 7.85,
+    "657025421419851aef03e71e": 7.85,
+    "65702546cfc010a0f5006a1f": 7.85,
+    "6570254abfc87b3a34093244": 7.85,
+    "6570254fcfc010a0f5006a22": 7.82,
+    "65702554bfc87b3a34093247": 7.82,
+    "65702558cfc010a0f5006a25": 7.82,
+    "6570255dbfc87b3a3409324a": 7.82,
+    "65702561cfc010a0f5006a28": 7.82,
+    "65702566bfc87b3a3409324d": 7.82,
+    "65702572c5d7d4cb4d078576": 7.92,
+    "65702577cfc010a0f5006a2c": 7.92,
+    "6570257cc5d7d4cb4d078579": 7.92,
+    "65702584cfc010a0f5006a2f": 7.92,
+    "65702591c5d7d4cb4d07857c": 9.02,
+    "657025961419851aef03e721": 9.02,
+    "6570259bc5d7d4cb4d07857f": 9.02,
+    "6570259fcfc010a0f5006a32": 9.02,
+    "657025a4bfc87b3a34093250": 9.02,
+    "657025a81419851aef03e724": 9.02,
+    "657025bbcfc010a0f5006a35": 9.02,
+    "657025c4c5d7d4cb4d078582": 9.02,
+    "657025c9cfc010a0f5006a38": 9.02,
+    "657025cfbfc87b3a34093253": 9.25,
+    "657025d4c5d7d4cb4d078585": 9.25,
+    "657025dabfc87b3a34093256": 9.25,
+    "657025dfcfc010a0f5006a3b": 9.25,
+    "657025ebc5d7d4cb4d078588": 5.6,
+    "65702606cfc010a0f5006a3e": 9.27,
+    "6570260c1419851aef03e727": 9.27,
+    "65702610cfc010a0f5006a41": 9.27,
+    "65702614c5d7d4cb4d07858b": 9.27,
+    "65702619bfc87b3a34093259": 9.27,
+    "6570261dc5d7d4cb4d07858e": 9.27,
+    "65702621cfc010a0f5006a44": 9.27,
+    "657026251419851aef03e72a": 9.27,
+    "65702629cfc010a0f5006a47": 9.27,
+    "6570262d1419851aef03e72d": 9.27,
+    "65702630cfc010a0f5006a4a": 9.27,
+    "657026341419851aef03e730": 9.27,
+    "65702639bfc87b3a3409325c": 9.27,
+    "657026451419851aef03e733": 7.82,
+    "6570264acfc010a0f5006a50": 5.7,
+    "6570264d1419851aef03e736": 5.7,
+    "65702652cfc010a0f5006a53": 5.7,
+    "65702656c5d7d4cb4d078591": 5.7,
+    "6570265bcfc010a0f5006a56": 5.7,
+    "6570265f1419851aef03e739": 5.7,
+    "65702664cfc010a0f5006a59": 5.7,
+    "6570266bc5d7d4cb4d078594": 5.7,
+    "65702681bfc87b3a3409325f": 5.7,
+    "6570900858b315e8b70a8a98": 5.6,
+    "657857faeff4c850222dff1b": 7.92,
+    "65785979bec02a3fe82c181e": 7.92,
+    "6579846c1ec1943afb14c15a": 9.02,
+    "6579847c5a0e5879d12f2873": 9.02,
+    "657984a50fbff513dd435765": 9.25,
+    "65ae4f57e343f0acc00824da": 9.02,
+    "65f064eec4da400cbb0dc1fe": 7.82,
+    "65fb023261d5829b2d090755": 7.82,
+    "6601257f1347bc1a5f0f4db6": 7.82,
+    "660125bf1d087a96c60a54db": 7.82,
+    "660126161347bc1a5f0f4dba": 7.82,
+    "6601265f98a610c1aa0ea637": 7.82,
+    "6601268bc752a02bbe05e686": 7.82,
+    "660126a98f2b23af220b27e7": 7.82,
+    "660126f7c752a02bbe05e688": 7.82,
+    "66012788c752a02bbe05e68e": 7.82,
+    "6601279cc752a02bbe05e692": 7.82,
+    "6601281fc752a02bbe05e696": 7.82,
+    "66012a1d3dff5074ed002e2a": 7.82,
+    "66012d003dff5074ed002e2c": 7.82,
+    "66012d64c752a02bbe05e69b": 7.82,
+    "66012d9a3dff5074ed002e33": 7.82,
+    "660ea4453786cc0af808a1be": 7.82,
+    "6615202b96461aa8360271eb": 7.82,
+    "66152060a031cbb5570e3466": 7.82,
+    "6615208aa031cbb5570e346a": 7.82,
+    "661520fb6f8e1a96340afaa6": 7.82,
+    "6615211ca031cbb5570e346d": 7.82,
+    "66152153a031cbb5570e346f": 7.82,
+    "661ceb1b9311543c7104149b": 7.82,
+    "661cec09b2c6356b4d0c7a36": 7.82,
+    "661f8995c341ea101e0d33e8": 9.27,
+    "661fbe066751ee51930b01f2": 7.82,
+    "66225d88a1c7e3b81600c76f": 7.82,
+    "6680304edadb7aa61d00cef0": 9.02,
+    "668031705014e211b4078046": 9.02,
+    "668031bde3e7eb26e8004cd7": 9.02,
+    "668031ffe3e7eb26e8004cdd": 9.02,
+    "6680326874b8f2050c0b9178": 9.02,
+    "668032ba74b8f2050c0b917d": 9.02,
+    "66866f4ec3d473265104f381": 9.02,
+    "66866f622a2296a8d9099639": 9.02,
+    "66866fe776d1a87cd80fd388": 9.02,
+    "6686700a2b934a68630a7fe6": 9.02,
+    "66867023c3d473265104f384": 9.02,
+    "668670432b934a68630a7fe8": 9.02,
+    "668670e3fb75ee4a5e02eb16": 9.02,
+    "668670f52a2296a8d909963c": 9.02,
+    "6686717ffb75ee4a5e02eb19": 9.02,
+    "668672b8c99550c6fd0f0b29": 9.02,
+    "66867310f3734a938b077f79": 9.02,
+    "66881008f23233ee9a0742e7": 9.02,
+    "668e71a8dadf42204c032ce1": 9.02,
+    "668ea3f68117e4968b0cff4a": 9.02,
+    "668fe5a998b5ad715703ddd6": 12.7,
+    "668fe5c5f35310705d02b696": 12.7,
+    "668fe5f62a0f85eea407cc18": 12.7,
+    "668fe60b56984d93550462c6": 12.7,
+    "6698c89bfbc8142e60024b0e": 9.02,
+    "6698c8ab29e062525d0ad8ab": 9.02,
+    "6698c8b7710a4525fe0e9e55": 9.02,
+    "6698c8c736ba38d29101770b": 9.02,
+    "6698c8f4710a4525fe0e9e57": 9.02,
+    "6698c90829e062525d0ad8ad": 9.02,
+    "6698c9aa36ba38d29101770f": 9.02,
+    "6698c9ba29e062525d0ad8b1": 9.02,
+    "6698c9c636ba38d291017711": 9.02,
+    "6698c9e07356874dfe0a0b88": 9.02,
+    "6698c9ed36ba38d291017713": 9.02,
+    "6699249f3c4fda6471005cba": 9.02,
+    "669924a69950f5f4cd060295": 9.02,
+    "66992713ae08c5c29e0c4f97": 9.02,
+    "6699271b9950f5f4cd060299": 9.02,
+    "669927203c4fda6471005cbe": 9.02,
+    "66992725ae08c5c29e0c4f9a": 9.02,
+    "6699272a3c4fda6471005cc1": 9.02,
+    "66992b349950f5f4cd06029f": 9.02,
+    "66992f4db9f31ddda10dd1c8": 9.02,
+    "66992f7d9950f5f4cd0602a8": 9.02,
+    "6699313af74fef4dfd0b04f6": 9.02,
+    "66993149558c59581e03c028": 9.02,
+    "6699370c57df3e2b4e0a0dab": 9.02,
+    "66993733f74fef4dfd0b04ff": 9.02,
+    "669946c157df3e2b4e0a0dc5": 9.02,
+    "669cf78806768ff39504fc1c": 9.02,
+    "669fa39b48fc9f8db6035a0c": 12.7,
+    "669fa3d876116c89840b1217": 12.7,
+    "669fa3f88abd2662d80eee77": 12.7,
+    "669fa409933e898cce0c2166": 9.07,
+    "669fa435803b94fb5d0e3a76": 9.07,
+    "669fa47da0bab4e8510d9526": 12.7,
+    "669fa48fa0bab4e8510d952a": 12.7,
+    "669fa4ba1bd4416eaa09b3c6": 12.7,
+    "669fa4c61bd4416eaa09b3ca": 9.07,
+    "669fa4d97a09bc295603b496": 12.7,
+    "669fa5019aa2a422600442f6": 12.7,
+    "669fa5127a09bc295603b499": 9.07,
+    "669fa5271bd4416eaa09b3ce": 12.7,
+    "66ac9d9740e27931602042d4": 5.6,
+    "66d98233302686954b0c6f81": 26,
+    "66d9f1abb16d9aacf5068468": 26,
+    "66ffa9b66e19cc902401c5e8": 18.5,
+    "66ffaab91f7492c901027bb8": 18.5,
+    "66ffac601f7492c901027bbb": 18.5,
+    "66ffac9e316b08f6840a73e6": 18.5,
+    "67069c8cee8138ed2f05ad34": 9.25,
+    "67069cbbb29a2cd33803338c": 9.25,
+    "67069cf1af4890b09f0006e8": 9.25,
+    "67069d02ad91f3a63c0bc2b0": 9.25,
+    "67069d3bb29a2cd338033390": 5.7,
+    "67069d66af4890b09f0006ec": 5.7,
+    "67069d8dad91f3a63c0bc2b4": 5.7,
+    "6706a159c67236b2f703bb95": 5.7,
+    "6709133fa532466d5403fb7c": 18.5,
+    "670e8eab8c1bb0e5a7075acf": 9.27,
+    "670fced86a7e274b1a0964e8": 18.5,
+    "670fd03dc424cf758f006946": 18.5,
+    "670fd0a8d8d4eae4790c8187": 18.5,
+    "670fd0eed8d4eae4790c818a": 18.5,
+    "670fd1cc95c92bfc8e0bea39": 18.5,
+    "670fd23798663bc4b10e911a": 18.5,
+    "6710cea62bb09af72f0e6bf8": 18.5,
+    "67110d06723c2733410161e8": 5.7,
+    "67110d5ed1758189fc0bd221": 5.7,
+    "67110d6fa71d1f123d021cd3": 5.7,
+    "67110d8d388bded67304ceb4": 5.7,
+    "67110dd41ad01bb88705347b": 5.7,
+    "6711107e1ad01bb88705347e": 5.7,
+    "6711109e723c2733410161eb": 5.7,
+    "67124dcfa3541f2a1f0e788b": 18.5,
+    "6718817435e3cfd9550d2c27": 5.7,
+    "671883292e2eeb98d406f3b8": 5.7,
+    "6719023b612cc94b9008e78c": 18.5,
+    "671d85439ae8365d69117ba6": 7.85,
+    "671d8617a3e45c1f5908278c": 9.02,
+    "671d8ac8a3e45c1f59082799": 9.02,
+    "671d8b38b769f0d88c0950f8": 11.5,
+    "671d8b8c0959c721a50ca838": 11.5,
+    "673cab3e03c6a20581028bc1": 8.6,
+    "673cb212e695740be0047a46": 8.6,
+    "673cb4054ff4aa8f86076f4a": 8.6,
+    "673cb491280680de5e02ff36": 8.6,
+    "673cb51e093e0ea7fd0b8746": 8.6,
+    "673cb551093e0ea7fd0b874a": 8.6,
+    "673cb5d1280680de5e02ff3b": 8.6,
+    "673cb81f5b1511adb10cd326": 8.6,
+    "673cbdfad0453ba50c0f76d6": 8.6,
+    "673dd5f73f92dc7e120d20a9": 8.6,
+    "673dd617912f68467c0615b6": 8.6,
+    "673ddbb567c759b3c90e5f76": 8.6,
+    "673f0a38259f5945d70e43a6": 8.6,
+    "673f0a9370a3ddcf0d0ee0b8": 8.6,
+    "673f0b36536d64240f01acd6": 8.6,
+    "673f3ef1259f5945d70e43a8": 8.6,
+    "673f3f2f40aeca974e0b5c66": 8.6,
+    "673f3f5eef7545280c00f026": 8.6,
+    "673f3f9840aeca974e0b5c68": 8.6,
+    "673f4046259f5945d70e43ab": 8.6,
+    "67405d760098dcb5940ea1a6": 8.6,
+    "67405e3b83ac5c69ae025406": 8.6,
+    "67405ef125beb509e8070276": 8.6,
+    "67405fd0812f476fb2020066": 8.6,
+    "67446d4f04141c10630604e7": 9.27,
+    "6749c40822a2740bb408d066": 9.02,
+    "674d5e287075e056160e0176": 7.82,
+    "674d6121c09f69dfb201a888": 7.82,
+    "674fe57721a9aa6be6045b96": 18.5,
+    "674fe89a4472d471fb0f07d8": 18.5,
+    "674fe8b9362ea1f88b0e278d": 18.5,
+    "674fe8cf4472d471fb0f07df": 18.5,
+    "674fe8dd362ea1f88b0e2792": 18.5,
+    "674fe8f6f34d761ab8020cc8": 18.5,
+    "674fe9a75e51f1c47c04ec23": 18.5,
+    "675307301f7c19a9780f2668": 5.7,
+    "675ea3d6312c0a5c4e04e317": 26,
+    "676009ddb623f3b8ba079419": 12.7,
+    "676009ed8f1fee08740f9479": 12.7,
+    "676009fe8f1fee08740f947c": 12.7,
+    "67600a0e84e242067d0dc4cd": 12.7,
+    "67600a42b32eb5d23e0eb459": 7,
+    "67600a516f01341c9106ab4c": 7,
+    "676017fe8cfeeba9f707c8d6": 18.5,
+    "6761492dc53ebe8c0f0a5efe": 9.02,
+    "67614994e889e1972605d6bb": 9.02,
+    "676149a3e2cf1419500357eb": 9.02,
+    "676149c5062e6212f5058c36": 9.02,
+    "676149d8e889e1972605d6be": 9.02,
+    "676149fbe2cf1419500357ee": 9.02,
+    "67614a0be889e1972605d6c0": 9.02,
+    "67614a225152c0eaed08ec86": 9.02,
+    "67614a31062e6212f5058c38": 9.02,
+    "67614a3ce2cf1419500357f4": 9.02,
+    "6761763448fa5c377e06fc39": 7.9,
+    "676176a162e0497044079f46": 9.02,
+    "676176b762e0497044079f49": 9.02,
+    "676176d362e0497044079f4c": 7.82,
+    "676177591f08ed5e8800b7a9": 7.82,
+    "676177b09cfcc4c25b027446": 18.5,
+    "676177df1f08ed5e8800b7ae": 9.02,
+    "676577166d874f6502106a21": 15.6,
+    "67657764c832f8c59c016d45": 15.6,
+    "67657773b83469e4f102dc27": 15.6,
+    "6769b8e3c1a1466c850658a8": 7.82
 }
 
-gun_formula_map = {
-    "AssaultCarbines": apply_assaultcarbines_gun_formulas,
-    "AssaultRifles": apply_assaultrifles_gun_formulas,
-    "Launcher": apply_launcher_gun_formulas,
-    "MarksmanRifles": apply_marksmanrifles_gun_formulas,
-    "Pistol": apply_pistol_gun_formulas,
-    "SMGs": apply_smgs_gun_formulas,
-    "Shotguns": apply_shotguns_gun_formulas,
-    "SniperRifles": apply_sniperrifles_gun_formulas
-}
+def engineer_features_from_item(base_item_data: Dict[str, Any], template_data: Dict[str, Any] = None) -> Dict[str, float]:
+    if template_data is None: template_data = {}
+    engineered = {}
+    props = base_item_data.get('_props', base_item_data)
+    # WTT-commonlib mods store their real stats in overrideProperties (each key overrides the
+    # cloned base item's prop; anything absent falls back to the base). Merge scalar overrides
+    # over the base props so feature engineering sees the *effective* item, not just the base.
+    _ov = base_item_data.get('overrideProperties')
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
 
-mod_formula_map = {
-    "AuxiliaryParts": apply_auxiliaryparts_mod_formulas,
-    "Barrel": apply_barrel_mod_formulas,
-    "Bipods": apply_bipods_mod_formulas,
-    "ChargingHandle": apply_charginghandle_mod_formulas,
-    "CombTactDevice": apply_combtactdevice_mod_formulas,
-    "Foregrip": apply_foregrip_mod_formulas,
-    "Gasblock": apply_gasblock_mod_formulas,
-    "Handguard": apply_handguard_mod_formulas,
-    "Headset": apply_headset_mod_formulas,
-    "Magazines": apply_magazines_mod_formulas,
-    "Mounts": apply_mounts_mod_formulas,
-    "Muzzle": apply_muzzle_mod_formulas,
-    "PistolGrip": apply_pistolgrip_mod_formulas,
-    "Receiver": apply_receiver_mod_formulas,
-    "Sights": apply_sights_mod_formulas,
-    "Stock": apply_stock_mod_formulas
-}
+    weight = to_f(props.get('Weight', 0.0))
+    ergo = to_f(props.get('Ergonomics', 0.0))
+    durability = to_f(props.get('MaxDurability', 100.0))
 
-gear_formula_map = {
-    "Armor": apply_armor_mod_formulas,
-    "Backpack": apply_backpack_mod_formulas,
-    "GearComponents": apply_gearcomponents_mod_formulas,
-    "Headwear": apply_headwear_mod_formulas,
-    "Vest": apply_vest_mod_formulas,
-    "Visor": apply_visor_mod_formulas
-}
+    name_str = ' '.join(str(base_item_data.get(_k, '') or '')for _k in ('_preset_hint', 'Name', '_name', 'shortName')).lower()
+    caliber_field = str(props.get('Caliber', props.get('ammoCaliber', ''))).lower()
+    weap_class = str(props.get('weapClass', props.get('WeapClass', ''))).lower()
+    weap_use_type = str(props.get('weapUseType', props.get('WeapUseType', ''))).lower()
+    reload_mode = str(props.get('ReloadMode', props.get('reloadMode', ''))).lower()
+    fire_type = str(props.get('weapFireType', props.get('WeapFireType', ''))).lower()
 
+    barrel_length_mm = 0.0
+    mm_match = re.search(r'(\d+(?:\.\d+)?)mm', name_str)
+    inch_match = re.search(r'(\d+(?:[.,]\d+)?)(?:_|-|\s)?inch', name_str)
 
-# --- Utility: get formula function by category ---
-def get_formula_func(category: str):
-    if category in gun_formula_map:
-        return gun_formula_map[category]
-    if category in mod_formula_map:
-        return mod_formula_map[category]
-    if category in gear_formula_map:
-        return gear_formula_map[category]
+    if mm_match:
+        barrel_length_mm = float(mm_match.group(1))
+    elif inch_match:
+        barrel_length_mm = float(inch_match.group(1).replace(',', '.')) * 25.4
+
+    engineered['BarrelLengthMM'] = barrel_length_mm
+
+    # Prefer the exact calibre resolved from the item's slot graph (see
+    # build_caliber_index). The name regex below is only a fallback: on mods it
+    # happily reads a model number as a bore, turning barrel_ar15_260mm into
+    # 15.0mm and barrel_mr133_610mm into 1.33mm.
+    caliber_numeric = float(CALIBER_BY_ITEM_ID.get(
+        str(base_item_data.get('_id', '') or '').lower(), 0.0) or 0.0)
+    if caliber_numeric:
+        pass
+    elif '12g' in name_str or '12 gauge' in name_str or '12/70' in name_str or '12g' in caliber_field:
+        caliber_numeric = 18.5
+    elif '20g' in name_str or '20 gauge' in name_str or '20/70' in name_str or '20g' in caliber_field:
+        caliber_numeric = 15.6
+    elif '23x75' in name_str or '23x75' in caliber_field:
+        caliber_numeric = 23.0
+    elif '300blk' in name_str or 'blackout' in name_str or '300 black' in name_str:
+        caliber_numeric = 7.62
     
-    for maps in (gun_formula_map, mod_formula_map, gear_formula_map):
-        if category in maps:
-            return maps[category]
-    # Try alias
-    if category in CATEGORY_ALIASES:
-        alias = CATEGORY_ALIASES[category]
-        for maps in (gun_formula_map, mod_formula_map, gear_formula_map):
-            if alias in maps:
-                return maps[alias]
-    return None
+    elif '5.56' in name_str or '556' in name_str or '5.56' in caliber_field:
+        caliber_numeric = 5.56
+    elif '5.45' in name_str or '545' in name_str or '5.45' in caliber_field:
+        caliber_numeric = 5.45
+    elif '7.62' in name_str or '762' in name_str or '7.62' in caliber_field:
+        caliber_numeric = 7.62
+    elif any(x in name_str for x in ('9x19', '9x18', '9x21', '9x39', '9mm', '9x33')) or '9x' in caliber_field or '9mm' in caliber_field:
+        caliber_numeric = 9.0
+    elif any(x in name_str for x in ('.45', '1143', 'acp')) or '.45' in caliber_field or '1143' in caliber_field:
+        caliber_numeric = 11.43
+    elif '4.6x' in name_str or '46x30' in caliber_field:
+        caliber_numeric = 4.6
+    elif '5.7x' in name_str or '57x28' in caliber_field:
+        caliber_numeric = 5.7
+    elif '.338' in name_str or 'lapua' in name_str:
+        caliber_numeric = 8.6
+    elif '.357' in name_str:
+        caliber_numeric = 9.1
+    elif '.44' in name_str or ('magnum' in name_str and '357' not in name_str):
+        caliber_numeric = 10.9
+    elif '6.8x' in name_str or '68x51' in name_str or '.277' in name_str or 'fury' in name_str:
+        caliber_numeric = 6.8
+    elif '12.7x' in name_str or '127x55' in caliber_field:
+        caliber_numeric = 12.7
+    elif '.366' in name_str or 'tkm' in name_str or '366' in caliber_field:
+        caliber_numeric = 9.55
+    else:
+        cal_m = re.search(r'(?<!\d)(\d+(?:\.\d+)?)[x_]\d+', name_str)
+        if cal_m:
+            caliber_numeric = float(cal_m.group(1))
+            if caliber_numeric in (762, 556, 545):
+                caliber_numeric = {762: 7.62, 556: 5.56, 545: 5.45}[int(caliber_numeric)]
+            elif caliber_numeric > 100:
+                caliber_numeric /= 100.0
 
+    engineered['CaliberNumeric'] = caliber_numeric
+
+    # Magazine capacity lives inside props['Cartridges'][0]['_max_count'], which
+    # the flat base-prop scan never reaches, so the fit had no way to see it.
+    # Within a single size class it is the dominant driver of ReloadSpeed --
+    # among standard-height mags the class means run +0.51 (16-30 rounds),
+    # -6.50 (31-50) and -12.09 (51+). Log scale because the step from 30 to 60
+    # matters far more than 60 to 90.
+    _mag_cap = 0.0
+    _carts = props.get('Cartridges')
+    if isinstance(_carts, list) and _carts and isinstance(_carts[0], dict):
+        _mc = _carts[0].get('_max_count')
+        if isinstance(_mc, (int, float)) and not isinstance(_mc, bool):
+            _mag_cap = float(_mc)
+    engineered['MagCapacity'] = _mag_cap
+    engineered['LogMagCapacity'] = math.log1p(max(0.0, _mag_cap))
+
+    dura_factor = 1.0 - (durability / 100.0) if durability > 0 else 1.0
+    engineered['DurabilityMalfRisk'] = pow(max(0.0, dura_factor), 2.0)
+    engineered['DurabilityBurnMod'] = to_f(props.get('DurabilityBurnModificator', 1.0))
+
+    engineered['LogWeight'] = math.log1p(max(0, weight))
+    engineered['LogErgo'] = math.log1p(max(0, ergo))
+
+    engineered['IsShort'] = 1.0 if 'short' in name_str else 0.0
+    engineered['IsLong'] = 1.0 if 'long' in name_str else 0.0
+    engineered['IsHeavy'] = 1.0 if 'heavy' in name_str or weight > 0.6 else 0.0
+    engineered['IsLight'] = 1.0 if 'light' in name_str or (0 < weight < 0.15) else 0.0
+
+    muzzle_mod_type = str(props.get('muzzleModType', '')).lower()
+    engineered['IsSuppressor'] = 1.0 if muzzle_mod_type in ('silencer', 'pms') or any(x in name_str for x in['suppressor', 'silencer', 'sound']) else 0.0
+    engineered['IsBrake'] = 1.0 if muzzle_mod_type in ('brake', 'conpensator', 'muzzlecombo') or any(x in name_str for x in ['brake', 'compensator', 'flash']) else 0.0
+    engineered['IsAdapter'] = 1.0 if 'adapter' in name_str or 'thread' in name_str else 0.0
+    engineered['IsCombo'] = 1.0 if muzzle_mod_type == 'muzzlecombo' else 0.0
+
+    sr = to_f(props.get('SightingRange', 0.0))
+    engineered['SightingRange'] = sr
+    engineered['IsMagnified'] = 1.0 if sr > 400 or any(x in name_str for x in['scope', '4x', '6x', '8x', 'lpvo', 'acog', 'pso', 'leupold', 'nightforce', 'march', 'hensoldt', 'vortex', 's&b']) else 0.0
+    engineered['IsCollimator'] = 1.0 if 50 < sr <= 400 or any(x in name_str for x in['red dot', 'holo', 'collimator', 'reflex', 'eotech', 'aimpoint', 'trijicon rmr', 'romeo']) else 0.0
+
+    cartridges = props.get('Cartridges',[])
+    cap = 0.0
+    if cartridges and isinstance(cartridges, list) and isinstance(cartridges[0], dict):
+        cap = float(cartridges[0].get('_max_count', 0))
+    if cap == 0.0:
+        m_cap = re.search(r'(\d+)[- ]?(?:round|rnd)', name_str)
+        if m_cap:
+            cap = float(m_cap.group(1))
+    engineered['CapacityGuess'] = cap
+
+    engineered['IsDrum'] = 1.0 if 'drum' in name_str else 0.0
+
+    armor_class_val = template_data.get('ArmorClass')
+    if not armor_class_val:
+        armor_class_val = props.get('armorClass', props.get('ArmorClass', ''))
+    engineered['ArmorClassNumeric'] = parse_armor_class_string(str(armor_class_val))
+
+    db_val = template_data.get('dB')
+    if db_val is not None:
+        engineered['LoudnessHint'] = to_f(db_val)
+    else:
+        engineered['LoudnessHint'] = to_f(props.get('Loudness', props.get('dB', 0.0)))
+
+    total_cells = sum(
+        int(g.get('_props', {}).get('cellsH', 0)) * int(g.get('_props', {}).get('cellsV', 0))
+        for g in props.get('Grids', []) if isinstance(g, dict)
+    )
+    engineered['GridCells'] = float(total_cells)
+
+    # Total horizontal grid footprint ~ overall weapon length in cells. Width is the base
+    # length; ExtraSizeLeft/Right extend it (folding stocks, long barrels, muzzle devices).
+    # Physically this proxies barrel / overall length, which drives muzzle velocity range,
+    # balance/torque (front-heaviness) and handling/ergonomics.
+    engineered['WeaponFootprint'] = (
+        to_f(props.get('Width', 0.0))
+        + to_f(props.get('ExtraSizeLeft', 0.0))
+        + to_f(props.get('ExtraSizeRight', 0.0))
+    )
+
+    bfire = to_f(props.get('bFirerate', 0.0))
+    engineered['FireRateRPM'] = bfire
+
+    is_shotgun = 1.0 if ('12g' in name_str or '20g' in name_str or '23x75' in name_str
+                         or 'shotgun' in name_str or 'buckshot' in name_str or 'slug' in name_str
+                         or 'shotgun' in caliber_field or '12g' in caliber_field
+                         or '20g' in caliber_field or '23x75' in caliber_field
+                         or 'shotgun' in weap_class or 'shotgun' in weap_use_type) else 0.0
+
+    gauge_numeric = 0.0
+    if '23x75' in name_str or '23x75' in caliber_field: gauge_numeric = 23.0
+    elif '12g' in name_str or '12 gauge' in name_str or '12/70' in name_str or '12g' in caliber_field: gauge_numeric = 12.0
+    elif '20g' in name_str or '20 gauge' in name_str or '20/70' in name_str or '20g' in caliber_field: gauge_numeric = 20.0
+
+    engineered['IsShotgun'] = is_shotgun
+    engineered['GaugeNumeric'] = gauge_numeric
+
+    is_bolt = bool(props.get('BoltAction', False))
+    is_only_barrel = 'onlybarr' in reload_mode
+
+    engineered['IsPumpAction'] = 1.0 if (
+        ('internal' in reload_mode and bfire <= 40)
+        or 'pump' in name_str
+        or is_bolt
+    ) else 0.0
+
+    engineered['IsManuallyOperatedGun'] = 1.0 if (
+        is_only_barrel or is_bolt or (0 < bfire <= 30)
+    ) else 0.0
+
+    engineered['IsSemiAutoShotgun'] = 1.0 if ('semi' in name_str or 'semi' in fire_type) and is_shotgun else 0.0
+    engineered['IsTubeFed'] = 1.0 if ('tubefed' in reload_mode or 'tube' in name_str) and is_shotgun else 0.0
+
+    choke_tightness = 0.0
+    if any(x in name_str for x in ['cylinder bore', 'cylinder']): choke_tightness = -0.35
+    elif 'improved cylinder' in name_str: choke_tightness = -0.15
+    elif 'improved modified' in name_str: choke_tightness = 0.28
+    elif 'modified' in name_str: choke_tightness = 0.15
+    elif any(x in name_str for x in ['extra full', 'turkey']): choke_tightness = 0.55
+    elif any(x in name_str for x in['full choke', 'full']): choke_tightness = 0.40
+    engineered['ChokeTightness'] = choke_tightness
+
+    return engineered
+
+# --- Rounds (Mod) Formulas ---
+def apply_rounds_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    AmmoLifeTimeSec = to_f(props.get("AmmoLifeTimeSec", 0.0))
+    ArmorDamage = to_f(props.get("ArmorDamage", 0.0))
+    BallisticCoeficient = to_f(props.get("BallisticCoeficient", 0.0))
+    BulletDiameterMilimeters = to_f(props.get("BulletDiameterMilimeters", 0.0))
+    BulletMassGram = to_f(props.get("BulletMassGram", 0.0))
+    Damage = to_f(props.get("Damage", 0.0))
+    HeatFactor = to_f(props.get("HeatFactor", 0.0))
+    HeavyBleedingDelta = to_f(props.get("HeavyBleedingDelta", 0.0))
+    InitialSpeed = to_f(props.get("InitialSpeed", 0.0))
+    MalfMisfireChance = to_f(props.get("MalfMisfireChance", 0.0))
+    MaxFragmentsCount = to_f(props.get("MaxFragmentsCount", 0.0))
+    PenetrationChanceObstacle = to_f(props.get("PenetrationChanceObstacle", 0.0))
+    PenetrationDamageMod = to_f(props.get("PenetrationDamageMod", 0.0))
+    PenetrationPower = to_f(props.get("PenetrationPower", 0.0))
+    PenetrationPowerDiviation = to_f(props.get("PenetrationPowerDiviation", 0.0))
+    ProjectileCount = to_f(props.get("ProjectileCount", 0.0))
+    RicochetChance = to_f(props.get("RicochetChance", 0.0))
+    SpeedRetardation = to_f(props.get("SpeedRetardation", 0.0))
+    StaminaBurnPerDamage = to_f(props.get("StaminaBurnPerDamage", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    ammoAccr = to_f(props.get("ammoAccr", 0.0))
+    ammoDist = to_f(props.get("ammoDist", 0.0))
+    ammoRec = to_f(props.get("ammoRec", 0.0))
+    buckshotBullets = to_f(props.get("buckshotBullets", 0.0))
+    casingEjectPower = to_f(props.get("casingEjectPower", 0.0))
+    casingMass = to_f(props.get("casingMass", 0.0))
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    GaugeNumeric = eng.get("GaugeNumeric", 0.0)
+    IsShotgun = eng.get("IsShotgun", 0.0)
+
+    # Target: ArmorDamage
+    pred = 3.00029 + (5.21003 * clampz((ProjectileCount - 1.68421) / 2.24904)) + (4.42659 * clampz((AmmoLifeTimeSec - 5.20468) / 2.66868)) + (0.587469 * clampz((CaliberNumeric - 9.65333) / 5.22443)) + (0.269047 * clampz((Weight - 0.0237801) / 0.0213464)) + (-0.600022 * clampz((buckshotBullets - 1.50292) / 3.14814)) + (-0.00572839 * clampz((SpeedRetardation - 5.47368e-05) / 4.78788e-05)) + (0.0741268 * clampz((GaugeNumeric - 3.01754) / 6.58145)) + (-0.0659017 * clampz((MaxFragmentsCount - 2.67251) / 1.17891))
+    explicit_val = explicit_override_value(base_data, ['ArmorDamage'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -9.5), 104.5)
+    if isinstance(template, dict) and "ArmorDamage" in template:
+        t_val = to_f(template["ArmorDamage"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["ArmorDamage"] = r(pred, 3)
+
+    # Target: BallisticCoeficient
+    pred = 0.218599 + (0.144232 * clampz((BallisticCoeficient - 0.218599) / 0.144232))
+    pred = min(max(pred, -0.089), 1.099)
+    if isinstance(template, dict) and "BallisticCoeficient" in template:
+        t_val = to_f(template["BallisticCoeficient"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BallisticCoeficient"] = r(pred, 3)
+
+    # Target: BulletMassGram
+    pred = 10.6123 + (10.4861 * clampz((BulletMassGram - 10.6123) / 10.4861))
+    pred = min(max(pred, -8), 88)
+    if isinstance(template, dict) and "BulletMassGram" in template:
+        t_val = to_f(template["BulletMassGram"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BulletMassGram"] = r(pred, 3)
+
+    # Target: Damage
+    pred = 86.6575 + (29.2426 * clampz((Damage - 80.6453) / 44.2988)) + (35.4618 * clampz((BulletMassGram - 10.5506) / 10.4867)) + (-14.0941 * clampz((BulletDiameterMilimeters - 8.73128) / 3.2596)) + (4.16017 * clampz((StaminaBurnPerDamage - 0.156312) / 0.0468601)) + (10.2362 * clampz((ArmorDamage - 40.4651) / 20.9641)) + (-19.7617 * clampz((Weight - 0.0240488) / 0.0215724)) + (2.42708 * clampz((HeavyBleedingDelta - 0.0771512) / 0.115091)) + (-10.3618 * clampz((casingEjectPower - 0.465116) / 0.498782))
+    explicit_val = explicit_override_value(base_data, ['Damage'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -33.9), 384.9)
+    if isinstance(template, dict) and "Damage" in template:
+        t_val = to_f(template["Damage"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Damage"] = r(pred, 3)
+
+    # Target: DurabilityBurnModificator
+    pred = 1.5
+    pred = min(max(pred, 0.5), 6.5)
+    if isinstance(template, dict) and "DurabilityBurnModificator" in template:
+        t_val = to_f(template["DurabilityBurnModificator"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnModificator"] = r(pred, 3)
+
+    # Target: HeatFactor
+    pred = 1.20203 + (0.133338 * clampz((GaugeNumeric - 3.13372) / 6.73585)) + (0.0122019 * clampz((CaliberNumeric - 9.73093) / 5.30713))
+    explicit_val = explicit_override_value(base_data, ['HeatFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.8025), 3.1725)
+    if isinstance(template, dict) and "HeatFactor" in template:
+        t_val = to_f(template["HeatFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactor"] = r(pred, 3)
+
+    # Target: HeavyBleedingDelta
+    pred = 0.376981 + (0.0739342 * clampz((Damage - 83.566) / 43.344)) + (0.058883 * clampz((Weight - 0.0213673) / 0.0187718)) + (0.0307845 * clampz((StaminaBurnPerDamage - 0.157482) / 0.0448103)) + (0.0250514 * clampz((IsShotgun - 0.132075) / 0.338573)) + (-0.0463064 * clampz((casingEjectPower - 0.503145) / 0.49999)) + (0.0196306 * clampz((HeatFactor - 1.55761) / 0.569947))
+    pred = min(max(pred, -0.1), 1.1)
+    if isinstance(template, dict) and "HeavyBleedingDelta" in template:
+        t_val = to_f(template["HeavyBleedingDelta"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 100% of the 13 zeroed items while keeping 97% of the 159 valued ones (balanced acc 99%)
+    if (4.47363 + (-1.72807 * clampz((ProjectileCount - 1.68023) / 2.24309)) + (-1.51269 * clampz((GaugeNumeric - 3.13372) / 6.73585)) + (-0.821318 * clampz((CaliberNumeric - 9.73093) / 5.30713)) + (0.634179 * clampz((buckshotBullets - 1.49419) / 3.14106))) < 0:
+        pred = 0.0
+    item_entry["HeavyBleedingDelta"] = r(pred, 3)
+
+    # Target: InitialSpeed
+    pred = 570.864 + (234.846 * clampz((InitialSpeed - 570.698) / 234.922)) + (0.665249 * clampz((PenetrationChanceObstacle - 0.349738) / 0.261551)) + (0.132033 * clampz((SpeedRetardation - 5.49419e-05) / 4.78147e-05)) + (-0.418031 * clampz((PenetrationDamageMod - 0.0721977) / 0.0840329)) + (-0.217896 * clampz((casingMass - 19.2853) / 23.5651)) + (-0.266004 * clampz((CaliberNumeric - 9.73093) / 5.30713)) + (0.186897 * clampz((PenetrationPowerDiviation - 0.65668) / 0.511857)) + (-0.0637553 * clampz((RicochetChance - 0.204105) / 0.159638))
+    explicit_val = explicit_override_value(base_data, ['InitialSpeed', 'Velocity'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -13.3), 1106.3)
+    if isinstance(template, dict) and "InitialSpeed" in template:
+        t_val = to_f(template["InitialSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["InitialSpeed"] = r(pred, 3)
+
+    # Target: LightBleedingDelta
+    pred = 0.660126 + (-0.0677486 * clampz((casingEjectPower - 0.503145) / 0.49999)) + (0.0521064 * clampz((Damage - 83.566) / 43.344)) + (0.0452014 * clampz((StaminaBurnPerDamage - 0.157482) / 0.0448103)) + (0.0310469 * clampz((HeatFactor - 1.55761) / 0.569947)) + (0.0445835 * clampz((BallisticCoeficient - 0.224987) / 0.125062))
+    pred = min(max(pred, -0.1), 1.1)
+    if isinstance(template, dict) and "LightBleedingDelta" in template:
+        t_val = to_f(template["LightBleedingDelta"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 100% of the 13 zeroed items while keeping 97% of the 159 valued ones (balanced acc 99%)
+    if (4.47363 + (-1.72807 * clampz((ProjectileCount - 1.68023) / 2.24309)) + (-1.51269 * clampz((GaugeNumeric - 3.13372) / 6.73585)) + (-0.821318 * clampz((CaliberNumeric - 9.73093) / 5.30713)) + (0.634179 * clampz((buckshotBullets - 1.49419) / 3.14106))) < 0:
+        pred = 0.0
+    item_entry["LightBleedingDelta"] = r(pred, 3)
+
+    # Target: MalfFeedChance
+    pred = 0.000697674 + (0.00181113 * clampz((ProjectileCount - 1.68023) / 2.24309)) + (0.000981109 * clampz((GaugeNumeric - 3.13372) / 6.73585)) + (-8.74429e-05 * clampz((buckshotBullets - 1.49419) / 3.14106)) + (-0.000109343 * clampz((SpeedRetardation - 5.49419e-05) / 4.78147e-05)) + (-0.000887887 * clampz((CaliberNumeric - 9.73093) / 5.30713)) + (-0.000233522 * clampz((MaxFragmentsCount - 2.65698) / 1.19291)) + (0.000334717 * clampz((MalfMisfireChance - 0.179637) / 0.0421547)) + (-0.00042577 * clampz((BallisticCoeficient - 0.218599) / 0.144232))
+    pred = min(max(pred, -0.001), 0.011)
+    if isinstance(template, dict) and "MalfFeedChance" in template:
+        t_val = to_f(template["MalfFeedChance"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 98% of the 160 zeroed items while keeping 100% of the 12 valued ones (balanced acc 99%)
+    if (-4.70122 + (1.74699 * clampz((ProjectileCount - 1.68023) / 2.24309)) + (0.894593 * clampz((GaugeNumeric - 3.13372) / 6.73585)) + (0.353126 * clampz((buckshotBullets - 1.49419) / 3.14106)) + (0.397586 * clampz((SpeedRetardation - 5.49419e-05) / 4.78147e-05))) < 0:
+        pred = 0.0
+    item_entry["MalfFeedChance"] = r(pred, 3)
+
+    # Target: MalfMisfireChance
+    pred = 0.250343 + (0.00669205 * clampz((BallisticCoeficient - 0.202177) / 0.125357)) + (0.0670199 * clampz((ammoDist - 0.390071) / 3.15503)) + (-0.0103456 * clampz((GaugeNumeric - 3.24823) / 6.67073)) + (-0.00471628 * clampz((CaliberNumeric - 9.88915) / 5.21947))
+    pred = min(max(pred, -0.14), 1.54)
+    if isinstance(template, dict) and "MalfMisfireChance" in template:
+        t_val = to_f(template["MalfMisfireChance"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["MalfMisfireChance"] = r(pred, 3)
+
+    # Target: MisfireChance
+    pred = 0.000813953 + (0.00253806 * clampz((ProjectileCount - 1.68023) / 2.24309)) + (-0.000410447 * clampz((buckshotBullets - 1.49419) / 3.14106)) + (0.00087447 * clampz((GaugeNumeric - 3.13372) / 6.73585)) + (-0.000416057 * clampz((CaliberNumeric - 9.73093) / 5.30713)) + (3.18326e-05 * clampz((SpeedRetardation - 5.49419e-05) / 4.78147e-05)) + (-8.89385e-05 * clampz((Weight - 0.0240488) / 0.0215724)) + (-9.17211e-05 * clampz((MaxFragmentsCount - 2.65698) / 1.19291)) + (-7.48694e-05 * clampz((PenetrationChanceObstacle - 0.349738) / 0.261551))
+    pred = min(max(pred, -0.001), 0.011)
+    if isinstance(template, dict) and "MisfireChance" in template:
+        t_val = to_f(template["MisfireChance"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 99% of the 158 zeroed items while keeping 100% of the 14 valued ones (balanced acc 100%)
+    if (-5.44146 + (1.65831 * clampz((ProjectileCount - 1.68023) / 2.24309)) + (0.201894 * clampz((buckshotBullets - 1.49419) / 3.14106)) + (0.802653 * clampz((GaugeNumeric - 3.13372) / 6.73585)) + (0.320628 * clampz((CaliberNumeric - 9.73093) / 5.30713))) < 0:
+        pred = 0.0
+    item_entry["MisfireChance"] = r(pred, 3)
+
+    # Target: PenetrationPower
+    pred = 46.0936 + (8.59265 * clampz((PenetrationPower - 25.8772) / 17.6414)) + (2.19934 * clampz((PenetrationChanceObstacle - 0.348275) / 0.261611)) + (6.70396 * clampz((InitialSpeed - 573.567) / 232.583)) + (2.22476 * clampz((ArmorDamage - 40.7018) / 20.795)) + (0.995113 * clampz((RicochetChance - 0.202959) / 0.159397)) + (-3.66327 * clampz((SpeedRetardation - 5.47368e-05) / 4.78788e-05)) + (0.115318 * clampz((casingMass - 19.2519) / 23.6298))
+    explicit_val = explicit_override_value(base_data, ['PenetrationPower'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -11.5), 126.5)
+    if isinstance(template, dict) and "PenetrationPower" in template:
+        t_val = to_f(template["PenetrationPower"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["PenetrationPower"] = r(pred, 3)
+
+    # Target: ProjectileCount
+    pred = 1.68023 + (2.24309 * clampz((ProjectileCount - 1.68023) / 2.24309))
+    pred = min(max(pred, -0.4), 20)
+    if isinstance(template, dict) and "ProjectileCount" in template:
+        t_val = to_f(template["ProjectileCount"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["ProjectileCount"] = r(pred, 3)
+
+    # Target: RicochetChance
+    pred = 0.23
+    explicit_val = explicit_override_value(base_data, ['RicochetChance'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -0.08), 1)
+    if isinstance(template, dict) and "RicochetChance" in template:
+        t_val = to_f(template["RicochetChance"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 80% of the 15 zeroed items while keeping 98% of the 157 valued ones (balanced acc 89%)
+    if (3.33872 + (-1.4709 * clampz((ProjectileCount - 1.68023) / 2.24309)) + (-0.569243 * clampz((buckshotBullets - 1.49419) / 3.14106)) + (0.607863 * clampz((CaliberNumeric - 9.73093) / 5.30713)) + (0.013449 * clampz((GaugeNumeric - 3.13372) / 6.73585))) < 0:
+        pred = 0.0
+    item_entry["RicochetChance"] = r(pred, 3)
+
+    # Target: ammoRec
+    pred = 9.07447 + (8.14244 * clampz((ammoRec - 3.36879) / 15.1641)) + (0.715369 * clampz((IsShotgun - 0.170213) / 0.37582)) + (-0.960403 * clampz((Weight - 0.0207404) / 0.0153903)) + (2.02679 * clampz((BulletDiameterMilimeters - 8.94752) / 3.29993)) + (-0.143294 * clampz((CaliberNumeric - 9.35823) / 4.45443)) + (0.108603 * clampz((SpeedRetardation - 5.27518e-05) / 4.65751e-05)) + (-0.39282 * clampz((HeatFactor - 1.59376) / 0.588939)) + (0.818044 * clampz((BulletMassGram - 10.728) / 10.0565))
+    pred = min(max(pred, -33.5), 128.5)
+    if isinstance(template, dict) and "ammoRec" in template:
+        t_val = to_f(template["ammoRec"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["ammoRec"] = r(pred, 3)
+
+    return item_entry
+
+# --- TacticalRigs (Mod) Formulas ---
+def apply_tacticalrigs_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    BluntThroughput = to_f(props.get("BluntThroughput", 0.0))
+    Height = to_f(props.get("Height", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    mousePenalty = to_f(props.get("mousePenalty", 0.0))
+    speedPenaltyPercent = to_f(props.get("speedPenaltyPercent", 0.0))
+    weaponErgonomicPenalty = to_f(props.get("weaponErgonomicPenalty", 0.0))
+    ArmorClassNumeric = eng.get("ArmorClassNumeric", 0.0)
+    GridCells = eng.get("GridCells", 0.0)
+    IsHeavy = eng.get("IsHeavy", 0.0)
+
+    # Target: AllowADS
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "AllowADS" in template:
+        item_entry["AllowADS"] = bool(template.get("AllowADS", False))
+    else:
+        item_entry["AllowADS"] = True if pred >= 0.5 else False
+
+    # Target: CanSpall
+    pred = 0.0444957 + (0.160765 * clampz((Weight - 2.34055) / 2.13475)) + (-0.0406384 * clampz((weaponErgonomicPenalty - -0.857143) / 1.36837)) + (0.0136123 * clampz((speedPenaltyPercent - -1.03571) / 1.51144)) + (0.0111508 * clampz((Height - 3.28571) / 0.524891)) + (0.00723264 * clampz((mousePenalty - -0.276786) / 0.597014)) + (-0.0531108 * clampz((GridCells - 15.8393) / 5.38111)) + (-0.0446353 * clampz((ArmorClassNumeric - 1.61607) / 1.96848))
+    pred = min(max(pred, -0.1), 1.1)
+    if isinstance(template, dict) and "CanSpall" in template:
+        item_entry["CanSpall"] = bool(template.get("CanSpall", False))
+    else:
+        item_entry["CanSpall"] = True if pred >= 0.5 else False
+
+    # Target: Comfort
+    pred = 0.852229 + (-0.0595108 * clampz((IsHeavy - 0.928571) / 0.257539)) + (-0.0352421 * clampz((GridCells - 15.8393) / 5.38111)) + (-0.0264327 * clampz((weaponErgonomicPenalty - -0.857143) / 1.36837)) + (0.00828356 * clampz((Width - 3.30357) / 0.62449)) + (0.052101 * clampz((Weight - 2.34055) / 2.13475)) + (-0.0100159 * clampz((BluntThroughput - 0.138345) / 0.207508)) + (-0.0165044 * clampz((speedPenaltyPercent - -1.03571) / 1.51144)) + (-0.0247853 * clampz((ArmorClassNumeric - 1.61607) / 1.96848))
+    explicit_val = explicit_override_value(base_data, ['Comfort'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.65), 1.25)
+    if isinstance(template, dict) and "Comfort" in template:
+        t_val = to_f(template["Comfort"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Comfort"] = r(pred, 3)
+
+    # Target: ReloadSpeedMulti
+    pred = 1.00885 + (0.0253844 * clampz((ArmorClassNumeric - 1.61607) / 1.96848)) + (0.0114031 * clampz((BluntThroughput - 0.138345) / 0.207508)) + (0.0164604 * clampz((GridCells - 15.8393) / 5.38111))
+    pred = min(max(pred, 0.829), 1.201)
+    if isinstance(template, dict) and "ReloadSpeedMulti" in template:
+        t_val = to_f(template["ReloadSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["ReloadSpeedMulti"] = r(pred, 3)
+
+    # Target: SpallReduction
+    pred = 0.957338 + (-0.157343 * clampz((Weight - 2.34055) / 2.13475)) + (0.0375388 * clampz((weaponErgonomicPenalty - -0.857143) / 1.36837)) + (-0.0144762 * clampz((speedPenaltyPercent - -1.03571) / 1.51144)) + (-0.00984873 * clampz((Height - 3.28571) / 0.524891)) + (-0.00655754 * clampz((mousePenalty - -0.276786) / 0.597014)) + (0.0504731 * clampz((GridCells - 15.8393) / 5.38111)) + (0.0443907 * clampz((ArmorClassNumeric - 1.61607) / 1.96848))
+    pred = min(max(pred, 0.142), 1.078)
+    if isinstance(template, dict) and "SpallReduction" in template:
+        t_val = to_f(template["SpallReduction"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["SpallReduction"] = r(pred, 3)
+
+    # Target: speedPenaltyPercent
+    pred = -1.15151 + (-1.19639 * clampz((Weight - 2.64841) / 2.27419)) + (0.0806381 * clampz((weaponErgonomicPenalty - -1) / 1.4771)) + (0.278382 * clampz((speedPenaltyPercent - -1.25) / 1.62544)) + (0.415406 * clampz((ArmorClassNumeric - 1.59091) / 1.99224)) + (-0.262402 * clampz((BluntThroughput - 0.104795) / 0.123454)) + (-0.158306 * clampz((Height - 3.40909) / 0.491666)) + (-0.223424 * clampz((mousePenalty - -0.306818) / 0.641517)) + (0.149903 * clampz((IsHeavy - 0.954545) / 0.208299))
+    explicit_val = explicit_override_value(base_data, ['speedPenaltyPercent'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -6.6), 0.6)
+    if isinstance(template, dict) and "speedPenaltyPercent" in template:
+        t_val = to_f(template["speedPenaltyPercent"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["speedPenaltyPercent"] = r(pred, 3)
+
+    return item_entry
+
+# --- GearComponents (Mod) Formulas ---
+def apply_gearcomponents_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    Durability = to_f(props.get("Durability", 0.0))
+    Height = to_f(props.get("Height", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    speedPenaltyPercent = to_f(props.get("speedPenaltyPercent", 0.0))
+    ArmorClassNumeric = eng.get("ArmorClassNumeric", 0.0)
+    IsHeavy = eng.get("IsHeavy", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+
+    # Target: AllowADS
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "AllowADS" in template:
+        item_entry["AllowADS"] = bool(template.get("AllowADS", False))
+    else:
+        item_entry["AllowADS"] = True if pred >= 0.5 else False
+
+    # Target: BlocksMouth
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "BlocksMouth" in template:
+        item_entry["BlocksMouth"] = bool(template.get("BlocksMouth", False))
+    else:
+        item_entry["BlocksMouth"] = True if pred >= 0.5 else False
+
+    # Target: CanSpall
+    pred = 0.0741688 + (-0.096565 * clampz((speedPenaltyPercent - -0.193734) / 0.589523)) + (0.0886335 * clampz((Weight - 0.338041) / 0.918975)) + (0.0404112 * clampz((Height - 1.13299) / 0.38873)) + (0.025612 * clampz((IsHeavy - 0.150895) / 0.357947)) + (-0.0805475 * clampz((Width - 1.15857) / 0.365273)) + (0.0246452 * clampz((Durability - 30.2532) / 16.4337)) + (0.0115577 * clampz((ArmorClassNumeric - 2.79284) / 1.21027))
+    pred = min(max(pred, -0.1), 1.1)
+    if isinstance(template, dict) and "CanSpall" in template:
+        item_entry["CanSpall"] = bool(template.get("CanSpall", False))
+    else:
+        item_entry["CanSpall"] = True if pred >= 0.5 else False
+
+    # Target: Comfort
+    pred = 1
+    explicit_val = explicit_override_value(base_data, ['Comfort'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "Comfort" in template:
+        t_val = to_f(template["Comfort"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Comfort"] = r(pred, 3)
+
+    # Target: GasProtection
+    pred = 0.432783 + (0.406471 * clampz((Weight - 0.3325) / 0.201665)) + (0.193897 * clampz((IsLight - 0.25) / 0.433013))
+    pred = min(max(pred, -0.071194), 0.944654)
+    if isinstance(template, dict) and "GasProtection" in template:
+        t_val = to_f(template["GasProtection"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["GasProtection"] = r(pred, 3)
+
+    # Target: IsGasMask
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "IsGasMask" in template:
+        t_val = to_f(template["IsGasMask"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["IsGasMask"] = r(pred, 3)
+
+    # Target: RadProtection
+    pred = 0.54 + (-0.240416 * clampz((IsLight - 0.333333) / 0.471405))
+    pred = min(max(pred, -0.082), 0.902)
+    if isinstance(template, dict) and "RadProtection" in template:
+        t_val = to_f(template["RadProtection"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RadProtection"] = r(pred, 3)
+
+    # Target: ReloadSpeedMulti
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "ReloadSpeedMulti" in template:
+        t_val = to_f(template["ReloadSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["ReloadSpeedMulti"] = r(pred, 3)
+
+    # Target: SpallReduction
+    pred = 0.946438 + (0.0647151 * clampz((speedPenaltyPercent - -0.202926) / 0.601904)) + (-0.0747054 * clampz((Weight - 0.343954) / 0.920355)) + (-0.0231746 * clampz((Height - 1.1374) / 0.392617)) + (-0.0138194 * clampz((IsHeavy - 0.155216) / 0.362111)) + (0.0611066 * clampz((Width - 1.16285) / 0.369229)) + (-0.0200503 * clampz((Durability - 30.3028) / 16.4065)) + (-0.0120716 * clampz((ArmorClassNumeric - 2.7888) / 1.20851))
+    pred = min(max(pred, 0.01), 1.09)
+    if isinstance(template, dict) and "SpallReduction" in template:
+        t_val = to_f(template["SpallReduction"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["SpallReduction"] = r(pred, 3)
+
+    # Target: speedPenaltyPercent
+    pred = -5.10368 + (-0.151228 * clampz((IsLight - 0.5) / 0.5)) + (-0.384217 * clampz((LogWeight - 0.168641) / 0.110533))
+    explicit_val = explicit_override_value(base_data, ['speedPenaltyPercent'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -11), 1)
+    if isinstance(template, dict) and "speedPenaltyPercent" in template:
+        t_val = to_f(template["speedPenaltyPercent"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 95% of the 19 zeroed items while keeping 100% of the 14 valued ones (balanced acc 97%)
+    if (-0.876268 + (1.71918 * clampz((Width - 1.45455) / 0.49793)) + (0.979427 * clampz((Height - 1.51515) / 0.49977))) < 0:
+        pred = 0.0
+    item_entry["speedPenaltyPercent"] = r(pred, 3)
+
+    return item_entry
+
+# --- Visor (Mod) Formulas ---
+def apply_visor_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+
+    # Target: AllowADS
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "AllowADS" in template:
+        item_entry["AllowADS"] = bool(template.get("AllowADS", False))
+    else:
+        item_entry["AllowADS"] = True if pred >= 0.5 else False
+
+    # Target: CanSpall
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "CanSpall" in template:
+        item_entry["CanSpall"] = bool(template.get("CanSpall", False))
+    else:
+        item_entry["CanSpall"] = True if pred >= 0.5 else False
+
+    # Target: ReloadSpeedMulti
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "ReloadSpeedMulti" in template:
+        t_val = to_f(template["ReloadSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["ReloadSpeedMulti"] = r(pred, 3)
+
+    # Target: SpallReduction
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "SpallReduction" in template:
+        t_val = to_f(template["SpallReduction"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["SpallReduction"] = r(pred, 3)
+
+    return item_entry
+
+# --- ArmorVests (Mod) Formulas ---
+def apply_armorvests_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    BluntThroughput = to_f(props.get("BluntThroughput", 0.0))
+    Height = to_f(props.get("Height", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    mousePenalty = to_f(props.get("mousePenalty", 0.0))
+    speedPenaltyPercent = to_f(props.get("speedPenaltyPercent", 0.0))
+    weaponErgonomicPenalty = to_f(props.get("weaponErgonomicPenalty", 0.0))
+    ArmorClassNumeric = eng.get("ArmorClassNumeric", 0.0)
+    IsHeavy = eng.get("IsHeavy", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+
+    # Target: AllowADS
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "AllowADS" in template:
+        item_entry["AllowADS"] = bool(template.get("AllowADS", False))
+    else:
+        item_entry["AllowADS"] = True if pred >= 0.5 else False
+
+    # Target: CanSpall
+    pred = 0
+    pred = min(max(pred, -0.1), 1.1)
+    if isinstance(template, dict) and "CanSpall" in template:
+        item_entry["CanSpall"] = bool(template.get("CanSpall", False))
+    else:
+        item_entry["CanSpall"] = True if pred >= 0.5 else False
+
+    # Target: Comfort
+    pred = 1.03601 + (0.0260225 * clampz((LogWeight - 1.60238) / 0.559749)) + (0.0254304 * clampz((Height - 3.38235) / 0.485962)) + (0.0222158 * clampz((BluntThroughput - 0.255406) / 0.0950985)) + (0.0139174 * clampz((weaponErgonomicPenalty - -1.88235) / 2.53812)) + (0.00512917 * clampz((IsHeavy - 0.970588) / 0.168958)) + (0.00649807 * clampz((ArmorClassNumeric - 3.76471) / 1.47147))
+    explicit_val = explicit_override_value(base_data, ['Comfort'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred -= (0.08 * ArmorClassNumeric)
+    pred = min(max(pred, 0.823), 1.147)
+    if isinstance(template, dict) and "Comfort" in template:
+        t_val = to_f(template["Comfort"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Comfort"] = r(pred, 3)
+
+    # Target: ReloadSpeedMulti
+    pred = 1
+    pred = min(max(pred, 0.9945), 1.0605)
+    if isinstance(template, dict) and "ReloadSpeedMulti" in template:
+        t_val = to_f(template["ReloadSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["ReloadSpeedMulti"] = r(pred, 3)
+
+    # Target: SpallReduction
+    pred = 1
+    pred = min(max(pred, 0.065), 1.085)
+    if isinstance(template, dict) and "SpallReduction" in template:
+        t_val = to_f(template["SpallReduction"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["SpallReduction"] = r(pred, 3)
+
+    # Target: mousePenalty
+    pred = 0
+    explicit_val = explicit_override_value(base_data, ['mousePenalty'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred += (0.5 * ArmorClassNumeric)
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "mousePenalty" in template:
+        t_val = to_f(template["mousePenalty"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["mousePenalty"] = r(pred, 3)
+
+    # Target: speedPenaltyPercent
+    pred = -3.69828 + (-1.5135 * clampz((Height - 3.44828) / 0.497317)) + (-0.0586401 * clampz((ArmorClassNumeric - 3.7931) / 1.5785)) + (0.267675 * clampz((weaponErgonomicPenalty - -2.17241) / 2.63686)) + (0.0860752 * clampz((speedPenaltyPercent - -2.74138) / 3.32861)) + (-0.573769 * clampz((mousePenalty - -1.77586) / 1.97653)) + (-0.0231997 * clampz((Width - 3.17241) / 0.37774)) + (-0.458278 * clampz((Weight - 5.40793) / 2.93097))
+    explicit_val = explicit_override_value(base_data, ['speedPenaltyPercent'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred += (0.6 * ArmorClassNumeric)
+    pred = min(max(pred, -7.15), 0.65)
+    if isinstance(template, dict) and "speedPenaltyPercent" in template:
+        t_val = to_f(template["speedPenaltyPercent"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 100% of the 5 zeroed items while keeping 93% of the 29 valued ones (balanced acc 97%)
+    if (2.00188 + (2.43682 * clampz((LogWeight - 1.60238) / 0.559749)) + (0.21416 * clampz((IsHeavy - 0.970588) / 0.168958))) < 0:
+        pred = 0.0
+    item_entry["speedPenaltyPercent"] = r(pred, 3)
+
+    return item_entry
+
+# --- AssaultCarbines (Gun) Formulas ---
+def apply_assaultcarbines_gun_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    AimPlane = to_f(props.get("AimPlane", 0.0))
+    CameraSnap = to_f(props.get("CameraSnap", 0.0))
+    CenterOfImpact = to_f(props.get("CenterOfImpact", 0.0))
+    CoolFactorGunMods = to_f(props.get("CoolFactorGunMods", 0.0))
+    DeviationCurve = to_f(props.get("DeviationCurve", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    HeatFactorByShot = to_f(props.get("HeatFactorByShot", 0.0))
+    HeatFactorGun = to_f(props.get("HeatFactorGun", 0.0))
+    OperatingResource = to_f(props.get("OperatingResource", 0.0))
+    RecoilAngle = to_f(props.get("RecoilAngle", 0.0))
+    RecoilCamera = to_f(props.get("RecoilCamera", 0.0))
+    RecoilDampingHandRotation = to_f(props.get("RecoilDampingHandRotation", 0.0))
+    RecoilForceBack = to_f(props.get("RecoilForceBack", 0.0))
+    RecoilForceUp = to_f(props.get("RecoilForceUp", 0.0))
+    RecoilReturnPathDampingHandRotation = to_f(props.get("RecoilReturnPathDampingHandRotation", 0.0))
+    RecoilStableAngleIncreaseStep = to_f(props.get("RecoilStableAngleIncreaseStep", 0.0))
+    RecoilStableIndexShot = to_f(props.get("RecoilStableIndexShot", 0.0))
+    RecolDispersion = to_f(props.get("RecolDispersion", 0.0))
+    RepairComplexity = to_f(props.get("RepairComplexity", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    bFirerate = to_f(props.get("bFirerate", 0.0))
+    shotgunDispersion = to_f(props.get("shotgunDispersion", 0.0))
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    LogErgo = eng.get("LogErgo", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+
+    # Target: BaseChamberCheckSpeed
+    pred = 1.12231 + (0.0378714 * clampz((RecoilCamera - 0.05) / 0.011547)) + (0.167934 * clampz((shotgunDispersion - 4.44444) / 4.96904)) + (-0.0387628 * clampz((RecoilForceUp - 131.556) / 36.6882)) + (-0.108642 * clampz((OperatingResource - 2722.22) / 779.997))
+    pred = min(max(pred, 0.785), 1.565)
+    if isinstance(template, dict) and "BaseChamberCheckSpeed" in template:
+        t_val = to_f(template["BaseChamberCheckSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseChamberCheckSpeed"] = r(pred, 3)
+
+    # Target: BaseChamberSpeedMulti
+    pred = 1
+    pred = min(max(pred, 0.835), 1.015)
+    if isinstance(template, dict) and "BaseChamberSpeedMulti" in template:
+        t_val = to_f(template["BaseChamberSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseChamberSpeedMulti"] = r(pred, 3)
+
+    # Target: BaseFixSpeed
+    pred = 1.04111 + (0.090769 * clampz((AimPlane - 0.221111) / 0.0260104)) + (0.0375923 * clampz((RecoilForceUp - 131.556) / 36.6882))
+    pred = min(max(pred, 0.815), 1.235)
+    if isinstance(template, dict) and "BaseFixSpeed" in template:
+        t_val = to_f(template["BaseFixSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseFixSpeed"] = r(pred, 3)
+
+    # Target: BaseMalfunctionChance
+    pred = 0.00196667 + (-0.00031147 * clampz((OperatingResource - 2722.22) / 779.997)) + (-0.000392013 * clampz((RecoilStableAngleIncreaseStep - 2.61111) / 0.20787)) + (0.000312373 * clampz((RecolDispersion - 12.8889) / 1.79161)) + (-0.000365002 * clampz((CenterOfImpact - 0.0701111) / 0.0455837))
+    explicit_val = explicit_override_value(base_data, ['BaseMalfunctionChance'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.00104), 0.00296)
+    if isinstance(template, dict) and "BaseMalfunctionChance" in template:
+        t_val = to_f(template["BaseMalfunctionChance"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseMalfunctionChance"] = r(pred, 4)
+
+    # Target: BaseReloadSpeedMulti
+    pred = 0.954481 + (-0.112456 * clampz((HeatFactorByShot - 2.32) / 0.703041)) + (0.0575188 * clampz((RecoilForceBack - 415.556) / 167.737)) + (-0.0795942 * clampz((RecoilStableAngleIncreaseStep - 2.61111) / 0.20787)) + (0.00495313 * clampz((OperatingResource - 2722.22) / 779.997))
+    pred = min(max(pred, 0.77), 1.13)
+    if isinstance(template, dict) and "BaseReloadSpeedMulti" in template:
+        t_val = to_f(template["BaseReloadSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseReloadSpeedMulti"] = r(pred, 3)
+
+    # Target: BaseTorque
+    pred = -1.14775 + (-2.07792 * clampz((Weight - 1.13533) / 0.378913))
+    pred = min(max(pred, -7.7), 0.7)
+    if isinstance(template, dict) and "BaseTorque" in template:
+        t_val = to_f(template["BaseTorque"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseTorque"] = r(pred, 3)
+
+    # Target: CameraRecoil
+    pred = 0.0613917 + (0.022674 * clampz((RecoilForceBack - 415.556) / 167.737)) + (0.00031665 * clampz((RecoilStableAngleIncreaseStep - 2.61111) / 0.20787)) + (0.00304151 * clampz((RecoilForceUp - 131.556) / 36.6882)) + (0.00643898 * clampz((RecoilReturnPathDampingHandRotation - 0.465556) / 0.0177082))
+    pred = min(max(pred, 0.029), 0.101)
+    if isinstance(template, dict) and "CameraRecoil" in template:
+        t_val = to_f(template["CameraRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CameraRecoil"] = r(pred, 3)
+
+    # Target: CenterOfImpact
+    pred = 0.072
+    explicit_val = explicit_override_value(base_data, ['CenterOfImpact'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.0285), 0.1065)
+    if isinstance(template, dict) and "CenterOfImpact" in template:
+        t_val = to_f(template["CenterOfImpact"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CenterOfImpact"] = r(pred, 3)
+
+    # Target: Convergence
+    pred = 9.81764 + (4.54936 * clampz((RecoilReturnPathDampingHandRotation - 0.465556) / 0.0177082)) + (-1.59598 * clampz((RecoilForceUp - 131.556) / 36.6882)) + (0.00055944 * clampz((RecoilStableIndexShot - 4.33333) / 1.24722)) + (3.50335 * clampz((RecoilCamera - 0.05) / 0.011547))
+    pred = min(max(pred, 3.76), 16.24)
+    if isinstance(template, dict) and "Convergence" in template:
+        t_val = to_f(template["Convergence"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Convergence"] = r(pred, 3)
+
+    # Target: CoolFactorGun
+    pred = 0.1
+    explicit_val = explicit_override_value(base_data, ['CoolFactorGun'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.095), 0.155)
+    if isinstance(template, dict) and "CoolFactorGun" in template:
+        t_val = to_f(template["CoolFactorGun"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactorGun"] = r(pred, 3)
+
+    # Target: CoolFactorGunMods
+    pred = 1.004 + (-0.00649753 * clampz((CameraSnap - 3.1) / 0.520683)) + (-0.00110369 * clampz((RepairComplexity - 0.444444) / 0.496904))
+    pred = min(max(pred, 0.9986), 1.0154)
+    if isinstance(template, dict) and "CoolFactorGunMods" in template:
+        t_val = to_f(template["CoolFactorGunMods"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactorGunMods"] = r(pred, 3)
+
+    # Target: Dispersion
+    pred = 14.0939 + (1.08862 * clampz((CenterOfImpact - 0.0701111) / 0.0455837)) + (-3.61001 * clampz((DeviationCurve - 1.6) / 0.268742)) + (3.58328 * clampz((RecolDispersion - 12.8889) / 1.79161))
+    pred = min(max(pred, 9.9), 23.1)
+    if isinstance(template, dict) and "Dispersion" in template:
+        t_val = to_f(template["Dispersion"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Dispersion"] = r(pred, 3)
+
+    # Target: DurabilityBurnRatio
+    pred = 0.444444 + (0.0140158 * clampz((CaliberNumeric - 8.49556) / 0.675362)) + (-0.0138982 * clampz((LogWeight - 0.745102) / 0.158444))
+    explicit_val = explicit_override_value(base_data, ['DurabilityBurnRatio'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.325), 0.625)
+    if isinstance(template, dict) and "DurabilityBurnRatio" in template:
+        t_val = to_f(template["DurabilityBurnRatio"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnRatio"] = r(pred, 3)
+
+    # Target: Ergonomics
+    pred = 79.9997 + (0.000189118 * clampz((LogWeight - 0.745102) / 0.158444))
+    pred = min(max(pred, 74.5), 80.5)
+    if isinstance(template, dict) and "Ergonomics" in template:
+        t_val = to_f(template["Ergonomics"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Ergonomics"] = r_half(pred)
+
+    # Target: HasShoulderContact
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "HasShoulderContact" in template:
+        item_entry["HasShoulderContact"] = bool(template.get("HasShoulderContact", False))
+    else:
+        item_entry["HasShoulderContact"] = True if pred >= 0.5 else False
+
+    # Target: HeatFactorByShot
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "HeatFactorByShot" in template:
+        t_val = to_f(template["HeatFactorByShot"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactorByShot"] = r(pred, 3)
+
+    # Target: HeatFactorGun
+    pred = 0.358465 + (-0.0638591 * clampz((CaliberNumeric - 8.49556) / 0.675362)) + (0.113448 * clampz((HeatFactorByShot - 2.32) / 0.703041)) + (0.059212 * clampz((HeatFactorGun - 0.9958) / 0.0616997)) + (-0.0588691 * clampz((LogWeight - 0.745102) / 0.158444))
+    explicit_val = explicit_override_value(base_data, ['HeatFactorGun'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.155), 0.695)
+    if isinstance(template, dict) and "HeatFactorGun" in template:
+        t_val = to_f(template["HeatFactorGun"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactorGun"] = r(pred, 3)
+
+    # Target: HipAccuracyRestorationDelay
+    pred = 0.200489 + (0.00053344 * clampz((RecoilStableIndexShot - 4.33333) / 1.24722)) + (-0.000576961 * clampz((LogErgo - 3.59932) / 0.331469)) + (-0.000167243 * clampz((OperatingResource - 2722.22) / 779.997))
+    pred = min(max(pred, 0.19), 0.31)
+    if isinstance(template, dict) and "HipAccuracyRestorationDelay" in template:
+        t_val = to_f(template["HipAccuracyRestorationDelay"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipAccuracyRestorationDelay"] = r(pred, 4)
+
+    # Target: HipAccuracyRestorationSpeed
+    pred = 7
+    pred = min(max(pred, 7), 7)
+    if isinstance(template, dict) and "HipAccuracyRestorationSpeed" in template:
+        t_val = to_f(template["HipAccuracyRestorationSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipAccuracyRestorationSpeed"] = r(pred, 4)
+
+    # Target: HipInnaccuracyGain
+    pred = 0.16
+    pred = min(max(pred, 0.16), 0.16)
+    if isinstance(template, dict) and "HipInnaccuracyGain" in template:
+        t_val = to_f(template["HipInnaccuracyGain"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipInnaccuracyGain"] = r(pred, 4)
+
+    # Target: HorizontalRecoil
+    pred = 220.872 + (34.7153 * clampz((RecoilForceUp - 131.556) / 36.6882)) + (25.5218 * clampz((RecoilCamera - 0.05) / 0.011547)) + (-33.2047 * clampz((RecoilReturnPathDampingHandRotation - 0.465556) / 0.0177082))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 84), 396)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: MaxChamberSpeed
+    pred = 1.5
+    pred = min(max(pred, 1.5), 1.5)
+    if isinstance(template, dict) and "MaxChamberSpeed" in template:
+        t_val = to_f(template["MaxChamberSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["MaxChamberSpeed"] = r(pred, 3)
+
+    # Target: MinChamberSpeed
+    pred = 0.7
+    pred = min(max(pred, 0.7), 0.7)
+    if isinstance(template, dict) and "MinChamberSpeed" in template:
+        t_val = to_f(template["MinChamberSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["MinChamberSpeed"] = r(pred, 3)
+
+    # Target: OffsetRotation
+    pred = 0.0076875 + (0.00217187 * clampz((AimPlane - 0.225) / 0.025)) + (0.000166096 * clampz((CameraSnap - 3.05) / 0.531507))
+    pred = min(max(pred, 0.0045), 0.0105)
+    if isinstance(template, dict) and "OffsetRotation" in template:
+        t_val = to_f(template["OffsetRotation"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["OffsetRotation"] = r(pred, 4)
+
+    # Target: RecoilAngle
+    pred = 84.6467 + (-5.76415 * clampz((RecoilForceBack - 415.556) / 167.737)) + (-0.10826 * clampz((RecoilStableAngleIncreaseStep - 2.61111) / 0.20787)) + (-0.139766 * clampz((RecoilReturnPathDampingHandRotation - 0.465556) / 0.0177082)) + (1.98343 * clampz((RecoilForceUp - 131.556) / 36.6882))
+    pred = min(max(pred, 76.8), 91.2)
+    if isinstance(template, dict) and "RecoilAngle" in template:
+        t_val = to_f(template["RecoilAngle"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilAngle"] = r(pred, 3)
+
+    # Target: RecoilDamping
+    pred = 0.846476 + (-0.0280279 * clampz((CoolFactorGunMods - 1.01433) / 0.0520683)) + (-0.0136527 * clampz((CenterOfImpact - 0.0701111) / 0.0455837)) + (-0.0190096 * clampz((OperatingResource - 2722.22) / 779.997)) + (-0.019381 * clampz((RecoilForceBack - 415.556) / 167.737))
+    pred = min(max(pred, 0.7375), 0.8875)
+    if isinstance(template, dict) and "RecoilDamping" in template:
+        t_val = to_f(template["RecoilDamping"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilDamping"] = r(pred, 3)
+
+    # Target: RecoilHandDamping
+    pred = 0.651105 + (-0.0955206 * clampz((AimPlane - 0.221111) / 0.0260104)) + (0.0480053 * clampz((CenterOfImpact - 0.0701111) / 0.0455837)) + (-0.072812 * clampz((RecoilStableAngleIncreaseStep - 2.61111) / 0.20787)) + (-0.0687331 * clampz((LogErgo - 3.59932) / 0.331469))
+    pred = min(max(pred, 0.411), 0.879)
+    if isinstance(template, dict) and "RecoilHandDamping" in template:
+        t_val = to_f(template["RecoilHandDamping"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilHandDamping"] = r(pred, 3)
+
+    # Target: RecoilIntensity
+    pred = 0.170453 + (0.026367 * clampz((HeatFactorByShot - 2.32) / 0.703041)) + (0.0108171 * clampz((RecoilForceBack - 415.556) / 167.737)) + (0.000717597 * clampz((RecoilAngle - 89.4444) / 1.57135)) + (-0.00566732 * clampz((CoolFactorGunMods - 1.01433) / 0.0520683))
+    pred = min(max(pred, 0.1235), 0.2615)
+    if isinstance(template, dict) and "RecoilIntensity" in template:
+        t_val = to_f(template["RecoilIntensity"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilIntensity"] = r(pred, 3)
+
+    # Target: VerticalRecoil
+    pred = 96.7835 + (37.1089 * clampz((RecoilForceBack - 415.556) / 167.737)) + (5.70283 * clampz((RecoilForceUp - 131.556) / 36.6882)) + (0.484044 * clampz((RecoilReturnPathDampingHandRotation - 0.465556) / 0.0177082)) + (-13.635 * clampz((RecoilStableAngleIncreaseStep - 2.61111) / 0.20787))
+    explicit_val = explicit_override_value(base_data, ['VerticalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 51.6), 152.4)
+    if isinstance(template, dict) and "VerticalRecoil" in template:
+        t_val = to_f(template["VerticalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["VerticalRecoil"] = r_half(pred)
+
+    # Target: VisualMulti
+    pred = 1.22936 + (0.0999593 * clampz((CoolFactorGunMods - 1.01433) / 0.0520683)) + (0.0683819 * clampz((LogWeight - 0.745102) / 0.158444)) + (0.0528038 * clampz((CameraSnap - 3.1) / 0.520683)) + (-0.00934832 * clampz((OperatingResource - 2722.22) / 779.997))
+    pred = min(max(pred, 1.06), 1.54)
+    if isinstance(template, dict) and "VisualMulti" in template:
+        t_val = to_f(template["VisualMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["VisualMulti"] = r(pred, 3)
+
+    # Target: WeaponAllowADS
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "WeaponAllowADS" in template:
+        item_entry["WeaponAllowADS"] = bool(template.get("WeaponAllowADS", False))
+    else:
+        item_entry["WeaponAllowADS"] = True if pred >= 0.5 else False
+
+    # Target: Weight
+    pred = 1.12069 + (0.477868 * clampz((Weight - 1.13533) / 0.378913)) + (0.139773 * clampz((RecoilAngle - 89.4444) / 1.57135)) + (-0.0258193 * clampz((HeatFactorByShot - 2.32) / 0.703041)) + (-0.108578 * clampz((HeatFactorGun - 0.9958) / 0.0616997))
+    pred = min(max(pred, 0.6928), 2.2192)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    # ShotgunDispersion (fixed value — not ML-calculated)
+    if isinstance(template, dict) and "ShotgunDispersion" in template:
+        item_entry["ShotgunDispersion"] = int(to_f(template.get("ShotgunDispersion", 0)))
+    else:
+        item_entry["ShotgunDispersion"] = 0
+
+    return item_entry
+
+# --- AssaultRifles (Gun) Formulas ---
+def apply_assaultrifles_gun_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    AimPlane = to_f(props.get("AimPlane", 0.0))
+    BaseMalfunctionChance = to_f(props.get("BaseMalfunctionChance", 0.0))
+    CameraSnap = to_f(props.get("CameraSnap", 0.0))
+    CenterOfImpact = to_f(props.get("CenterOfImpact", 0.0))
+    CoolFactorGun = to_f(props.get("CoolFactorGun", 0.0))
+    CoolFactorGunMods = to_f(props.get("CoolFactorGunMods", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    HeatFactorByShot = to_f(props.get("HeatFactorByShot", 0.0))
+    HeatFactorGun = to_f(props.get("HeatFactorGun", 0.0))
+    Height = to_f(props.get("Height", 0.0))
+    OperatingResource = to_f(props.get("OperatingResource", 0.0))
+    RecoilAngle = to_f(props.get("RecoilAngle", 0.0))
+    RecoilCamera = to_f(props.get("RecoilCamera", 0.0))
+    RecoilDampingHandRotation = to_f(props.get("RecoilDampingHandRotation", 0.0))
+    RecoilForceBack = to_f(props.get("RecoilForceBack", 0.0))
+    RecoilForceUp = to_f(props.get("RecoilForceUp", 0.0))
+    RecoilPosZMult = to_f(props.get("RecoilPosZMult", 0.0))
+    RecoilReturnPathDampingHandRotation = to_f(props.get("RecoilReturnPathDampingHandRotation", 0.0))
+    RecoilReturnSpeedHandRotation = to_f(props.get("RecoilReturnSpeedHandRotation", 0.0))
+    RecoilStableAngleIncreaseStep = to_f(props.get("RecoilStableAngleIncreaseStep", 0.0))
+    RecoilStableIndexShot = to_f(props.get("RecoilStableIndexShot", 0.0))
+    RecolDispersion = to_f(props.get("RecolDispersion", 0.0))
+    SingleFireRate = to_f(props.get("SingleFireRate", 0.0))
+    Velocity = to_f(props.get("Velocity", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    bEffDist = to_f(props.get("bEffDist", 0.0))
+    bFirerate = to_f(props.get("bFirerate", 0.0))
+    bHearDist = to_f(props.get("bHearDist", 0.0))
+    durabSpawnMax = to_f(props.get("durabSpawnMax", 0.0))
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    IsHeavy = eng.get("IsHeavy", 0.0)
+    IsMagnified = eng.get("IsMagnified", 0.0)
+    IsShort = eng.get("IsShort", 0.0)
+    LogErgo = eng.get("LogErgo", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+
+    # Target: BaseChamberCheckSpeed
+    pred = 1.33535 + (0.154405 * clampz((CenterOfImpact - 0.0408605) / 0.0292548)) + (-0.00932716 * clampz((Ergonomics - 43.6512) / 14.2696)) + (0.118682 * clampz((AimPlane - 0.176512) / 0.0185377)) + (0.0411929 * clampz((RecoilPosZMult - 0.944186) / 0.138602)) + (-0.0645702 * clampz((LogWeight - 0.939004) / 0.352519)) + (-0.0370585 * clampz((CameraSnap - 3.52326) / 0.150715))
+    pred = min(max(pred, 0.82), 1.78)
+    if isinstance(template, dict) and "BaseChamberCheckSpeed" in template:
+        t_val = to_f(template["BaseChamberCheckSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseChamberCheckSpeed"] = r(pred, 3)
+
+    # Target: BaseChamberSpeedMulti
+    pred = 1.06653 + (-0.17525 * clampz((IsHeavy - 0.837209) / 0.369175)) + (0.0426269 * clampz((bFirerate - 662.326) / 69.3688)) + (0.0304088 * clampz((LogWeight - 0.939004) / 0.352519)) + (-0.00362576 * clampz((IsMagnified - 0.302326) / 0.459266)) + (0.019123 * clampz((BaseMalfunctionChance - 0.178594) / 0.00798368)) + (0.0143425 * clampz((OperatingResource - 5147.67) / 843.233)) + (-0.0172521 * clampz((RecoilStableIndexShot - 4.76744) / 0.641119)) + (0.0178495 * clampz((Width - 2.72093) / 1.22618))
+    pred = min(max(pred, 0.46), 2.14)
+    if isinstance(template, dict) and "BaseChamberSpeedMulti" in template:
+        t_val = to_f(template["BaseChamberSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseChamberSpeedMulti"] = r(pred, 3)
+
+    # Target: BaseFixSpeed
+    pred = 1.22571 + (0.239483 * clampz((RecoilReturnPathDampingHandRotation - 0.480233) / 0.00150715)) + (0.0868257 * clampz((AimPlane - 0.176512) / 0.0185377)) + (0.0477172 * clampz((HeatFactorByShot - 1.3757) / 0.127364)) + (0.0172639 * clampz((RecoilCamera - 0.0451163) / 0.00788643)) + (0.0128304 * clampz((Ergonomics - 43.6512) / 14.2696)) + (-0.047622 * clampz((CameraSnap - 3.52326) / 0.150715)) + (-0.000766423 * clampz((bEffDist - 538.372) / 130.668)) + (0.0774936 * clampz((CenterOfImpact - 0.0408605) / 0.0292548))
+    pred = min(max(pred, 0.61), 2.89)
+    if isinstance(template, dict) and "BaseFixSpeed" in template:
+        t_val = to_f(template["BaseFixSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseFixSpeed"] = r(pred, 3)
+
+    # Target: BaseMalfunctionChance
+    pred = 0.00132791 + (0.000257518 * clampz((CoolFactorGunMods - 1.00534) / 0.043598)) + (8.00289e-05 * clampz((Velocity - -0.344186) / 4.88326)) + (-7.98268e-05 * clampz((RecoilReturnSpeedHandRotation - 2.50465) / 0.11754)) + (0.000249144 * clampz((RecoilStableAngleIncreaseStep - 2.50581) / 0.079394)) + (0.000234502 * clampz((LogErgo - 3.75343) / 0.295828)) + (1.36853e-05 * clampz((HeatFactorByShot - 1.3757) / 0.127364))
+    explicit_val = explicit_override_value(base_data, ['BaseMalfunctionChance'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.00018), 0.00282)
+    if isinstance(template, dict) and "BaseMalfunctionChance" in template:
+        t_val = to_f(template["BaseMalfunctionChance"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseMalfunctionChance"] = r(pred, 4)
+
+    # Target: BaseReloadSpeedMulti
+    pred = 0.986954 + (-0.00704024 * clampz((Ergonomics - 43.6512) / 14.2696)) + (-0.0272747 * clampz((SingleFireRate - 462.326) / 55.8064)) + (0.00402364 * clampz((Height - 1.06977) / 0.254755)) + (-0.00265596 * clampz((RecoilForceBack - 341.721) / 47.0533)) + (-0.00161251 * clampz((RecoilStableIndexShot - 4.76744) / 0.641119)) + (-0.00102458 * clampz((IsMagnified - 0.302326) / 0.459266)) + (0.00399006 * clampz((AimPlane - 0.176512) / 0.0185377)) + (0.0052585 * clampz((RecoilStableAngleIncreaseStep - 2.50581) / 0.079394))
+    pred = min(max(pred, 0.82), 1.18)
+    if isinstance(template, dict) and "BaseReloadSpeedMulti" in template:
+        t_val = to_f(template["BaseReloadSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseReloadSpeedMulti"] = r(pred, 3)
+
+    # Target: BaseTorque
+    pred = -1.43476 + (-3.62751 * clampz((Width - 3.02778) / 1.09255)) + (-0.657447 * clampz((IsHeavy - 0.833333) / 0.372678)) + (2.96876 * clampz((LogWeight - 1.01578) / 0.332594))
+    pred = min(max(pred, -4.9), 5.9)
+    if isinstance(template, dict) and "BaseTorque" in template:
+        t_val = to_f(template["BaseTorque"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseTorque"] = r(pred, 3)
+
+    # Target: CameraRecoil
+    pred = 0.0402234 + (0.00586991 * clampz((RecoilCamera - 0.0451163) / 0.00788643)) + (0.000270799 * clampz((RecoilDampingHandRotation - 0.853721) / 0.00716037)) + (-0.00143034 * clampz((CaliberNumeric - 6.75907) / 1.46304)) + (4.631e-05 * clampz((RecoilForceBack - 341.721) / 47.0533)) + (-0.00377719 * clampz((RecoilPosZMult - 0.944186) / 0.138602)) + (0.00151567 * clampz((Weight - 1.71319) / 0.913498)) + (0.00285668 * clampz((IsShort - 0.0232558) / 0.150715)) + (-0.000281631 * clampz((IsHeavy - 0.837209) / 0.369175))
+    pred = min(max(pred, 0.024475), 0.078775)
+    if isinstance(template, dict) and "CameraRecoil" in template:
+        t_val = to_f(template["CameraRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CameraRecoil"] = r(pred, 3)
+
+    # Target: CenterOfImpact
+    pred = 0.0318868 + (0.00821622 * clampz((Width - 2.725) / 1.26466)) + (0.00978705 * clampz((CenterOfImpact - 0.043425) / 0.028707))
+    explicit_val = explicit_override_value(base_data, ['CenterOfImpact'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0), 0.077)
+    if isinstance(template, dict) and "CenterOfImpact" in template:
+        t_val = to_f(template["CenterOfImpact"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CenterOfImpact"] = r(pred, 3)
+
+    # Target: Convergence
+    pred = 13.8124 + (-1.12238 * clampz((RecoilCamera - 0.0451163) / 0.00788643)) + (-0.0996904 * clampz((RecoilDampingHandRotation - 0.853721) / 0.00716037)) + (-0.975878 * clampz((RecoilForceUp - 125.535) / 24.6542)) + (0.788866 * clampz((RecoilAngle - 89.8837) / 2.74675)) + (-0.982742 * clampz((IsHeavy - 0.837209) / 0.369175)) + (0.197772 * clampz((RecoilReturnSpeedHandRotation - 2.50465) / 0.11754)) + (-0.00805945 * clampz((Weight - 1.71319) / 0.913498)) + (0.492495 * clampz((IsShort - 0.0232558) / 0.150715))
+    pred = min(max(pred, 5.95), 24.55)
+    if isinstance(template, dict) and "Convergence" in template:
+        t_val = to_f(template["Convergence"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Convergence"] = r(pred, 3)
+
+    # Target: CoolFactorGun
+    pred = 0.100698 + (-0.00493933 * clampz((CoolFactorGun - 3.17451) / 0.139932)) + (0.000521245 * clampz((LogWeight - 0.939004) / 0.352519)) + (-0.000588397 * clampz((IsShort - 0.0232558) / 0.150715)) + (0.000544955 * clampz((CaliberNumeric - 6.75907) / 1.46304))
+    explicit_val = explicit_override_value(base_data, ['CoolFactorGun'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.063), 0.147)
+    if isinstance(template, dict) and "CoolFactorGun" in template:
+        t_val = to_f(template["CoolFactorGun"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactorGun"] = r(pred, 3)
+
+    # Target: CoolFactorGunMods
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "CoolFactorGunMods" in template:
+        t_val = to_f(template["CoolFactorGunMods"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactorGunMods"] = r(pred, 3)
+
+    # Target: Dispersion
+    pred = 11.4186 + (0.188854 * clampz((CaliberNumeric - 6.75907) / 1.46304))
+    pred = min(max(pred, 4.7), 20.3)
+    if isinstance(template, dict) and "Dispersion" in template:
+        t_val = to_f(template["Dispersion"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Dispersion"] = r(pred, 3)
+
+    # Target: DurabilityBurnRatio
+    pred = 0.271182 + (0.0390505 * clampz((HeatFactorGun - 0.982509) / 0.0377606)) + (-0.0671842 * clampz((Width - 2.72093) / 1.22618)) + (-0.0434297 * clampz((IsHeavy - 0.837209) / 0.369175)) + (0.0124492 * clampz((HeatFactorByShot - 1.3757) / 0.127364)) + (0.0805531 * clampz((LogWeight - 0.939004) / 0.352519))
+    explicit_val = explicit_override_value(base_data, ['DurabilityBurnRatio'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.125), 0.425)
+    if isinstance(template, dict) and "DurabilityBurnRatio" in template:
+        t_val = to_f(template["DurabilityBurnRatio"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnRatio"] = r(pred, 3)
+
+    # Target: Ergonomics
+    pred = 79.999 + (0.00237983 * clampz((IsHeavy - 0.837209) / 0.369175))
+    pred = min(max(pred, 79.5), 85.5)
+    if isinstance(template, dict) and "Ergonomics" in template:
+        t_val = to_f(template["Ergonomics"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Ergonomics"] = r_half(pred)
+
+    # Target: HasShoulderContact
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "HasShoulderContact" in template:
+        item_entry["HasShoulderContact"] = bool(template.get("HasShoulderContact", False))
+    else:
+        item_entry["HasShoulderContact"] = True if pred >= 0.5 else False
+
+    # Target: HeatFactorByShot
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "HeatFactorByShot" in template:
+        t_val = to_f(template["HeatFactorByShot"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactorByShot"] = r(pred, 3)
+
+    # Target: HeatFactorGun
+    pred = 0.254678 + (-0.0135833 * clampz((Velocity - -0.344186) / 4.88326)) + (0.0321367 * clampz((HeatFactorGun - 0.982509) / 0.0377606)) + (-0.0132159 * clampz((Width - 2.72093) / 1.22618)) + (0.00110213 * clampz((HeatFactorByShot - 1.3757) / 0.127364)) + (0.0087853 * clampz((LogWeight - 0.939004) / 0.352519)) + (-0.00759832 * clampz((IsShort - 0.0232558) / 0.150715)) + (-0.00907276 * clampz((IsHeavy - 0.837209) / 0.369175)) + (0.0320457 * clampz((CaliberNumeric - 6.75907) / 1.46304))
+    explicit_val = explicit_override_value(base_data, ['HeatFactorGun'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.158), 0.422)
+    if isinstance(template, dict) and "HeatFactorGun" in template:
+        t_val = to_f(template["HeatFactorGun"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactorGun"] = r(pred, 3)
+
+    # Target: HipAccuracyRestorationDelay
+    pred = 0.199535 + (-0.000572418 * clampz((OperatingResource - 5147.67) / 843.233)) + (-0.000776756 * clampz((RecoilReturnSpeedHandRotation - 2.50465) / 0.11754)) + (-0.00053376 * clampz((CaliberNumeric - 6.75907) / 1.46304)) + (-2.63453e-05 * clampz((IsMagnified - 0.302326) / 0.459266))
+    pred = min(max(pred, 0.178), 0.202)
+    if isinstance(template, dict) and "HipAccuracyRestorationDelay" in template:
+        t_val = to_f(template["HipAccuracyRestorationDelay"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipAccuracyRestorationDelay"] = r(pred, 4)
+
+    # Target: HipAccuracyRestorationSpeed
+    pred = 7.02326 + (0.0286209 * clampz((OperatingResource - 5147.67) / 843.233)) + (0.0388378 * clampz((RecoilReturnSpeedHandRotation - 2.50465) / 0.11754)) + (0.026688 * clampz((CaliberNumeric - 6.75907) / 1.46304)) + (0.00131726 * clampz((IsMagnified - 0.302326) / 0.459266))
+    pred = min(max(pred, 6.9), 8.1)
+    if isinstance(template, dict) and "HipAccuracyRestorationSpeed" in template:
+        t_val = to_f(template["HipAccuracyRestorationSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipAccuracyRestorationSpeed"] = r(pred, 4)
+
+    # Target: HipInnaccuracyGain
+    pred = 0.159767 + (-0.000286209 * clampz((OperatingResource - 5147.67) / 843.233)) + (-0.000388378 * clampz((RecoilReturnSpeedHandRotation - 2.50465) / 0.11754)) + (-0.00026688 * clampz((CaliberNumeric - 6.75907) / 1.46304)) + (-1.31726e-05 * clampz((IsMagnified - 0.302326) / 0.459266))
+    pred = min(max(pred, 0.149), 0.161)
+    if isinstance(template, dict) and "HipInnaccuracyGain" in template:
+        t_val = to_f(template["HipInnaccuracyGain"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipInnaccuracyGain"] = r(pred, 4)
+
+    # Target: HorizontalRecoil
+    pred = 201.325 + (12.5584 * clampz((RecoilCamera - 0.0451163) / 0.00788643)) + (6.85175 * clampz((CaliberNumeric - 6.75907) / 1.46304)) + (1.97966 * clampz((RecoilDampingHandRotation - 0.853721) / 0.00716037)) + (12.2321 * clampz((Weight - 1.71319) / 0.913498)) + (12.983 * clampz((RecoilForceBack - 341.721) / 47.0533)) + (-4.62424 * clampz((RecoilReturnSpeedHandRotation - 2.50465) / 0.11754)) + (19.9556 * clampz((IsHeavy - 0.837209) / 0.369175)) + (-5.63406 * clampz((Width - 2.72093) / 1.22618))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 87.8), 570.2)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: MaxChamberSpeed
+    pred = 1.51744 + (0.0377271 * clampz((BaseMalfunctionChance - 0.178594) / 0.00798368)) + (-0.0312153 * clampz((IsHeavy - 0.837209) / 0.369175)) + (-0.0107039 * clampz((OperatingResource - 5147.67) / 843.233)) + (-0.0236692 * clampz((RecoilStableIndexShot - 4.76744) / 0.641119)) + (-0.0173621 * clampz((bHearDist - 82.093) / 9.29069)) + (-0.0188291 * clampz((RecoilCamera - 0.0451163) / 0.00788643)) + (-0.0149208 * clampz((CaliberNumeric - 6.75907) / 1.46304))
+    pred = min(max(pred, 1.12), 2.08)
+    if isinstance(template, dict) and "MaxChamberSpeed" in template:
+        t_val = to_f(template["MaxChamberSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["MaxChamberSpeed"] = r(pred, 3)
+
+    # Target: MinChamberSpeed
+    pred = 0.709302 + (-0.00889305 * clampz((IsHeavy - 0.837209) / 0.369175)) + (0.0090765 * clampz((RecoilReturnPathDampingHandRotation - 0.480233) / 0.00150715)) + (0.0130431 * clampz((bHearDist - 82.093) / 9.29069)) + (-0.00490954 * clampz((OperatingResource - 5147.67) / 843.233)) + (0.00173214 * clampz((RecoilCamera - 0.0451163) / 0.00788643)) + (0.00399657 * clampz((IsMagnified - 0.302326) / 0.459266)) + (0.000819478 * clampz((Width - 2.72093) / 1.22618))
+    pred = min(max(pred, 0.69), 0.81)
+    if isinstance(template, dict) and "MinChamberSpeed" in template:
+        t_val = to_f(template["MinChamberSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["MinChamberSpeed"] = r(pred, 3)
+
+    # Target: OffsetRotation
+    pred = 0.00867476 + (-0.000435148 * clampz((RecoilCamera - 0.0451163) / 0.00788643)) + (-0.000737884 * clampz((RecoilForceBack - 341.721) / 47.0533)) + (-5.57891e-05 * clampz((RecoilDampingHandRotation - 0.853721) / 0.00716037)) + (0.000761783 * clampz((CaliberNumeric - 6.75907) / 1.46304)) + (-0.000900507 * clampz((CameraSnap - 3.52326) / 0.150715)) + (-0.00100723 * clampz((bHearDist - 82.093) / 9.29069)) + (0.000219808 * clampz((RecolDispersion - 10.3023) / 1.32129)) + (8.71094e-05 * clampz((RecoilPosZMult - 0.944186) / 0.138602))
+    pred = min(max(pred, 0.00144), 0.01416)
+    if isinstance(template, dict) and "OffsetRotation" in template:
+        t_val = to_f(template["OffsetRotation"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["OffsetRotation"] = r(pred, 4)
+
+    # Target: RecoilAngle
+    pred = 86.649 + (-1.45811 * clampz((Width - 2.72093) / 1.22618)) + (-0.969114 * clampz((RecoilPosZMult - 0.944186) / 0.138602)) + (-0.280361 * clampz((CaliberNumeric - 6.75907) / 1.46304)) + (-1.63676 * clampz((RecoilCamera - 0.0451163) / 0.00788643)) + (1.68033 * clampz((RecoilStableAngleIncreaseStep - 2.50581) / 0.079394)) + (-1.29607 * clampz((RecoilReturnSpeedHandRotation - 2.50465) / 0.11754))
+    pred = min(max(pred, 77.9), 91.1)
+    if isinstance(template, dict) and "RecoilAngle" in template:
+        t_val = to_f(template["RecoilAngle"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilAngle"] = r(pred, 3)
+
+    # Target: RecoilDamping
+    pred = 0.826047 + (0.0104625 * clampz((RecoilCamera - 0.0451163) / 0.00788643)) + (0.00244239 * clampz((CaliberNumeric - 6.75907) / 1.46304)) + (0.00680082 * clampz((CameraSnap - 3.52326) / 0.150715)) + (-0.00448911 * clampz((bFirerate - 662.326) / 69.3688)) + (-0.00552499 * clampz((RecoilDampingHandRotation - 0.853721) / 0.00716037)) + (-0.000209361 * clampz((RecoilForceBack - 341.721) / 47.0533)) + (-0.00634919 * clampz((bEffDist - 538.372) / 130.668))
+    pred = min(max(pred, 0.771), 0.879)
+    if isinstance(template, dict) and "RecoilDamping" in template:
+        t_val = to_f(template["RecoilDamping"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilDamping"] = r(pred, 3)
+
+    # Target: RecoilHandDamping
+    pred = 0.694491 + (0.0197566 * clampz((HeatFactorByShot - 1.3757) / 0.127364)) + (-0.0178381 * clampz((RecoilPosZMult - 0.944186) / 0.138602)) + (0.0246835 * clampz((RecoilForceBack - 341.721) / 47.0533)) + (0.0285679 * clampz((IsHeavy - 0.837209) / 0.369175)) + (-0.0256506 * clampz((RecoilDampingHandRotation - 0.853721) / 0.00716037)) + (0.0262003 * clampz((CaliberNumeric - 6.75907) / 1.46304)) + (0.0152485 * clampz((IsShort - 0.0232558) / 0.150715)) + (0.0326402 * clampz((IsMagnified - 0.302326) / 0.459266))
+    pred = min(max(pred, 0.306), 0.834)
+    if isinstance(template, dict) and "RecoilHandDamping" in template:
+        t_val = to_f(template["RecoilHandDamping"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilHandDamping"] = r(pred, 3)
+
+    # Target: RecoilIntensity
+    pred = 0.195
+    pred = min(max(pred, 0.085), 0.265)
+    if isinstance(template, dict) and "RecoilIntensity" in template:
+        t_val = to_f(template["RecoilIntensity"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilIntensity"] = r(pred, 3)
+
+    # Target: VerticalRecoil
+    pred = 88.6725 + (10.4911 * clampz((RecoilForceUp - 125.535) / 24.6542)) + (4.37023 * clampz((RecoilCamera - 0.0451163) / 0.00788643)) + (-1.37148 * clampz((RecoilDampingHandRotation - 0.853721) / 0.00716037)) + (0.185462 * clampz((CaliberNumeric - 6.75907) / 1.46304)) + (-4.57604 * clampz((RecoilPosZMult - 0.944186) / 0.138602)) + (-2.39119 * clampz((RecoilReturnSpeedHandRotation - 2.50465) / 0.11754)) + (-0.305261 * clampz((RecoilAngle - 89.8837) / 2.74675)) + (3.88798 * clampz((RecoilReturnPathDampingHandRotation - 0.480233) / 0.00150715))
+    explicit_val = explicit_override_value(base_data, ['VerticalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 53), 137)
+    if isinstance(template, dict) and "VerticalRecoil" in template:
+        t_val = to_f(template["VerticalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["VerticalRecoil"] = r_half(pred)
+
+    # Target: VisualMulti
+    pred = 1.05722 + (0.0740906 * clampz((RecoilPosZMult - 0.944186) / 0.138602)) + (-0.0509633 * clampz((durabSpawnMax - 74.5349) / 2.1059)) + (-0.00973784 * clampz((CameraSnap - 3.52326) / 0.150715)) + (-0.0376499 * clampz((RecoilStableIndexShot - 4.76744) / 0.641119)) + (-0.00406923 * clampz((LogWeight - 0.939004) / 0.352519)) + (0.00157909 * clampz((RecoilForceBack - 341.721) / 47.0533)) + (0.0202832 * clampz((Ergonomics - 43.6512) / 14.2696)) + (0.0196986 * clampz((OperatingResource - 5147.67) / 843.233))
+    pred = min(max(pred, 0.749), 1.841)
+    if isinstance(template, dict) and "VisualMulti" in template:
+        t_val = to_f(template["VisualMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["VisualMulti"] = r(pred, 3)
+
+    # Target: WeaponAllowADS
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "WeaponAllowADS" in template:
+        item_entry["WeaponAllowADS"] = bool(template.get("WeaponAllowADS", False))
+    else:
+        item_entry["WeaponAllowADS"] = True if pred >= 0.5 else False
+
+    # Target: Weight
+    pred = 1.85036 + (0.774378 * clampz((Weight - 1.71319) / 0.913498)) + (0.0256999 * clampz((Width - 2.72093) / 1.22618)) + (0.040244 * clampz((bHearDist - 82.093) / 9.29069)) + (-0.0515304 * clampz((HeatFactorGun - 0.982509) / 0.0377606)) + (0.0533103 * clampz((CenterOfImpact - 0.0408605) / 0.0292548)) + (0.0177121 * clampz((AimPlane - 0.176512) / 0.0185377)) + (0.019584 * clampz((RecoilPosZMult - 0.944186) / 0.138602)) + (-0.208142 * clampz((IsHeavy - 0.837209) / 0.369175))
+    pred = min(max(pred, 0), 5.57)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    # ShotgunDispersion (fixed value — not ML-calculated)
+    if isinstance(template, dict) and "ShotgunDispersion" in template:
+        item_entry["ShotgunDispersion"] = int(to_f(template.get("ShotgunDispersion", 0)))
+    else:
+        item_entry["ShotgunDispersion"] = 0
+
+    return item_entry
+
+# --- FunctionalMods (Mod) Formulas ---
+def apply_functionalmods_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    DurabilityBurnModificator = to_f(props.get("DurabilityBurnModificator", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    HeatFactor = to_f(props.get("HeatFactor", 0.0))
+    Recoil = to_f(props.get("Recoil", 0.0))
+    ShiftsAimCamera = to_f(props.get("ShiftsAimCamera", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    IsBrake = eng.get("IsBrake", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    IsLong = eng.get("IsLong", 0.0)
+    IsShort = eng.get("IsShort", 0.0)
+
+    # Target: AimSpeed
+    pred = 0.0487805 + (0.215409 * clampz((IsBrake - 0.0487805) / 0.215409))
+    pred = min(max(pred, -0.1), 1.1)
+    if isinstance(template, dict) and "AimSpeed" in template:
+        t_val = to_f(template["AimSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["AimSpeed"] = r(pred, 3)
+
+    # Target: AimStability
+    pred = 3.57143 + (-0.989743 * clampz((Recoil - -0.428571) / 0.494872)) + (-0.451754 * clampz((IsShort - 0.285714) / 0.451754))
+    pred = min(max(pred, 1.7), 5.3)
+    if isinstance(template, dict) and "AimStability" in template:
+        t_val = to_f(template["AimStability"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["AimStability"] = r(pred, 3)
+
+    # Target: ChamberSpeed
+    pred = 4.375 + (-1.94856 * clampz((DurabilityBurnModificator - 0.9975) / 0.00433013)) + (0.53033 * clampz((Ergonomics - 2) / 0.707107))
+    pred = min(max(pred, 1.9), 9.1)
+    if isinstance(template, dict) and "ChamberSpeed" in template:
+        t_val = to_f(template["ChamberSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["ChamberSpeed"] = r(pred, 3)
+
+    # Target: CoolFactor
+    pred = 0.995854 + (-0.00340773 * clampz((IsLong - 0.0487805) / 0.215409)) + (-0.00340773 * clampz((IsShort - 0.0487805) / 0.215409)) + (0.00137703 * clampz((CaliberNumeric - 6.89561) / 6.02043))
+    explicit_val = explicit_override_value(base_data, ['CoolFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.945), 1.005)
+    if isinstance(template, dict) and "CoolFactor" in template:
+        t_val = to_f(template["CoolFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactor"] = r(pred, 3)
+
+    # Target: Dispersion
+    pred = -1.16667 + (0.707107 * clampz((IsShort - 0.333333) / 0.471405)) + (0.471405 * clampz((IsLong - 0.333333) / 0.471405))
+    pred = min(max(pred, -2.15), -0.35)
+    if isinstance(template, dict) and "Dispersion" in template:
+        t_val = to_f(template["Dispersion"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Dispersion"] = r(pred, 3)
+
+    # Target: DurabilityBurnModificator
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "DurabilityBurnModificator" in template:
+        t_val = to_f(template["DurabilityBurnModificator"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnModificator"] = r(pred, 3)
+
+    # Target: Handling
+    pred = 1.5 + (0.163299 * clampz((Ergonomics - 3) / 0.816497)) + (-0.141421 * clampz((IsShort - 0.333333) / 0.471405)) + (-0.141421 * clampz((Recoil - -0.333333) / 0.471405))
+    pred = min(max(pred, 0.9), 2.1)
+    if isinstance(template, dict) and "Handling" in template:
+        t_val = to_f(template["Handling"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Handling"] = r(pred, 3)
+
+    # Target: HeatFactor
+    pred = 0.995854 + (-0.00340773 * clampz((IsLong - 0.0487805) / 0.215409)) + (-0.00340773 * clampz((IsShort - 0.0487805) / 0.215409)) + (0.00137703 * clampz((CaliberNumeric - 6.89561) / 6.02043))
+    explicit_val = explicit_override_value(base_data, ['HeatFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.945), 1.005)
+    if isinstance(template, dict) and "HeatFactor" in template:
+        t_val = to_f(template["HeatFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactor"] = r(pred, 3)
+
+    # Target: HorizontalRecoil
+    pred = -1
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -10), 0)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 97% of the 37 zeroed items while keeping 86% of the 7 valued ones (balanced acc 92%)
+    if (-2.355 + (1.06921 * clampz((IsShort - 0.0454545) / 0.208299)) + (1.06921 * clampz((IsLong - 0.0454545) / 0.208299)) + (-0.866074 * clampz((Recoil - -0.0681818) / 0.252058))) < 0:
+        pred = 0.0
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: Weight
+    pred = 0.0315227 + (0.0458085 * clampz((Weight - 0.0303182) / 0.0536909)) + (-0.0109773 * clampz((HeatFactor - 0.924864) / 0.251958)) + (-0.00476336 * clampz((IsLight - 0.954545) / 0.208299)) + (-0.000306032 * clampz((IsBrake - 0.113636) / 0.317369)) + (0.00139826 * clampz((Ergonomics - 2.77273) / 1.99845)) + (-0.00116982 * clampz((ShiftsAimCamera - 0.00318182) / 0.00666494)) + (-0.000516772 * clampz((IsLong - 0.0454545) / 0.208299)) + (-0.00028028 * clampz((IsShort - 0.0454545) / 0.208299))
+    pred = min(max(pred, 0), 0.2745)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- Bipods (Mod) Formulas ---
+def apply_bipods_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+
+    # Target: Weight
+    pred = 0.392714 + (0.109971 * clampz((Weight - 0.392714) / 0.109971))
+    pred = min(max(pred, 0.1949), 0.5681)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- Backpacks (Mod) Formulas ---
+def apply_backpacks_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    Height = to_f(props.get("Height", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    mousePenalty = to_f(props.get("mousePenalty", 0.0))
+    speedPenaltyPercent = to_f(props.get("speedPenaltyPercent", 0.0))
+    weaponErgonomicPenalty = to_f(props.get("weaponErgonomicPenalty", 0.0))
+    GridCells = eng.get("GridCells", 0.0)
+    IsHeavy = eng.get("IsHeavy", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+
+    # Target: AllowADS
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "AllowADS" in template:
+        item_entry["AllowADS"] = bool(template.get("AllowADS", False))
+    else:
+        item_entry["AllowADS"] = True if pred >= 0.5 else False
+
+    # Target: Comfort
+    pred = 0.916549 + (-0.0453653 * clampz((GridCells - 26.2619) / 10.012)) + (-0.0521557 * clampz((Width - 4.45238) / 0.762277)) + (-0.0386529 * clampz((Height - 5.40476) / 1.29209)) + (-0.0504923 * clampz((LogWeight - 1.01975) / 0.419449)) + (-0.0373316 * clampz((mousePenalty - -1.11905) / 1.02823)) + (0.0600695 * clampz((weaponErgonomicPenalty - -3.61905) / 2.04651)) + (-0.0758629 * clampz((speedPenaltyPercent - -2.71429) / 1.73597)) + (0.017614 * clampz((IsHeavy - 0.928571) / 0.257539))
+    explicit_val = explicit_override_value(base_data, ['Comfort'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.694), 1.246)
+    if isinstance(template, dict) and "Comfort" in template:
+        t_val = to_f(template["Comfort"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Comfort"] = r(pred, 3)
+
+    # Target: ReloadSpeedMulti
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "ReloadSpeedMulti" in template:
+        t_val = to_f(template["ReloadSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["ReloadSpeedMulti"] = r(pred, 3)
+
+    # Target: speedPenaltyPercent
+    pred = -2.62347 + (-0.980438 * clampz((GridCells - 26.2619) / 10.012)) + (-0.0115605 * clampz((Height - 5.40476) / 1.29209)) + (-0.00820316 * clampz((Width - 4.45238) / 0.762277)) + (0.00133557 * clampz((mousePenalty - -1.11905) / 1.02823)) + (0.00250733 * clampz((weaponErgonomicPenalty - -3.61905) / 2.04651)) + (-0.00231428 * clampz((speedPenaltyPercent - -2.71429) / 1.73597)) + (0.00122619 * clampz((LogWeight - 1.01975) / 0.419449)) + (-0.00137089 * clampz((IsHeavy - 0.928571) / 0.257539))
+    explicit_val = explicit_override_value(base_data, ['speedPenaltyPercent'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred += -(GridCells * 0.1)
+    pred = min(max(pred, -5.22), -0.18)
+    if isinstance(template, dict) and "speedPenaltyPercent" in template:
+        t_val = to_f(template["speedPenaltyPercent"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["speedPenaltyPercent"] = r(pred, 3)
+
+    return item_entry
+
+# --- BarrelPistol (Mod) Formulas ---
+def apply_barrelpistol_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    CenterOfImpact = to_f(props.get("CenterOfImpact", 0.0))
+    CoolFactor = to_f(props.get("CoolFactor", 0.0))
+    DeviationCurve = to_f(props.get("DeviationCurve", 0.0))
+    DeviationMax = to_f(props.get("DeviationMax", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    ExtraSizeLeft = to_f(props.get("ExtraSizeLeft", 0.0))
+    HeatFactor = to_f(props.get("HeatFactor", 0.0))
+    Recoil = to_f(props.get("Recoil", 0.0))
+    Velocity = to_f(props.get("Velocity", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    BarrelLengthMM = eng.get("BarrelLengthMM", 0.0)
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    IsHeavy = eng.get("IsHeavy", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+    WeaponFootprint = eng.get("WeaponFootprint", 0.0)
+
+    # Target: CenterOfImpact
+    pred = 0.0985709 + (0.0327064 * clampz((DeviationCurve - 2.24898) / 0.29806)) + (0.0247481 * clampz((DeviationMax - 11.6244) / 2.10336)) + (0.0205146 * clampz((CenterOfImpact - 0.217542) / 0.0867573)) + (-0.00977417 * clampz((WeaponFootprint - 2.18644) / 1.56741)) + (0.00993185 * clampz((BarrelLengthMM - 175.254) / 81.8425))
+    explicit_val = explicit_override_value(base_data, ['CenterOfImpact'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0), 0.2295)
+    if isinstance(template, dict) and "CenterOfImpact" in template:
+        t_val = to_f(template["CenterOfImpact"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CenterOfImpact"] = r(pred, 3)
+
+    # Target: CoolFactor
+    pred = 1.10144 + (0.0942167 * clampz((CoolFactor - 1.10815) / 0.0752079)) + (-0.00686026 * clampz((Width - 1.62712) / 0.734116)) + (-0.050841 * clampz((LogWeight - 0.216246) / 0.118939)) + (0.0698748 * clampz((BarrelLengthMM - 175.254) / 81.8425)) + (-0.000507194 * clampz((ExtraSizeLeft - 0.559322) / 0.943689)) + (0.00239507 * clampz((IsHeavy - 0.0338983) / 0.180967)) + (-0.0132873 * clampz((IsLight - 0.220339) / 0.414475)) + (0.000559425 * clampz((CaliberNumeric - 9.47034) / 1.67523))
+    explicit_val = explicit_override_value(base_data, ['CoolFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.922), 1.258)
+    if isinstance(template, dict) and "CoolFactor" in template:
+        t_val = to_f(template["CoolFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactor"] = r(pred, 3)
+
+    # Target: Dispersion
+    pred = -15
+    pred = min(max(pred, -15), -15)
+    if isinstance(template, dict) and "Dispersion" in template:
+        t_val = to_f(template["Dispersion"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Dispersion"] = r(pred, 3)
+
+    # Target: DurabilityBurnModificator
+    pred = 1.01085 + (-0.0107637 * clampz((WeaponFootprint - 2.18644) / 1.56741)) + (0.00150303 * clampz((BarrelLengthMM - 175.254) / 81.8425)) + (0.00400651 * clampz((IsLight - 0.220339) / 0.414475))
+    pred = min(max(pred, 0.707), 1.223)
+    if isinstance(template, dict) and "DurabilityBurnModificator" in template:
+        t_val = to_f(template["DurabilityBurnModificator"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnModificator"] = r(pred, 3)
+
+    # Target: HeatFactor
+    pred = 1.05556 + (0.0500717 * clampz((HeatFactor - 1.05871) / 0.0651772)) + (-0.02038 * clampz((Width - 1.62712) / 0.734116)) + (-0.00122527 * clampz((ExtraSizeLeft - 0.559322) / 0.943689)) + (-0.000282557 * clampz((LogWeight - 0.216246) / 0.118939)) + (0.00207922 * clampz((IsHeavy - 0.0338983) / 0.180967)) + (0.000240958 * clampz((IsLight - 0.220339) / 0.414475)) + (-0.000713414 * clampz((CaliberNumeric - 9.47034) / 1.67523))
+    explicit_val = explicit_override_value(base_data, ['HeatFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.876), 1.164)
+    if isinstance(template, dict) and "HeatFactor" in template:
+        t_val = to_f(template["HeatFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactor"] = r(pred, 3)
+
+    # Target: Velocity
+    pred = -6.1237 + (6.10782 * clampz((BarrelLengthMM - 175.564) / 83.4178)) + (-0.609389 * clampz((WeaponFootprint - 2.25455) / 1.59793)) + (0.246371 * clampz((Velocity - -2.79691) / 5.06013))
+    explicit_val = explicit_override_value(base_data, ['Velocity'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -28.47), 13.17)
+    if isinstance(template, dict) and "Velocity" in template:
+        t_val = to_f(template["Velocity"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Velocity"] = r_half(pred)
+
+    # Target: Weight
+    pred = 0.250458 + (0.160305 * clampz((Weight - 0.250695) / 0.161337)) + (-0.0116484 * clampz((BarrelLengthMM - 175.254) / 81.8425)) + (-0.00402533 * clampz((CenterOfImpact - 0.217542) / 0.0867573)) + (-0.00300501 * clampz((Recoil - -3.55508) / 2.23468)) + (-0.00474853 * clampz((Ergonomics - -4.60169) / 3.65432)) + (0.0012652 * clampz((IsHeavy - 0.0338983) / 0.180967)) + (0.00353741 * clampz((WeaponFootprint - 2.18644) / 1.56741)) + (-0.00399752 * clampz((DeviationMax - 11.6244) / 2.10336))
+    pred = min(max(pred, 0), 0.874)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- Barrel (Mod) Formulas ---
+def apply_barrel_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    CenterOfImpact = to_f(props.get("CenterOfImpact", 0.0))
+    CoolFactor = to_f(props.get("CoolFactor", 0.0))
+    DeviationMax = to_f(props.get("DeviationMax", 0.0))
+    DurabilityBurnModificator = to_f(props.get("DurabilityBurnModificator", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    ExtraSizeLeft = to_f(props.get("ExtraSizeLeft", 0.0))
+    HeatFactor = to_f(props.get("HeatFactor", 0.0))
+    Recoil = to_f(props.get("Recoil", 0.0))
+    ShotgunDispersion = to_f(props.get("ShotgunDispersion", 0.0))
+    Velocity = to_f(props.get("Velocity", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    BarrelLengthMM = eng.get("BarrelLengthMM", 0.0)
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    IsHeavy = eng.get("IsHeavy", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    IsLong = eng.get("IsLong", 0.0)
+    IsShort = eng.get("IsShort", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+    WeaponFootprint = eng.get("WeaponFootprint", 0.0)
+    _preset_len_norm = ((BarrelLengthMM - 406.4) / 101.6) if BarrelLengthMM else 0.0
+    _preset_cal_norm = ((CaliberNumeric - 7.62) / 2.06) if CaliberNumeric else 0.0
+
+    # Target: CenterOfImpact
+    pred = 0.0503706 + (0.0247927 * clampz((CenterOfImpact - 0.192022) / 0.228998)) + (-0.00944965 * clampz((DeviationMax - 20.6096) / 8.5154)) + (-0.00152985 * clampz((ExtraSizeLeft - 2.24561) / 1.03924))
+    explicit_val = explicit_override_value(base_data, ['CenterOfImpact'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0), 0.5495)
+    if isinstance(template, dict) and "CenterOfImpact" in template:
+        t_val = to_f(template["CenterOfImpact"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CenterOfImpact"] = r(pred, 3)
+
+    # Target: CoolFactor
+    pred = 0.962026 + (0.0730104 * clampz((CoolFactor - 0.950605) / 0.0654017)) + (0.0134709 * clampz((BarrelLengthMM - 491.158) / 148.098)) + (-0.00232396 * clampz((Velocity - 1.4564) / 9.46009)) + (-0.032274 * clampz((HeatFactor - 0.923053) / 0.0783594)) + (-0.0343943 * clampz((WeaponFootprint - 5.60526) / 1.74023)) + (0.0176204 * clampz((Width - 3.35965) / 0.909282)) + (0.00322327 * clampz((IsHeavy - 0.833333) / 0.372678)) + (-0.0254028 * clampz((CaliberNumeric - 10.8293) / 5.39157))
+    explicit_val = explicit_override_value(base_data, ['CoolFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.7587), 1.4583)
+    if isinstance(template, dict) and "CoolFactor" in template:
+        t_val = to_f(template["CoolFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactor"] = r(pred, 3)
+
+    # Target: Dispersion
+    pred = -1.69825 + (1.70906 * clampz((Width - 4) / 0.534522)) + (-2.79942 * clampz((ShotgunDispersion - 1.12857) / 0.314934)) + (-0.878152 * clampz((ExtraSizeLeft - 2.28571) / 0.451754))
+    pred = min(max(pred, -11), 1)
+    if isinstance(template, dict) and "Dispersion" in template:
+        t_val = to_f(template["Dispersion"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Dispersion"] = r(pred, 3)
+
+    # Target: DurabilityBurnModificator
+    pred = 0.997184 + (-0.0148034 * clampz((WeaponFootprint - 5.60526) / 1.74023)) + (-0.00456844 * clampz((Width - 3.35965) / 0.909282)) + (0.0075478 * clampz((HeatFactor - 0.923053) / 0.0783594)) + (0.0144286 * clampz((BarrelLengthMM - 491.158) / 148.098)) + (-0.00657081 * clampz((IsHeavy - 0.833333) / 0.372678)) + (0.0195171 * clampz((IsShort - 0.0175439) / 0.131286)) + (0.0128696 * clampz((IsLong - 0.00877193) / 0.0932469))
+    pred = min(max(pred, 0.685), 1.465)
+    if isinstance(template, dict) and "DurabilityBurnModificator" in template:
+        t_val = to_f(template["DurabilityBurnModificator"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnModificator"] = r(pred, 3)
+
+    # Target: HeatFactor
+    pred = 0.932298 + (0.0596447 * clampz((HeatFactor - 0.923053) / 0.0783594)) + (-0.0138741 * clampz((Velocity - 1.4564) / 9.46009)) + (-0.00139559 * clampz((BarrelLengthMM - 491.158) / 148.098)) + (0.000525196 * clampz((Width - 3.35965) / 0.909282)) + (-0.0105467 * clampz((WeaponFootprint - 5.60526) / 1.74023)) + (-0.00634535 * clampz((IsHeavy - 0.833333) / 0.372678)) + (-0.00348356 * clampz((CaliberNumeric - 10.8293) / 5.39157)) + (0.0217053 * clampz((LogWeight - 0.738055) / 0.247663))
+    explicit_val = explicit_override_value(base_data, ['HeatFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.7459), 1.1431)
+    if isinstance(template, dict) and "HeatFactor" in template:
+        t_val = to_f(template["HeatFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactor"] = r(pred, 3)
+
+    # Target: ModMalfunctionChance
+    pred = 8.50263 + (-17.2943 * clampz((Velocity - -7.42937) / 5.49432)) + (-5.03316 * clampz((DurabilityBurnModificator - 0.963437) / 0.0909536)) + (-10.8236 * clampz((WeaponFootprint - 5.71875) / 1.71818)) + (1.87269 * clampz((BarrelLengthMM - 410.5) / 113.183)) + (-0.635575 * clampz((Ergonomics - -14.6875) / 7.05973)) + (7.30056 * clampz((CoolFactor - 0.987219) / 0.0610905)) + (-10.7378 * clampz((Recoil - -5.28125) / 2.91799)) + (-0.98931 * clampz((IsHeavy - 0.71875) / 0.449609))
+    explicit_val = explicit_override_value(base_data, ['ModMalfunctionChance', 'BaseMalfunctionChance'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -28.7), 111.7)
+    if isinstance(template, dict) and "ModMalfunctionChance" in template:
+        t_val = to_f(template["ModMalfunctionChance"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 80% of the 82 zeroed items while keeping 94% of the 32 valued ones (balanced acc 87%)
+    if (-1.81773 + (-1.91419 * clampz((Velocity - 1.4564) / 9.46009)) + (-0.866638 * clampz((CaliberNumeric - 10.8293) / 5.39157)) + (-0.489942 * clampz((ShotgunDispersion - 1.20596) / 0.296798)) + (-1.27639 * clampz((Ergonomics - -10.8816) / 6.30626))) < 0:
+        pred = 0.0
+    item_entry["ModMalfunctionChance"] = r(pred, 4)
+
+    # Target: SemiROF
+    pred = 0.398387 + (-0.444401 * clampz((BarrelLengthMM - 409.419) / 109.764)) + (-0.444439 * clampz((WeaponFootprint - 5.67742) / 1.69224)) + (-0.567464 * clampz((DurabilityBurnModificator - 0.966452) / 0.0889563)) + (0.337647 * clampz((Ergonomics - -14.5484) / 7.22379)) + (0.211145 * clampz((Velocity - -7.33645) / 5.42455)) + (0.265646 * clampz((CoolFactor - 0.985871) / 0.0596012)) + (-0.522991 * clampz((IsHeavy - 0.741935) / 0.43757)) + (-0.506145 * clampz((Recoil - -5.16129) / 2.60393))
+    pred = min(max(pred, -2.37), 5.67)
+    if isinstance(template, dict) and "SemiROF" in template:
+        t_val = to_f(template["SemiROF"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 80% of the 83 zeroed items while keeping 94% of the 31 valued ones (balanced acc 87%)
+    if (-1.70171 + (-1.74406 * clampz((Velocity - 1.4564) / 9.46009)) + (-0.841626 * clampz((CaliberNumeric - 10.8293) / 5.39157)) + (-0.574722 * clampz((ShotgunDispersion - 1.20596) / 0.296798)) + (-1.0775 * clampz((Ergonomics - -10.8816) / 6.30626))) < 0:
+        pred = 0.0
+    item_entry["SemiROF"] = int(round(pred))
+
+    # Target: Weight
+    pred = 1.17142 + (0.438825 * clampz((Weight - 1.15979) / 0.576475)) + (-0.0161492 * clampz((BarrelLengthMM - 491.158) / 148.098)) + (-0.00214862 * clampz((CoolFactor - 0.950605) / 0.0654017)) + (-0.0738958 * clampz((Recoil - -5.6886) / 2.90296)) + (-0.0468046 * clampz((Width - 3.35965) / 0.909282)) + (0.0751735 * clampz((WeaponFootprint - 5.60526) / 1.74023)) + (0.010544 * clampz((Velocity - 1.4564) / 9.46009))
+    pred = min(max(pred, 0.176), 2.744)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- ChargingHandleAmbi (Mod) Formulas ---
+def apply_charginghandleambi_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    Weight = to_f(props.get("Weight", 0.0))
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    LogErgo = eng.get("LogErgo", 0.0)
+
+    # Target: ChamberSpeed
+    pred = 32.8054 + (2.15065 * clampz((Weight - 0.0322143) / 0.008512)) + (1.87779 * clampz((LogErgo - 0.944503) / 0.383662)) + (1.46172 * clampz((CaliberNumeric - 3.55571) / 4.13729))
+    pred = min(max(pred, 22.6), 39.4)
+    if isinstance(template, dict) and "ChamberSpeed" in template:
+        t_val = to_f(template["ChamberSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["ChamberSpeed"] = r(pred, 3)
+
+    # Target: Weight
+    pred = 0.0322143 + (0.008512 * clampz((Weight - 0.0322143) / 0.008512))
+    pred = min(max(pred, 0.0119), 0.0491)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- ChargingHandle (Mod) Formulas ---
+def apply_charginghandle_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    LogErgo = eng.get("LogErgo", 0.0)
+
+    # Target: Weight
+    pred = 0.115923 + (0.137596 * clampz((Weight - 0.104231) / 0.151386)) + (-0.00786881 * clampz((Ergonomics - 0.230769) / 1.52688)) + (-0.00616241 * clampz((LogErgo - 0.328974) / 0.512103))
+    pred = min(max(pred, 0), 0.4937)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- ChargingHandleExtended (Mod) Formulas ---
+def apply_charginghandleextended_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    LogErgo = eng.get("LogErgo", 0.0)
+
+    # Target: ChamberSpeed
+    pred = 21.8546 + (-1.88535 * clampz((LogErgo - 0.51986) / 0.458474)) + (0.965923 * clampz((CaliberNumeric - 5.485) / 3.33759))
+    pred = min(max(pred, 17.1), 27.9)
+    if isinstance(template, dict) and "ChamberSpeed" in template:
+        t_val = to_f(template["ChamberSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["ChamberSpeed"] = r(pred, 3)
+
+    # Target: Weight
+    pred = 0.038375 + (0.0176914 * clampz((Weight - 0.038375) / 0.0176914))
+    pred = min(max(pred, 0.0057), 0.0693)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- Headwear (Mod) Formulas ---
+def apply_headwear_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    Height = to_f(props.get("Height", 0.0))
+    mousePenalty = to_f(props.get("mousePenalty", 0.0))
+    speedPenaltyPercent = to_f(props.get("speedPenaltyPercent", 0.0))
+    weaponErgonomicPenalty = to_f(props.get("weaponErgonomicPenalty", 0.0))
+    ArmorClassNumeric = eng.get("ArmorClassNumeric", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+
+    # Target: AllowADS
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "AllowADS" in template:
+        item_entry["AllowADS"] = bool(template.get("AllowADS", False))
+    else:
+        item_entry["AllowADS"] = True if pred >= 0.5 else False
+
+    # Target: CanSpall
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "CanSpall" in template:
+        item_entry["CanSpall"] = bool(template.get("CanSpall", False))
+    else:
+        item_entry["CanSpall"] = True if pred >= 0.5 else False
+
+    # Target: Comfort
+    pred = 0.965078 + (0.0667465 * clampz((LogWeight - 0.917449) / 0.313363)) + (-0.0197314 * clampz((mousePenalty - -1.34694) / 0.893309)) + (-0.025308 * clampz((weaponErgonomicPenalty - -1.36735) / 1.04381)) + (-0.00648602 * clampz((Height - 1.97959) / 0.141392)) + (-0.00538613 * clampz((speedPenaltyPercent - -0.0816327) / 0.273804)) + (-0.0124603 * clampz((ArmorClassNumeric - 1.71429) / 0.721393))
+    explicit_val = explicit_override_value(base_data, ['Comfort'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.76), 1.24)
+    if isinstance(template, dict) and "Comfort" in template:
+        t_val = to_f(template["Comfort"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Comfort"] = r(pred, 3)
+
+    # Target: ReloadSpeedMulti
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "ReloadSpeedMulti" in template:
+        t_val = to_f(template["ReloadSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["ReloadSpeedMulti"] = r(pred, 3)
+
+    # Target: SpallReduction
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "SpallReduction" in template:
+        t_val = to_f(template["SpallReduction"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["SpallReduction"] = r(pred, 3)
+
+    return item_entry
+
+# --- CombTactDevice (Mod) Formulas ---
+def apply_combtactdevice_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    ModesCount = to_f(props.get("ModesCount", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    IsCollimator = eng.get("IsCollimator", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+
+    # Target: Weight
+    pred = 0.18029 + (0.0808074 * clampz((Weight - 0.1715) / 0.0770451)) + (0.000705409 * clampz((IsLight - 0.4) / 0.489898)) + (-0.00256018 * clampz((Ergonomics - -1.325) / 0.454835)) + (-0.00269997 * clampz((ModesCount - 3) / 1.54919)) + (-0.00112046 * clampz((CaliberNumeric - 0.3925) / 1.71087)) + (0.00972513 * clampz((IsCollimator - 0.05) / 0.217945))
+    pred = min(max(pred, 0.0105), 0.4245)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- HandguardPistol (Mod) Formulas ---
+def apply_handguardpistol_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    CoolFactor = to_f(props.get("CoolFactor", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    HeatFactor = to_f(props.get("HeatFactor", 0.0))
+    Recoil = to_f(props.get("Recoil", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    BarrelLengthMM = eng.get("BarrelLengthMM", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    LogErgo = eng.get("LogErgo", 0.0)
+    WeaponFootprint = eng.get("WeaponFootprint", 0.0)
+
+    # Target: Accuracy
+    pred = 6.11126 + (2.79258 * clampz((WeaponFootprint - 3) / 1.24722)) + (-1.20849 * clampz((Recoil - -1.66667) / 1.41421)) + (-0.289479 * clampz((Width - 1.88889) / 0.31427)) + (-1.04714 * clampz((LogErgo - 2.43999) / 0.273509))
+    explicit_val = explicit_override_value(base_data, ['Accuracy', 'WeapAccuracy'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -3.6), 15.6)
+    if isinstance(template, dict) and "Accuracy" in template:
+        t_val = to_f(template["Accuracy"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 87% of the 15 zeroed items while keeping 89% of the 9 valued ones (balanced acc 88%)
+    if (-0.304012 + (1.06145 * clampz((Ergonomics - 8.625) / 3.17297)) + (0.952735 * clampz((CoolFactor - 1.00517) / 0.0296067))) < 0:
+        pred = 0.0
+    item_entry["Accuracy"] = r(pred, 3)
+
+    # Target: CoolFactor
+    pred = 1.00979 + (0.0295255 * clampz((CoolFactor - 1.00509) / 0.0302409)) + (0.00219281 * clampz((HeatFactor - 0.996826) / 0.0312628)) + (0.0062706 * clampz((BarrelLengthMM - 87.7957) / 116.753)) + (-0.00698464 * clampz((WeaponFootprint - 2.3913) / 1.09303)) + (-0.0133581 * clampz((Weight - 0.225174) / 0.0756891)) + (0.0030868 * clampz((Width - 1.69565) / 0.460131)) + (-0.0144602 * clampz((IsLight - 0.26087) / 0.439109))
+    explicit_val = explicit_override_value(base_data, ['CoolFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.9381), 1.0809)
+    if isinstance(template, dict) and "CoolFactor" in template:
+        t_val = to_f(template["CoolFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactor"] = r(pred, 3)
+
+    # Target: Dispersion
+    pred = -2.5054 + (0.324744 * clampz((Width - 1.7) / 0.458258)) + (1.43193 * clampz((WeaponFootprint - 2.5) / 1.11803)) + (-1.2878 * clampz((BarrelLengthMM - 100.965) / 119.776))
+    pred = min(max(pred, -11.05), 1.55)
+    if isinstance(template, dict) and "Dispersion" in template:
+        t_val = to_f(template["Dispersion"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Dispersion"] = r(pred, 3)
+
+    # Target: Ergonomics
+    pred = 6.1711 + (2.00238 * clampz((BarrelLengthMM - 91.7864) / 117.833)) + (0.975774 * clampz((WeaponFootprint - 2.36364) / 1.14992)) + (-0.779362 * clampz((Width - 1.63636) / 0.481046)) + (0.240242 * clampz((IsLight - 0.227273) / 0.41907))
+    pred = min(max(pred, -1.7), 18.7)
+    if isinstance(template, dict) and "Ergonomics" in template:
+        t_val = to_f(template["Ergonomics"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Ergonomics"] = r_half(pred)
+
+    # Target: HeatFactor
+    pred = 0.99411 + (-0.00195518 * clampz((BarrelLengthMM - 87.7957) / 116.753)) + (0.0294276 * clampz((HeatFactor - 0.996826) / 0.0312628)) + (0.00749564 * clampz((IsLight - 0.26087) / 0.439109)) + (0.00675741 * clampz((Weight - 0.225174) / 0.0756891)) + (0.00204099 * clampz((WeaponFootprint - 2.3913) / 1.09303))
+    explicit_val = explicit_override_value(base_data, ['HeatFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.935), 1.115)
+    if isinstance(template, dict) and "HeatFactor" in template:
+        t_val = to_f(template["HeatFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactor"] = r(pred, 3)
+
+    # Target: HorizontalRecoil
+    pred = -1.61729 + (-0.0443223 * clampz((Width - 1.73684) / 0.440347)) + (0.215437 * clampz((Recoil - -1.39474) / 1.23095)) + (-0.00610897 * clampz((WeaponFootprint - 2.57895) / 1.09139)) + (0.160556 * clampz((IsLight - 0.210526) / 0.407682)) + (-0.0824766 * clampz((BarrelLengthMM - 106.279) / 120.568))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -11), 1)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: VerticalRecoil
+    pred = -1.50175 + (-0.391207 * clampz((IsLight - 0.2) / 0.4)) + (-0.770943 * clampz((WeaponFootprint - 2.45) / 1.16082)) + (0.261605 * clampz((BarrelLengthMM - 100.965) / 119.776))
+    explicit_val = explicit_override_value(base_data, ['VerticalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -14.2), 12.2)
+    if isinstance(template, dict) and "VerticalRecoil" in template:
+        t_val = to_f(template["VerticalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 100% of the 4 zeroed items while keeping 85% of the 20 valued ones (balanced acc 92%)
+    if (1.38741 + (1.2071 * clampz((Weight - 0.219125) / 0.0795719)) + (-1.27746 * clampz((Recoil - -1.22917) / 1.19878))) < 0:
+        pred = 0.0
+    item_entry["VerticalRecoil"] = r_half(pred)
+
+    # Target: Weight
+    pred = 0.219125 + (0.0795719 * clampz((Weight - 0.219125) / 0.0795719))
+    pred = min(max(pred, 0.0557), 0.3473)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- HandguardFreeFloat (Mod) Formulas ---
+def apply_handguardfreefloat_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    Accuracy = to_f(props.get("Accuracy", 0.0))
+    CoolFactor = to_f(props.get("CoolFactor", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    ExtraSizeLeft = to_f(props.get("ExtraSizeLeft", 0.0))
+    HeatFactor = to_f(props.get("HeatFactor", 0.0))
+    Recoil = to_f(props.get("Recoil", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    BarrelLengthMM = eng.get("BarrelLengthMM", 0.0)
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    ChokeTightness = eng.get("ChokeTightness", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+    WeaponFootprint = eng.get("WeaponFootprint", 0.0)
+
+    # Target: Accuracy
+    pred = 10.7311 + (1.49132 * clampz((ExtraSizeLeft - 1.51852) / 0.957248)) + (0.634907 * clampz((Width - 2.22222) / 0.496904)) + (-0.625651 * clampz((CoolFactor - 1.03667) / 0.0241462)) + (-1.57746 * clampz((Recoil - -0.796296) / 0.98375)) + (-2.9444 * clampz((ChokeTightness - 0.0148148) / 0.075541)) + (0.931901 * clampz((Accuracy - 0.037037) / 0.188853)) + (0.939056 * clampz((BarrelLengthMM - 301.743) / 763.905)) + (0.895373 * clampz((LogWeight - 0.317029) / 0.0853457))
+    explicit_val = explicit_override_value(base_data, ['Accuracy', 'WeapAccuracy'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -18.5), 23.5)
+    if isinstance(template, dict) and "Accuracy" in template:
+        t_val = to_f(template["Accuracy"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 71% of the 7 zeroed items while keeping 100% of the 27 valued ones (balanced acc 86%)
+    if (1.86043 + (-1.17387 * clampz((IsLight - 0.147059) / 0.354165)) + (0.876286 * clampz((LogWeight - 0.280063) / 0.112154))) < 0:
+        pred = 0.0
+    item_entry["Accuracy"] = r(pred, 3)
+
+    # Target: CoolFactor
+    pred = 1.02944 + (0.0152237 * clampz((CoolFactor - 1.03262) / 0.0234421)) + (0.00778034 * clampz((ExtraSizeLeft - 1.20588) / 1.05103)) + (0.00243375 * clampz((BarrelLengthMM - 253.626) / 689.052)) + (-0.00319543 * clampz((IsLight - 0.147059) / 0.354165))
+    explicit_val = explicit_override_value(base_data, ['CoolFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.8797), 1.1233)
+    if isinstance(template, dict) and "CoolFactor" in template:
+        t_val = to_f(template["CoolFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactor"] = r(pred, 3)
+
+    # Target: Dispersion
+    pred = -1.64829 + (-0.0721558 * clampz((CaliberNumeric - 6.82643) / 5.69444)) + (0.184321 * clampz((BarrelLengthMM - 290.966) / 752.227)) + (-0.158761 * clampz((WeaponFootprint - 3.32143) / 1.48933))
+    pred = min(max(pred, -8.8), 0.8)
+    if isinstance(template, dict) and "Dispersion" in template:
+        t_val = to_f(template["Dispersion"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Dispersion"] = r(pred, 3)
+
+    # Target: Ergonomics
+    pred = 8.33848 + (2.41946 * clampz((Width - 2.22222) / 0.496904)) + (-0.800853 * clampz((WeaponFootprint - 3.33333) / 1.51535)) + (0.449081 * clampz((BarrelLengthMM - 301.743) / 763.905)) + (-0.240513 * clampz((IsLight - 0.185185) / 0.388448))
+    pred = min(max(pred, -1.3), 14.3)
+    if isinstance(template, dict) and "Ergonomics" in template:
+        t_val = to_f(template["Ergonomics"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Ergonomics"] = r_half(pred)
+
+    # Target: HeatFactor
+    pred = 0.986853 + (0.0232409 * clampz((HeatFactor - 0.982647) / 0.0260462)) + (-0.00634249 * clampz((ExtraSizeLeft - 1.20588) / 1.05103)) + (0.00567015 * clampz((LogWeight - 0.280063) / 0.112154)) + (0.0011149 * clampz((IsLight - 0.147059) / 0.354165)) + (-0.000590429 * clampz((BarrelLengthMM - 253.626) / 689.052))
+    explicit_val = explicit_override_value(base_data, ['HeatFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.9141), 1.1169)
+    if isinstance(template, dict) and "HeatFactor" in template:
+        t_val = to_f(template["HeatFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactor"] = r(pred, 3)
+
+    # Target: HorizontalRecoil
+    pred = -1.9268 + (-0.225834 * clampz((Weight - 0.347929) / 0.154932)) + (0.0551014 * clampz((WeaponFootprint - 3.32143) / 1.48933)) + (-0.122353 * clampz((Width - 2.21429) / 0.48969)) + (-0.12072 * clampz((IsLight - 0.178571) / 0.382993)) + (-0.0675442 * clampz((BarrelLengthMM - 290.966) / 752.227))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -2.75), 0.25)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: VerticalRecoil
+    pred = -1.26721 + (-0.0845623 * clampz((Width - 2.22222) / 0.496904)) + (-0.292174 * clampz((BarrelLengthMM - 301.743) / 763.905)) + (-0.00839175 * clampz((WeaponFootprint - 3.37037) / 1.49439)) + (-0.154122 * clampz((CaliberNumeric - 6.39407) / 5.32857)) + (0.0148883 * clampz((IsLight - 0.185185) / 0.388448))
+    explicit_val = explicit_override_value(base_data, ['VerticalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -4.4), 0.4)
+    if isinstance(template, dict) and "VerticalRecoil" in template:
+        t_val = to_f(template["VerticalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["VerticalRecoil"] = r_half(pred)
+
+    # Target: Weight
+    pred = 0.335438 + (0.147344 * clampz((LogWeight - 0.280063) / 0.112154)) + (0.00173425 * clampz((IsLight - 0.147059) / 0.354165)) + (0.0139749 * clampz((ExtraSizeLeft - 1.20588) / 1.05103)) + (0.000739431 * clampz((HeatFactor - 0.982647) / 0.0260462)) + (-0.00988782 * clampz((Width - 2.17647) / 0.451832)) + (0.00316115 * clampz((ChokeTightness - 0.0117647) / 0.0675831)) + (-0.006416 * clampz((Ergonomics - 5.61765) / 2.56692)) + (0.00557608 * clampz((CaliberNumeric - 7.29235) / 6.65239))
+    pred = min(max(pred, 0.0182), 0.6638)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- Handguard (Mod) Formulas ---
+def apply_handguard_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    CoolFactor = to_f(props.get("CoolFactor", 0.0))
+    ExtraSizeLeft = to_f(props.get("ExtraSizeLeft", 0.0))
+    HeatFactor = to_f(props.get("HeatFactor", 0.0))
+    Recoil = to_f(props.get("Recoil", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    BarrelLengthMM = eng.get("BarrelLengthMM", 0.0)
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    IsHeavy = eng.get("IsHeavy", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    IsLong = eng.get("IsLong", 0.0)
+    IsShort = eng.get("IsShort", 0.0)
+    LogErgo = eng.get("LogErgo", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+    WeaponFootprint = eng.get("WeaponFootprint", 0.0)
+
+    # Target: Accuracy
+    pred = 4.48099 + (2.2869 * clampz((CoolFactor - 1.03073) / 0.0525152)) + (-2.36143 * clampz((HeatFactor - 0.996785) / 0.0424489)) + (3.05398 * clampz((LogErgo - 2.09957) / 0.418656)) + (-2.8022 * clampz((Recoil - -1.21505) / 1.20348)) + (-1.11616 * clampz((Width - 1.86022) / 0.665452)) + (2.18717 * clampz((ExtraSizeLeft - 0.892473) / 1.06218)) + (1.1603 * clampz((LogWeight - 0.259014) / 0.103294)) + (0.779069 * clampz((BarrelLengthMM - 38.5097) / 109.716))
+    explicit_val = explicit_override_value(base_data, ['Accuracy', 'WeapAccuracy'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -24.5), 29.5)
+    if isinstance(template, dict) and "Accuracy" in template:
+        t_val = to_f(template["Accuracy"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 53% of the 45 zeroed items while keeping 90% of the 93 valued ones (balanced acc 72%)
+    if (1.08515 + (-0.900632 * clampz((CaliberNumeric - 6.37116) / 5.97772)) + (0.845296 * clampz((ExtraSizeLeft - 0.652174) / 0.975439)) + (-0.450637 * clampz((HeatFactor - 1.00619) / 0.0411125)) + (0.129584 * clampz((CoolFactor - 1.01954) / 0.049916))) < 0:
+        pred = 0.0
+    item_entry["Accuracy"] = r(pred, 3)
+
+    # Target: CoolFactor
+    pred = 1.02004 + (0.0465046 * clampz((CoolFactor - 1.01954) / 0.049916)) + (-0.000728341 * clampz((HeatFactor - 1.00619) / 0.0411125)) + (-0.0012533 * clampz((WeaponFootprint - 2.44928) / 1.50397)) + (0.00106208 * clampz((Width - 1.7971) / 0.638833)) + (0.000448953 * clampz((BarrelLengthMM - 33.4986) / 103.243)) + (-0.00174606 * clampz((IsLight - 0.144928) / 0.352028)) + (0.00171124 * clampz((LogWeight - 0.266123) / 0.132871)) + (0.00128396 * clampz((CaliberNumeric - 6.37116) / 5.97772))
+    explicit_val = explicit_override_value(base_data, ['CoolFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.8755), 1.1695)
+    if isinstance(template, dict) and "CoolFactor" in template:
+        t_val = to_f(template["CoolFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactor"] = r(pred, 3)
+
+    # Target: Dispersion
+    pred = -1.5246 + (-0.138251 * clampz((Width - 1.84685) / 0.63243)) + (-0.103157 * clampz((WeaponFootprint - 2.51351) / 1.52968)) + (-0.244937 * clampz((CaliberNumeric - 6.40748) / 6.14226)) + (-0.218976 * clampz((BarrelLengthMM - 24.9423) / 93.1842)) + (-0.133718 * clampz((IsLong - 0.027027) / 0.162162))
+    pred = min(max(pred, -5.6), 1.6)
+    if isinstance(template, dict) and "Dispersion" in template:
+        t_val = to_f(template["Dispersion"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Dispersion"] = r(pred, 3)
+
+    # Target: Ergonomics
+    pred = 8.71644 + (1.02509 * clampz((WeaponFootprint - 2.50806) / 1.55281)) + (1.00904 * clampz((Width - 1.81452) / 0.65213)) + (0.515092 * clampz((BarrelLengthMM - 37.2806) / 108.266)) + (-1.01038 * clampz((IsLight - 0.112903) / 0.316474)) + (-0.684682 * clampz((LogWeight - 0.271196) / 0.129622)) + (0.257014 * clampz((IsLong - 0.016129) / 0.125972))
+    pred += (0.5 * IsShort) - (0.5 * IsLong) - (0.3 * IsHeavy) + (0.3 * IsLight)
+    pred = min(max(pred, -2.2), 24.2)
+    if isinstance(template, dict) and "Ergonomics" in template:
+        t_val = to_f(template["Ergonomics"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Ergonomics"] = r_half(pred)
+
+    # Target: HeatFactor
+    pred = 1.00266 + (0.036081 * clampz((HeatFactor - 1.00619) / 0.0411125)) + (-0.00858624 * clampz((Width - 1.7971) / 0.638833)) + (0.00710382 * clampz((WeaponFootprint - 2.44928) / 1.50397)) + (-0.00401943 * clampz((Weight - 0.316819) / 0.183536)) + (-0.000118696 * clampz((BarrelLengthMM - 33.4986) / 103.243)) + (-0.00191359 * clampz((IsLight - 0.144928) / 0.352028)) + (0.00039435 * clampz((IsHeavy - 0.0869565) / 0.281771))
+    explicit_val = explicit_override_value(base_data, ['HeatFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.88), 1.12)
+    if isinstance(template, dict) and "HeatFactor" in template:
+        t_val = to_f(template["HeatFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactor"] = r(pred, 3)
+
+    # Target: HorizontalRecoil
+    pred = -1.85537 + (-0.20088 * clampz((Width - 1.85124) / 0.638453)) + (-0.067032 * clampz((WeaponFootprint - 2.55372) / 1.54251)) + (-0.204041 * clampz((BarrelLengthMM - 38.205) / 109.438)) + (-0.147177 * clampz((IsHeavy - 0.0991736) / 0.298895)) + (-0.24502 * clampz((CaliberNumeric - 6.23058) / 6.00599))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred -= (0.2 * IsLong)
+    pred = min(max(pred, -11.1), 2.1)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: VerticalRecoil
+    pred = -1.7967 + (-0.153999 * clampz((WeaponFootprint - 2.55263) / 1.5223)) + (-0.141567 * clampz((Width - 1.85088) / 0.624534)) + (-0.259505 * clampz((BarrelLengthMM - 37.2088) / 107.72)) + (0.18571 * clampz((IsLight - 0.0964912) / 0.295264)) + (0.13315 * clampz((Recoil - -1.20175) / 1.16174)) + (0.0849692 * clampz((LogWeight - 0.279349) / 0.127779))
+    explicit_val = explicit_override_value(base_data, ['VerticalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred -= (0.3 * IsLong)
+    pred = min(max(pred, -7.9), 2.9)
+    if isinstance(template, dict) and "VerticalRecoil" in template:
+        t_val = to_f(template["VerticalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["VerticalRecoil"] = r_half(pred)
+
+    # Target: Weight
+    pred = 0.318891 + (0.173951 * clampz((Weight - 0.316819) / 0.183536)) + (0.00527996 * clampz((IsHeavy - 0.0869565) / 0.281771)) + (-0.000236755 * clampz((IsLight - 0.144928) / 0.352028)) + (0.000381456 * clampz((Width - 1.7971) / 0.638833)) + (0.00425543 * clampz((WeaponFootprint - 2.44928) / 1.50397)) + (0.000431165 * clampz((CaliberNumeric - 6.37116) / 5.97772)) + (0.00177619 * clampz((Recoil - -1.05797) / 1.16263)) + (-0.00151854 * clampz((HeatFactor - 1.00619) / 0.0411125))
+    pred += (0.05 * IsLong) + (0.06 * IsHeavy) - (0.04 * IsLight)
+    pred = min(max(pred, 0), 0.9757)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- Foregrip (Mod) Formulas ---
+def apply_foregrip_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    Recoil = to_f(props.get("Recoil", 0.0))
+    UniqueAnimationModID = to_f(props.get("UniqueAnimationModID", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    LogErgo = eng.get("LogErgo", 0.0)
+
+    # Target: AimSpeed
+    pred = -0.357143 + (-2.64864 * clampz((UniqueAnimationModID - 0.0357143) / 0.264864))
+    pred = min(max(pred, -22), 2)
+    if isinstance(template, dict) and "AimSpeed" in template:
+        t_val = to_f(template["AimSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["AimSpeed"] = r(pred, 3)
+
+    # Target: Dispersion
+    pred = -1.44782 + (-0.232903 * clampz((CaliberNumeric - 0.915417) / 2.69016))
+    pred = min(max(pred, -5.6), 13.6)
+    if isinstance(template, dict) and "Dispersion" in template:
+        t_val = to_f(template["Dispersion"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Dispersion"] = r(pred, 3)
+
+    # Target: Ergonomics
+    pred = 6.49023 + (0.762071 * clampz((IsLight - 0.928571) / 0.257539)) + (-0.0588896 * clampz((Weight - 0.088875) / 0.037354))
+    pred = min(max(pred, 1.2), 10.8)
+    if isinstance(template, dict) and "Ergonomics" in template:
+        t_val = to_f(template["Ergonomics"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Ergonomics"] = r_half(pred)
+
+    # Target: HorizontalRecoil
+    pred = -2.33333 + (0.452341 * clampz((IsLight - 0.925926) / 0.261891))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -17.6), 1.6)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: VerticalRecoil
+    pred = -2.22 + (-0.259208 * clampz((Weight - 0.08744) / 0.0371904)) + (0.179458 * clampz((IsLight - 0.94) / 0.237487)) + (0.0962443 * clampz((CaliberNumeric - 0.7368) / 2.25526))
+    explicit_val = explicit_override_value(base_data, ['VerticalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -4.95), 0.45)
+    if isinstance(template, dict) and "VerticalRecoil" in template:
+        t_val = to_f(template["VerticalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["VerticalRecoil"] = r_half(pred)
+
+    # Target: Weight
+    pred = 0.0870714 + (0.0376504 * clampz((Weight - 0.088875) / 0.037354)) + (0.00089813 * clampz((LogErgo - 1.79255) / 0.429521)) + (0.00197007 * clampz((IsLight - 0.928571) / 0.257539)) + (0.0012931 * clampz((Recoil - -1.47321) / 0.893527)) + (0.0022713 * clampz((UniqueAnimationModID - 0.0357143) / 0.264864))
+    pred = min(max(pred, 0.0123), 0.2007)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- Gasblock (Mod) Formulas ---
+def apply_gasblock_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    CoolFactor = to_f(props.get("CoolFactor", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    HeatFactor = to_f(props.get("HeatFactor", 0.0))
+    Recoil = to_f(props.get("Recoil", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    LogErgo = eng.get("LogErgo", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+
+    # Target: Accuracy
+    pred = 8.29229 + (-4.68168 * clampz((Recoil - -3.16667) / 1.17851)) + (3.15048 * clampz((Width - 1.5) / 0.5)) + (-4.22679 * clampz((IsLight - 0.166667) / 0.372678))
+    explicit_val = explicit_override_value(base_data, ['Accuracy', 'WeapAccuracy'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -16.1), 21.1)
+    if isinstance(template, dict) and "Accuracy" in template:
+        t_val = to_f(template["Accuracy"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 96% of the 27 zeroed items while keeping 100% of the 6 valued ones (balanced acc 98%)
+    if (-1.68512 + (2.01587 * clampz((LogErgo - 0.557928) / 0.992744)) + (0.239454 * clampz((LogWeight - 0.139087) / 0.100038))) < 0:
+        pred = 0.0
+    item_entry["Accuracy"] = r(pred, 3)
+
+    # Target: AutoROF
+    pred = -0.833333 + (0.465848 * clampz((IsLight - 0.833333) / 0.372678)) + (-1.82003 * clampz((CoolFactor - 1.00633) / 0.0024267)) + (1.39754 * clampz((Ergonomics - -0.5) / 1.11803))
+    pred = min(max(pred, -5.8), 3.8)
+    if isinstance(template, dict) and "AutoROF" in template:
+        t_val = to_f(template["AutoROF"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 93% of the 27 zeroed items while keeping 100% of the 6 valued ones (balanced acc 96%)
+    if (-0.915502 + (-1.76366 * clampz((Recoil - -1.63636) / 1.62496)) + (-1.52082 * clampz((LogWeight - 0.139087) / 0.100038))) < 0:
+        pred = 0.0
+    item_entry["AutoROF"] = int(round(pred))
+
+    # Target: CanCycleSubs
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "CanCycleSubs" in template:
+        item_entry["CanCycleSubs"] = bool(template.get("CanCycleSubs", False))
+    else:
+        item_entry["CanCycleSubs"] = True if pred >= 0.5 else False
+
+    # Target: Convergence
+    pred = -2.96165 + (4.91976 * clampz((Recoil - -2.83333) / 0.687184)) + (-0.587264 * clampz((IsLight - 0.833333) / 0.372678))
+    pred = min(max(pred, -11.8), 9.8)
+    if isinstance(template, dict) and "Convergence" in template:
+        t_val = to_f(template["Convergence"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Convergence"] = r(pred, 3)
+
+    # Target: CoolFactor
+    pred = 1.01452 + (0.0229081 * clampz((CoolFactor - 1.01473) / 0.0229099)) + (1.05318e-05 * clampz((LogWeight - 0.139087) / 0.100038)) + (0.000556405 * clampz((Width - 1.12121) / 0.326374)) + (0.000735943 * clampz((IsLight - 0.757576) / 0.42855))
+    explicit_val = explicit_override_value(base_data, ['CoolFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.9742), 1.0918)
+    if isinstance(template, dict) and "CoolFactor" in template:
+        t_val = to_f(template["CoolFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactor"] = r(pred, 3)
+
+    # Target: DurabilityBurnModificator
+    pred = 0.990455 + (0.00611803 * clampz((IsLight - 0.757576) / 0.42855))
+    pred = min(max(pred, 0.7725), 1.1025)
+    if isinstance(template, dict) and "DurabilityBurnModificator" in template:
+        t_val = to_f(template["DurabilityBurnModificator"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnModificator"] = r(pred, 3)
+
+    # Target: Ergonomics
+    pred = 11.2143 + (-0.0342092 * clampz((LogWeight - 0.298936) / 0.0994167)) + (2.06206 * clampz((Width - 1.57143) / 0.494872)) + (-1.59098 * clampz((IsLight - 0.142857) / 0.349927))
+    pred = min(max(pred, -1.4), 15.4)
+    if isinstance(template, dict) and "Ergonomics" in template:
+        t_val = to_f(template["Ergonomics"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 100% of the 26 zeroed items while keeping 86% of the 7 valued ones (balanced acc 93%)
+    if (-1.96614 + (1.44334 * clampz((LogWeight - 0.139087) / 0.100038)) + (-0.609018 * clampz((IsLight - 0.757576) / 0.42855))) < 0:
+        pred = 0.0
+    item_entry["Ergonomics"] = r_half(pred)
+
+    # Target: Flash
+    pred = -15.7364 + (-3.28877 * clampz((CaliberNumeric - 4.26235) / 3.25239))
+    pred = min(max(pred, -28.5), 13.5)
+    if isinstance(template, dict) and "Flash" in template:
+        t_val = to_f(template["Flash"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Flash"] = r(pred, 3)
+
+    # Target: HeatFactor
+    pred = 0.989364 + (0.02206 * clampz((HeatFactor - 0.987242) / 0.0187245)) + (0.00345841 * clampz((Width - 1.12121) / 0.326374)) + (0.00315124 * clampz((IsLight - 0.757576) / 0.42855))
+    explicit_val = explicit_override_value(base_data, ['HeatFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.875), 1.175)
+    if isinstance(template, dict) and "HeatFactor" in template:
+        t_val = to_f(template["HeatFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactor"] = r(pred, 3)
+
+    # Target: SemiROF
+    pred = -0.583333 + (1.14686 * clampz((IsLight - 0.833333) / 0.372678)) + (1.19928 * clampz((Ergonomics - -0.5) / 1.11803)) + (0.480516 * clampz((Recoil - -2.83333) / 0.687184))
+    pred = min(max(pred, -7.1), 6.1)
+    if isinstance(template, dict) and "SemiROF" in template:
+        t_val = to_f(template["SemiROF"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 93% of the 27 zeroed items while keeping 100% of the 6 valued ones (balanced acc 96%)
+    if (-0.915502 + (-1.76366 * clampz((Recoil - -1.63636) / 1.62496)) + (-1.52082 * clampz((LogWeight - 0.139087) / 0.100038))) < 0:
+        pred = 0.0
+    item_entry["SemiROF"] = int(round(pred))
+
+    # Target: Weight
+    pred = 0.156939 + (0.125906 * clampz((Weight - 0.155303) / 0.125229)) + (0.00234448 * clampz((IsLight - 0.757576) / 0.42855)) + (-0.00058895 * clampz((Recoil - -1.63636) / 1.62496)) + (0.000947229 * clampz((CaliberNumeric - 4.91697) / 3.41694))
+    pred = min(max(pred, 0), 0.602)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- MachineGuns (Gun) Formulas ---
+def apply_machineguns_gun_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    BaseMalfunctionChance = to_f(props.get("BaseMalfunctionChance", 0.0))
+    CameraSnap = to_f(props.get("CameraSnap", 0.0))
+    CenterOfImpact = to_f(props.get("CenterOfImpact", 0.0))
+    CoolFactorGunMods = to_f(props.get("CoolFactorGunMods", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    HeatFactorByShot = to_f(props.get("HeatFactorByShot", 0.0))
+    HeatFactorGun = to_f(props.get("HeatFactorGun", 0.0))
+    OperatingResource = to_f(props.get("OperatingResource", 0.0))
+    RecoilCamera = to_f(props.get("RecoilCamera", 0.0))
+    RecoilCategoryMultiplierHandRotation = to_f(props.get("RecoilCategoryMultiplierHandRotation", 0.0))
+    RecoilDampingHandRotation = to_f(props.get("RecoilDampingHandRotation", 0.0))
+    RecoilForceBack = to_f(props.get("RecoilForceBack", 0.0))
+    RecoilForceUp = to_f(props.get("RecoilForceUp", 0.0))
+    RecoilReturnPathDampingHandRotation = to_f(props.get("RecoilReturnPathDampingHandRotation", 0.0))
+    RecoilReturnPathOffsetHandRotation = to_f(props.get("RecoilReturnPathOffsetHandRotation", 0.0))
+    RecoilReturnSpeedHandRotation = to_f(props.get("RecoilReturnSpeedHandRotation", 0.0))
+    RecoilStableAngleIncreaseStep = to_f(props.get("RecoilStableAngleIncreaseStep", 0.0))
+    RecoilStableIndexShot = to_f(props.get("RecoilStableIndexShot", 0.0))
+    RecolDispersion = to_f(props.get("RecolDispersion", 0.0))
+    SingleFireRate = to_f(props.get("SingleFireRate", 0.0))
+    Velocity = to_f(props.get("Velocity", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    bEffDist = to_f(props.get("bEffDist", 0.0))
+    bFirerate = to_f(props.get("bFirerate", 0.0))
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    LogErgo = eng.get("LogErgo", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+
+    # Target: BaseChamberCheckSpeed
+    pred = 1.25428 + (0.344378 * clampz((Weight - 3.23591) / 1.89731)) + (-0.218454 * clampz((RecoilReturnPathDampingHandRotation - 0.534545) / 0.025713)) + (0.10962 * clampz((CameraSnap - 4.22727) / 1.78839)) + (0.192064 * clampz((Ergonomics - 55.6364) / 49.4833)) + (-0.121848 * clampz((RecolDispersion - 15.6364) / 10.3596))
+    pred = min(max(pred, 0.95), 1.55)
+    if isinstance(template, dict) and "BaseChamberCheckSpeed" in template:
+        t_val = to_f(template["BaseChamberCheckSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseChamberCheckSpeed"] = r(pred, 3)
+
+    # Target: BaseChamberSpeedMulti
+    pred = 1.13636 + (0.217696 * clampz((Weight - 3.23591) / 1.89731)) + (-0.0136826 * clampz((CoolFactorGunMods - 1.05555) / 0.0313901)) + (0.00290151 * clampz((LogErgo - 3.82043) / 0.566191)) + (-0.116819 * clampz((bEffDist - 745.455) / 61.9917)) + (0.0426209 * clampz((RecoilReturnPathOffsetHandRotation - 0.0145455) / 0.0014374))
+    pred = min(max(pred, 0.97), 1.33)
+    if isinstance(template, dict) and "BaseChamberSpeedMulti" in template:
+        t_val = to_f(template["BaseChamberSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseChamberSpeedMulti"] = r(pred, 3)
+
+    # Target: BaseFixSpeed
+    pred = 1.2232 + (0.311289 * clampz((Weight - 3.23591) / 1.89731)) + (0.140872 * clampz((CameraSnap - 4.22727) / 1.78839)) + (-0.173581 * clampz((RecoilReturnPathDampingHandRotation - 0.534545) / 0.025713)) + (0.0555145 * clampz((HeatFactorGun - 0.969091) / 0.0174275))
+    pred = min(max(pred, 0.96), 1.44)
+    if isinstance(template, dict) and "BaseFixSpeed" in template:
+        t_val = to_f(template["BaseFixSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseFixSpeed"] = r(pred, 3)
+
+    # Target: BaseMalfunctionChance
+    pred = 0.00146754 + (0.000247334 * clampz((SingleFireRate - 550) / 96.8246)) + (8.88779e-05 * clampz((RecoilReturnPathDampingHandRotation - 0.52875) / 0.0280346)) + (0.000250474 * clampz((bFirerate - 625) / 61.2372)) + (6.05045e-05 * clampz((CaliberNumeric - 7.5875) / 0.752392))
+    explicit_val = explicit_override_value(base_data, ['BaseMalfunctionChance'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0), 0.00275)
+    if isinstance(template, dict) and "BaseMalfunctionChance" in template:
+        t_val = to_f(template["BaseMalfunctionChance"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseMalfunctionChance"] = r(pred, 4)
+
+    # Target: BaseReloadSpeedMulti
+    pred = 2.67856 + (2.49733 * clampz((Weight - 3.23591) / 1.89731)) + (1.53178 * clampz((CoolFactorGunMods - 1.05555) / 0.0313901)) + (1.85356 * clampz((LogErgo - 3.82043) / 0.566191)) + (-1.52825 * clampz((bEffDist - 745.455) / 61.9917)) + (0.647673 * clampz((Velocity - 1.63636) / 0.517464))
+    pred = min(max(pred, 0.7), 4.3)
+    if isinstance(template, dict) and "BaseReloadSpeedMulti" in template:
+        t_val = to_f(template["BaseReloadSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseReloadSpeedMulti"] = r(pred, 3)
+
+    # Target: CameraRecoil
+    pred = 0.142534 + (-0.0740991 * clampz((RecoilForceUp - 109.273) / 45.8814)) + (-0.362056 * clampz((RecoilDampingHandRotation - 0.86) / 0.0304512)) + (-0.0737795 * clampz((LogWeight - 1.28993) / 0.623496)) + (0.0173505 * clampz((RecoilCamera - 0.0386364) / 0.119888)) + (-0.24229 * clampz((RecoilReturnSpeedHandRotation - 1.99091) / 0.377683))
+    pred = min(max(pred, -0.43), 1.13)
+    if isinstance(template, dict) and "CameraRecoil" in template:
+        t_val = to_f(template["CameraRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CameraRecoil"] = r(pred, 3)
+
+    # Target: CenterOfImpact
+    pred = 0.17375 + (0.325401 * clampz((CenterOfImpact - 0.14875) / 0.325401)) + (0.0193649 * clampz((Width - 2.625) / 0.484123))
+    explicit_val = explicit_override_value(base_data, ['CenterOfImpact'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0), 1.1)
+    if isinstance(template, dict) and "CenterOfImpact" in template:
+        t_val = to_f(template["CenterOfImpact"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CenterOfImpact"] = r(pred, 3)
+
+    # Target: Convergence
+    pred = 10.5707 + (5.9474 * clampz((RecoilReturnSpeedHandRotation - 1.99091) / 0.377683)) + (-1.85163 * clampz((RecoilCategoryMultiplierHandRotation - 0.218818) / 0.0749021)) + (0.101773 * clampz((RecoilDampingHandRotation - 0.86) / 0.0304512)) + (-3.25928 * clampz((RecoilStableAngleIncreaseStep - 2.56364) / 0.0481046)) + (1.38352 * clampz((LogWeight - 1.28993) / 0.623496))
+    pred = min(max(pred, -0.4), 16.4)
+    if isinstance(template, dict) and "Convergence" in template:
+        t_val = to_f(template["Convergence"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Convergence"] = r(pred, 3)
+
+    # Target: CoolFactorGun
+    pred = 0.269237 + (-0.0222862 * clampz((LogWeight - 1.28993) / 0.623496)) + (0.219433 * clampz((CaliberNumeric - 9.47455) / 6.54869))
+    explicit_val = explicit_override_value(base_data, ['CoolFactorGun'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0), 3.4723)
+    if isinstance(template, dict) and "CoolFactorGun" in template:
+        t_val = to_f(template["CoolFactorGun"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactorGun"] = r(pred, 3)
+
+    # Target: CoolFactorGunMods
+    pred = 1.00727 + (-0.0233386 * clampz((RecoilCamera - 0.0386364) / 0.119888)) + (-0.00121852 * clampz((RecoilReturnSpeedHandRotation - 1.99091) / 0.377683)) + (0.0122474 * clampz((RecoilDampingHandRotation - 0.86) / 0.0304512)) + (-0.0119423 * clampz((RecoilForceUp - 109.273) / 45.8814)) + (-0.00126409 * clampz((RecoilStableAngleIncreaseStep - 2.56364) / 0.0481046))
+    pred = min(max(pred, 0.992), 1.088)
+    if isinstance(template, dict) and "CoolFactorGunMods" in template:
+        t_val = to_f(template["CoolFactorGunMods"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactorGunMods"] = r(pred, 3)
+
+    # Target: Dispersion
+    pred = 19.1242 + (4.5897 * clampz((Width - 2.72727) / 0.445362)) + (2.92843 * clampz((RecolDispersion - 15.6364) / 10.3596))
+    pred = min(max(pred, 7.4), 26.6)
+    if isinstance(template, dict) and "Dispersion" in template:
+        t_val = to_f(template["Dispersion"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Dispersion"] = r(pred, 3)
+
+    # Target: DurabilityBurnRatio
+    pred = 0.248448 + (0.254585 * clampz((CaliberNumeric - 9.47455) / 6.54869)) + (-0.0362307 * clampz((LogWeight - 1.28993) / 0.623496)) + (-0.0192636 * clampz((HeatFactorByShot - 1.12909) / 0.075973))
+    explicit_val = explicit_override_value(base_data, ['DurabilityBurnRatio'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0), 1.26)
+    if isinstance(template, dict) and "DurabilityBurnRatio" in template:
+        t_val = to_f(template["DurabilityBurnRatio"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnRatio"] = r(pred, 3)
+
+    # Target: Ergonomics
+    pred = 84.0199 + (-8.02362 * clampz((LogWeight - 1.28993) / 0.623496))
+    pred = min(max(pred, 18.5), 216.5)
+    if isinstance(template, dict) and "Ergonomics" in template:
+        t_val = to_f(template["Ergonomics"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Ergonomics"] = r_half(pred)
+
+    # Target: HasShoulderContact
+    pred = 0.181818 + (-0.385695 * clampz((BaseMalfunctionChance - 0.1449) / 0.0683065))
+    pred = min(max(pred, -0.1), 1.1)
+    if isinstance(template, dict) and "HasShoulderContact" in template:
+        item_entry["HasShoulderContact"] = bool(template.get("HasShoulderContact", False))
+    else:
+        item_entry["HasShoulderContact"] = True if pred >= 0.5 else False
+
+    # Target: HeatFactorByShot
+    pred = 1.01818 + (-0.0583464 * clampz((RecoilCamera - 0.0386364) / 0.119888)) + (-0.00304631 * clampz((RecoilReturnSpeedHandRotation - 1.99091) / 0.377683)) + (0.0306185 * clampz((RecoilDampingHandRotation - 0.86) / 0.0304512)) + (-0.0298558 * clampz((RecoilForceUp - 109.273) / 45.8814)) + (-0.00316024 * clampz((RecoilStableAngleIncreaseStep - 2.56364) / 0.0481046))
+    pred = min(max(pred, 0.98), 1.22)
+    if isinstance(template, dict) and "HeatFactorByShot" in template:
+        t_val = to_f(template["HeatFactorByShot"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactorByShot"] = r(pred, 3)
+
+    # Target: HeatFactorGun
+    pred = 0.482057 + (-0.225835 * clampz((LogWeight - 1.28993) / 0.623496)) + (-0.219014 * clampz((HeatFactorByShot - 1.12909) / 0.075973)) + (-0.161762 * clampz((HeatFactorGun - 0.969091) / 0.0174275))
+    explicit_val = explicit_override_value(base_data, ['HeatFactorGun'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.065), 1.085)
+    if isinstance(template, dict) and "HeatFactorGun" in template:
+        t_val = to_f(template["HeatFactorGun"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactorGun"] = r(pred, 3)
+
+    # Target: HipAccuracyRestorationDelay
+    pred = 0.2
+    pred = min(max(pred, 0.2), 0.2)
+    if isinstance(template, dict) and "HipAccuracyRestorationDelay" in template:
+        t_val = to_f(template["HipAccuracyRestorationDelay"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipAccuracyRestorationDelay"] = r(pred, 4)
+
+    # Target: HipAccuracyRestorationSpeed
+    pred = 7
+    pred = min(max(pred, 7), 7)
+    if isinstance(template, dict) and "HipAccuracyRestorationSpeed" in template:
+        t_val = to_f(template["HipAccuracyRestorationSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipAccuracyRestorationSpeed"] = r(pred, 4)
+
+    # Target: HipInnaccuracyGain
+    pred = 0.16
+    pred = min(max(pred, 0.16), 0.16)
+    if isinstance(template, dict) and "HipInnaccuracyGain" in template:
+        t_val = to_f(template["HipInnaccuracyGain"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipInnaccuracyGain"] = r(pred, 4)
+
+    # Target: HorizontalRecoil
+    pred = 385.455 + (-444.568 * clampz((RecoilCamera - 0.0386364) / 0.119888)) + (-317.481 * clampz((RecoilReturnSpeedHandRotation - 1.99091) / 0.377683)) + (229.757 * clampz((RecoilForceUp - 109.273) / 45.8814)) + (-537.938 * clampz((RecoilDampingHandRotation - 0.86) / 0.0304512)) + (403.445 * clampz((RecoilStableIndexShot - 5.09091) / 0.995859))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 79), 1411)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: MaxChamberSpeed
+    pred = 1.5
+    pred = min(max(pred, 1.5), 1.5)
+    if isinstance(template, dict) and "MaxChamberSpeed" in template:
+        t_val = to_f(template["MaxChamberSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["MaxChamberSpeed"] = r(pred, 3)
+
+    # Target: MinChamberSpeed
+    pred = 0.7
+    pred = min(max(pred, 0.7), 0.7)
+    if isinstance(template, dict) and "MinChamberSpeed" in template:
+        t_val = to_f(template["MinChamberSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["MinChamberSpeed"] = r(pred, 3)
+
+    # Target: OffsetRotation
+    pred = 0.0137835 + (0.000756246 * clampz((RecoilReturnPathOffsetHandRotation - 0.0145455) / 0.0014374)) + (0.00279911 * clampz((Weight - 3.23591) / 1.89731)) + (-0.00439631 * clampz((HeatFactorByShot - 1.12909) / 0.075973)) + (-0.0031051 * clampz((RecoilReturnPathDampingHandRotation - 0.534545) / 0.025713))
+    pred = min(max(pred, 0.0082), 0.0178)
+    if isinstance(template, dict) and "OffsetRotation" in template:
+        t_val = to_f(template["OffsetRotation"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["OffsetRotation"] = r(pred, 4)
+
+    # Target: RecoilAngle
+    pred = 90.8182 + (2.10998 * clampz((Width - 2.72727) / 0.445362)) + (-0.619332 * clampz((RecoilReturnPathOffsetHandRotation - 0.0145455) / 0.0014374)) + (-4.12898 * clampz((RecoilStableAngleIncreaseStep - 2.56364) / 0.0481046)) + (-2.64433 * clampz((RecoilCategoryMultiplierHandRotation - 0.218818) / 0.0749021)) + (-3.82345 * clampz((RecoilForceUp - 109.273) / 45.8814))
+    pred = min(max(pred, 86.1), 96.9)
+    if isinstance(template, dict) and "RecoilAngle" in template:
+        t_val = to_f(template["RecoilAngle"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilAngle"] = r(pred, 3)
+
+    # Target: RecoilDamping
+    pred = 0.794583 + (-0.0871979 * clampz((Weight - 3.23591) / 1.89731)) + (0.0398485 * clampz((RecolDispersion - 15.6364) / 10.3596)) + (-0.0701087 * clampz((LogErgo - 3.82043) / 0.566191)) + (-0.0364689 * clampz((RecoilReturnSpeedHandRotation - 1.99091) / 0.377683)) + (0.00346198 * clampz((CoolFactorGunMods - 1.05555) / 0.0313901))
+    pred = min(max(pred, 0.622), 0.958)
+    if isinstance(template, dict) and "RecoilDamping" in template:
+        t_val = to_f(template["RecoilDamping"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilDamping"] = r(pred, 3)
+
+    # Target: RecoilHandDamping
+    pred = 0.540266 + (-0.051878 * clampz((RecoilReturnPathOffsetHandRotation - 0.0145455) / 0.0014374)) + (0.00362407 * clampz((Width - 2.72727) / 0.445362)) + (-0.0301543 * clampz((Weight - 3.23591) / 1.89731)) + (0.025713 * clampz((RecoilReturnPathDampingHandRotation - 0.534545) / 0.025713)) + (0.0195608 * clampz((HeatFactorByShot - 1.12909) / 0.075973))
+    pred = min(max(pred, 0.48), 0.72)
+    if isinstance(template, dict) and "RecoilHandDamping" in template:
+        t_val = to_f(template["RecoilHandDamping"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilHandDamping"] = r(pred, 3)
+
+    # Target: RecoilIntensity
+    pred = 0.249326 + (-0.0403042 * clampz((bFirerate - 611.364) / 79.3179)) + (0.0428528 * clampz((CaliberNumeric - 9.47455) / 6.54869)) + (-0.0156851 * clampz((Ergonomics - 55.6364) / 49.4833)) + (-0.00532109 * clampz((HeatFactorByShot - 1.12909) / 0.075973)) + (0.00499045 * clampz((RecoilCamera - 0.0386364) / 0.119888))
+    pred = min(max(pred, 0.175), 0.475)
+    if isinstance(template, dict) and "RecoilIntensity" in template:
+        t_val = to_f(template["RecoilIntensity"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilIntensity"] = r(pred, 3)
+
+    # Target: VerticalRecoil
+    pred = 129.941 + (67.3285 * clampz((Weight - 3.23591) / 1.89731)) + (-16.8707 * clampz((RecoilForceBack - 500.273) / 284.894)) + (-21.9475 * clampz((Width - 2.72727) / 0.445362)) + (-43.4388 * clampz((RecoilReturnSpeedHandRotation - 1.99091) / 0.377683)) + (-12.0935 * clampz((RecoilCategoryMultiplierHandRotation - 0.218818) / 0.0749021))
+    explicit_val = explicit_override_value(base_data, ['VerticalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 56), 224)
+    if isinstance(template, dict) and "VerticalRecoil" in template:
+        t_val = to_f(template["VerticalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["VerticalRecoil"] = r_half(pred)
+
+    # Target: VisualMulti
+    pred = 1.14931 + (0.234024 * clampz((bFirerate - 611.364) / 79.3179)) + (-0.267814 * clampz((RecoilReturnPathDampingHandRotation - 0.534545) / 0.025713)) + (-0.326683 * clampz((HeatFactorByShot - 1.12909) / 0.075973)) + (-0.253893 * clampz((HeatFactorGun - 0.969091) / 0.0174275)) + (-0.0388783 * clampz((CameraSnap - 4.22727) / 1.78839))
+    pred = min(max(pred, 0.82), 1.78)
+    if isinstance(template, dict) and "VisualMulti" in template:
+        t_val = to_f(template["VisualMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["VisualMulti"] = r(pred, 3)
+
+    # Target: WeaponAllowADS
+    pred = 0.181818 + (-0.385695 * clampz((BaseMalfunctionChance - 0.1449) / 0.0683065))
+    pred = min(max(pred, -0.1), 1.1)
+    if isinstance(template, dict) and "WeaponAllowADS" in template:
+        item_entry["WeaponAllowADS"] = bool(template.get("WeaponAllowADS", False))
+    else:
+        item_entry["WeaponAllowADS"] = True if pred >= 0.5 else False
+
+    # Target: Weight
+    pred = 3.18898 + (1.74656 * clampz((Weight - 3.23591) / 1.89731)) + (-0.409822 * clampz((LogErgo - 3.82043) / 0.566191)) + (0.524207 * clampz((bEffDist - 745.455) / 61.9917)) + (-1.2734 * clampz((CoolFactorGunMods - 1.05555) / 0.0313901)) + (0.405453 * clampz((RecoilForceUp - 109.273) / 45.8814))
+    pred = min(max(pred, 0), 6.3293)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    # ShotgunDispersion (fixed value — not ML-calculated)
+    if isinstance(template, dict) and "ShotgunDispersion" in template:
+        item_entry["ShotgunDispersion"] = int(to_f(template.get("ShotgunDispersion", 0)))
+    else:
+        item_entry["ShotgunDispersion"] = 0
+
+    return item_entry
+
+# --- Headset (Mod) Formulas ---
+def apply_headset_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    ClientPlayerCompressorSendLevel = to_f(props.get("ClientPlayerCompressorSendLevel", 0.0))
+    EQBand1Gain = to_f(props.get("EQBand1Gain", 0.0))
+    EQBand1Q = to_f(props.get("EQBand1Q", 0.0))
+    EffectsReturnsGroupVolume = to_f(props.get("EffectsReturnsGroupVolume", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    IsHeavy = eng.get("IsHeavy", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+    LoudnessHint = eng.get("LoudnessHint", 0.0)
+
+    # Target: AllowADS
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "AllowADS" in template:
+        item_entry["AllowADS"] = bool(template.get("AllowADS", False))
+    else:
+        item_entry["AllowADS"] = True if pred >= 0.5 else False
+
+    # Target: dB
+    pred = 22.2143 + (2.04166 * clampz((LoudnessHint - 22.2143) / 2.04166))
+    explicit_val = explicit_override_value(base_data, ['dB'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred += (0.4 * LoudnessHint)
+    pred = min(max(pred, 18.3), 26.7)
+    if isinstance(template, dict) and "dB" in template:
+        t_val = to_f(template["dB"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["dB"] = r(pred, 3)
+
+    return item_entry
+
+# --- Sights (Mod) Formulas ---
+def apply_sights_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    AdjustableOpticSensitivity = to_f(props.get("AdjustableOpticSensitivity", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    ZoomSensitivity = to_f(props.get("ZoomSensitivity", 0.0))
+    BarrelLengthMM = eng.get("BarrelLengthMM", 0.0)
+    IsCollimator = eng.get("IsCollimator", 0.0)
+    IsHeavy = eng.get("IsHeavy", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    IsMagnified = eng.get("IsMagnified", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+    SightingRange = eng.get("SightingRange", 0.0)
+
+    # Target: Accuracy
+    pred = 1.75 + (9.19619 * clampz((BarrelLengthMM - 5.02564) / 11.46)) + (-1.64363 * clampz((SightingRange - 582.692) / 498.062)) + (2.78094 * clampz((IsHeavy - 0.230769) / 0.421325)) + (3.79866 * clampz((Width - 1.47436) / 0.499342)) + (-3.28093 * clampz((LogWeight - 0.349396) / 0.193901)) + (-2.72695 * clampz((AdjustableOpticSensitivity - 0.0444141) / 0.11519)) + (-2.33939 * clampz((IsLight - 0.128205) / 0.334318)) + (1.12604 * clampz((IsCollimator - 0.448718) / 0.497363))
+    explicit_val = explicit_override_value(base_data, ['Accuracy', 'WeapAccuracy'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -35.8), 33.8)
+    if isinstance(template, dict) and "Accuracy" in template:
+        t_val = to_f(template["Accuracy"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 84% of the 128 zeroed items while keeping 86% of the 78 valued ones (balanced acc 85%)
+    if (-1.20568 + (-0.887379 * clampz((IsLight - 0.572816) / 0.494669)) + (0.492002 * clampz((LogWeight - 0.183416) / 0.208091)) + (1.30073 * clampz((IsMagnified - 0.616505) / 0.486237)) + (-0.0558554 * clampz((Width - 1.2233) / 0.416458))) < 0:
+        pred = 0.0
+    item_entry["Accuracy"] = r(pred, 3)
+
+    # Target: AimSpeed
+    pred = -8.34658 + (-6.42206 * clampz((SightingRange - 574.405) / 485.105)) + (4.92822 * clampz((IsCollimator - 0.428571) / 0.494872)) + (-3.84503 * clampz((BarrelLengthMM - 4.58333) / 11.1272)) + (-2.32236 * clampz((LogWeight - 0.362728) / 0.192713)) + (3.25277 * clampz((Width - 1.5119) / 0.499858)) + (1.5495 * clampz((IsHeavy - 0.238095) / 0.425918)) + (1.72547 * clampz((Ergonomics - -4.32143) / 4.05222)) + (2.96569 * clampz((ZoomSensitivity - 0.0666667) / 0.164811))
+    pred += (-0.25 * IsMagnified) + (0.15 * IsCollimator)
+    pred = min(max(pred, -55.6), 23.6)
+    if isinstance(template, dict) and "AimSpeed" in template:
+        t_val = to_f(template["AimSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 94% of the 122 zeroed items while keeping 88% of the 84 valued ones (balanced acc 91%)
+    if (-0.530848 + (-0.309208 * clampz((IsLight - 0.572816) / 0.494669)) + (0.433109 * clampz((LogWeight - 0.183416) / 0.208091)) + (1.30342 * clampz((IsMagnified - 0.616505) / 0.486237)) + (-2.445 * clampz((Ergonomics - -1.79612) / 3.38324))) < 0:
+        pred = 0.0
+    item_entry["AimSpeed"] = r(pred, 3)
+
+    # Target: Weight
+    pred = 0.229422 + (0.276021 * clampz((Weight - 0.230107) / 0.295592)) + (-0.0159746 * clampz((Ergonomics - -1.79612) / 3.38324)) + (0.00726652 * clampz((Width - 1.2233) / 0.416458)) + (-0.000558313 * clampz((IsLight - 0.572816) / 0.494669)) + (-0.00197139 * clampz((IsHeavy - 0.106796) / 0.308854)) + (-0.00147293 * clampz((SightingRange - 431.748) / 359.329)) + (0.00403619 * clampz((IsMagnified - 0.616505) / 0.486237)) + (-0.00177665 * clampz((BarrelLengthMM - 1.90291) / 7.46125))
+    pred += (0.05 * IsMagnified)
+    pred = min(max(pred, 0), 2.0898)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- MagazinesPistolFlush (Mod) Formulas ---
+def apply_magazinespistolflush_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    CheckOverride = to_f(props.get("CheckOverride", 0.0))
+    CheckTimeModifier = to_f(props.get("CheckTimeModifier", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    Height = to_f(props.get("Height", 0.0))
+    LoadUnloadModifier = to_f(props.get("LoadUnloadModifier", 0.0))
+    MalfunctionChance = to_f(props.get("MalfunctionChance", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    magAnimationIndex = to_f(props.get("magAnimationIndex", 0.0))
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    CapacityGuess = eng.get("CapacityGuess", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    LogErgo = eng.get("LogErgo", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+
+    # Target: CheckTimeModifier
+    pred = -21 + (3 * clampz((CheckTimeModifier - -21) / 3))
+    pred = min(max(pred, -33), 3)
+    if isinstance(template, dict) and "CheckTimeModifier" in template:
+        t_val = to_f(template["CheckTimeModifier"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 89% of the 19 zeroed items while keeping 100% of the 20 valued ones (balanced acc 95%)
+    if (-0.212322 + (-2.02583 * clampz((CheckTimeModifier - -11.7949) / 10.5907)) + (0.628107 * clampz((CheckOverride - 0.74359) / 0.436651)) + (-0.0265421 * clampz((LogErgo - 0.253207) / 0.495348))) < 0:
+        pred = 0.0
+    item_entry["CheckTimeModifier"] = r(pred, 3)
+
+    # Target: LoadUnloadModifier
+    pred = -10.2778 + (21.5685 * clampz((LoadUnloadModifier - -10.2778) / 21.5685))
+    pred = min(max(pred, -35), 85)
+    if isinstance(template, dict) and "LoadUnloadModifier" in template:
+        t_val = to_f(template["LoadUnloadModifier"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 81% of the 21 zeroed items while keeping 100% of the 18 valued ones (balanced acc 90%)
+    if (-0.532805 + (-1.55518 * clampz((CheckTimeModifier - -11.7949) / 10.5907)) + (0.730327 * clampz((CheckOverride - 0.74359) / 0.436651)) + (0.0787615 * clampz((LogErgo - 0.253207) / 0.495348))) < 0:
+        pred = 0.0
+    item_entry["LoadUnloadModifier"] = r(pred, 3)
+
+    # Target: ReloadSpeed
+    pred = 1.80177 + (-1.84638 * clampz((CapacityGuess - 21.2857) / 8.85945)) + (-0.211326 * clampz((Width - 1.07143) / 0.257539)) + (1.54428 * clampz((Ergonomics - 0.107143) / 2.89198)) + (-0.592539 * clampz((magAnimationIndex - 0.857143) / 1.30149)) + (1.58295 * clampz((Weight - 0.159714) / 0.098319)) + (-1.39448 * clampz((CheckOverride - 0.5) / 0.5)) + (2.11072 * clampz((CaliberNumeric - 8.99857) / 1.8709))
+    pred = min(max(pred, -11.6), 7.6)
+    if isinstance(template, dict) and "ReloadSpeed" in template:
+        t_val = to_f(template["ReloadSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 96% of the 25 zeroed items while keeping 86% of the 14 valued ones (balanced acc 91%)
+    if (-0.383775 + (1.35448 * clampz((LogErgo - 0.253207) / 0.495348)) + (1.6933 * clampz((magAnimationIndex - 0.307692) / 0.881544)) + (-0.156507 * clampz((CheckOverride - 0.74359) / 0.436651))) < 0:
+        pred = 0.0
+    item_entry["ReloadSpeed"] = r(pred, 3)
+
+    # Target: Weight
+    pred = 0.124256 + (0.0704748 * clampz((Weight - 0.124256) / 0.0704748))
+    pred = min(max(pred, 0.0034), 0.4906)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- MagazinesPistol (Mod) Formulas ---
+def apply_magazinespistol_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    CheckOverride = to_f(props.get("CheckOverride", 0.0))
+    CheckTimeModifier = to_f(props.get("CheckTimeModifier", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    LoadUnloadModifier = to_f(props.get("LoadUnloadModifier", 0.0))
+    MalfunctionChance = to_f(props.get("MalfunctionChance", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    CapacityGuess = eng.get("CapacityGuess", 0.0)
+    IsHeavy = eng.get("IsHeavy", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    LogErgo = eng.get("LogErgo", 0.0)
+    LogMagCapacity = eng.get("LogMagCapacity", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+
+    # Target: CheckTimeModifier
+    pred = -6.66667 + (30.9121 * clampz((CheckTimeModifier - -6.66667) / 30.9121))
+    pred = min(max(pred, -58), 38)
+    if isinstance(template, dict) and "CheckTimeModifier" in template:
+        t_val = to_f(template["CheckTimeModifier"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CheckTimeModifier"] = r(pred, 3)
+
+    # Target: Ergonomics
+    pred = -7.49206 + (-3.18791 * clampz((Width - 1.375) / 0.484123)) + (-2.95807 * clampz((Weight - 0.641375) / 0.220825)) + (1.08164 * clampz((IsHeavy - 0.625) / 0.484123))
+    pred = min(max(pred, -17.6), 1.6)
+    if isinstance(template, dict) and "Ergonomics" in template:
+        t_val = to_f(template["Ergonomics"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 95% of the 22 zeroed items while keeping 88% of the 8 valued ones (balanced acc 91%)
+    if (-0.515126 + (1.92602 * clampz((LogWeight - 0.243021) / 0.170368)) + (0.483349 * clampz((IsHeavy - 0.166667) / 0.372678))) < 0:
+        pred = 0.0
+    item_entry["Ergonomics"] = r_half(pred)
+
+    # Target: LoadUnloadModifier
+    pred = 7.5 + (21.6094 * clampz((LoadUnloadModifier - 7.5) / 21.6094))
+    pred = min(max(pred, -31), 41)
+    if isinstance(template, dict) and "LoadUnloadModifier" in template:
+        t_val = to_f(template["LoadUnloadModifier"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["LoadUnloadModifier"] = r(pred, 3)
+
+    # Target: MalfunctionChance
+    pred = 0.36776 + (0.135904 * clampz((Width - 1.11538) / 0.319486)) + (0.0459604 * clampz((CapacityGuess - 39.1538) / 19.4574)) + (-0.239674 * clampz((Ergonomics - -5.38462) / 6.43952)) + (0.0233761 * clampz((MalfunctionChance - 0.1205) / 0.0888998)) + (0.0888162 * clampz((LoadUnloadModifier - 3.26923) / 15.9893)) + (0.0589832 * clampz((CheckTimeModifier - -2.69231) / 21.4041)) + (-0.0349686 * clampz((LogWeight - 0.250904) / 0.179266)) + (-0.00515051 * clampz((IsHeavy - 0.192308) / 0.394113))
+    pred = min(max(pred, -0.5), 5.5)
+    if isinstance(template, dict) and "MalfunctionChance" in template:
+        t_val = to_f(template["MalfunctionChance"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["MalfunctionChance"] = r(pred, 3)
+
+    # Target: ReloadSpeed
+    pred = -5.45716 + (6.66321 * clampz((Ergonomics - -6) / 7.11136)) + (1.70217 * clampz((LogMagCapacity - 3.64282) / 0.424803)) + (-1.09975 * clampz((LogWeight - 0.268484) / 0.193846)) + (1.36207 * clampz((MalfunctionChance - 0.133714) / 0.0928425)) + (-3.68448 * clampz((Width - 1.14286) / 0.349927)) + (1.0524 * clampz((LogErgo - 0.227976) / 0.519623)) + (-0.397285 * clampz((CheckTimeModifier - -3.33333) / 23.7714)) + (1.72719 * clampz((LoadUnloadModifier - 4.04762) / 17.7025))
+    pred = min(max(pred, -22.5), 7.5)
+    if isinstance(template, dict) and "ReloadSpeed" in template:
+        t_val = to_f(template["ReloadSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["ReloadSpeed"] = r(pred, 3)
+
+    # Target: Weight
+    pred = 0.294733 + (0.243662 * clampz((Weight - 0.2951) / 0.245469)) + (0.000686364 * clampz((IsHeavy - 0.166667) / 0.372678)) + (0.000458589 * clampz((CapacityGuess - 37.7667) / 18.5628)) + (-0.000426224 * clampz((Ergonomics - -4.83333) / 6.26143))
+    pred = min(max(pred, 0), 1.0895)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- Magazines (Mod) Formulas ---
+def apply_magazines_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    BeltMagazineRefreshCount = to_f(props.get("BeltMagazineRefreshCount", 0.0))
+    CheckOverride = to_f(props.get("CheckOverride", 0.0))
+    CheckTimeModifier = to_f(props.get("CheckTimeModifier", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    Height = to_f(props.get("Height", 0.0))
+    LoadUnloadModifier = to_f(props.get("LoadUnloadModifier", 0.0))
+    MalfunctionChance = to_f(props.get("MalfunctionChance", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    magAnimationIndex = to_f(props.get("magAnimationIndex", 0.0))
+    CapacityGuess = eng.get("CapacityGuess", 0.0)
+    IsDrum = eng.get("IsDrum", 0.0)
+    IsHeavy = eng.get("IsHeavy", 0.0)
+    LogErgo = eng.get("LogErgo", 0.0)
+
+    # Target: CheckTimeModifier
+    pred = 1.96429 + (23.3506 * clampz((CheckTimeModifier - 1.96429) / 23.3506))
+    pred = min(max(pred, -58.5), 43.5)
+    if isinstance(template, dict) and "CheckTimeModifier" in template:
+        t_val = to_f(template["CheckTimeModifier"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CheckTimeModifier"] = r(pred, 3)
+
+    # Target: LoadUnloadModifier
+    pred = 9.51351 + (32.1494 * clampz((LoadUnloadModifier - 9.37838) / 32.1587)) + (-0.240779 * clampz((MalfunctionChance - 0.145514) / 0.144124)) + (0.515046 * clampz((CapacityGuess - 34.5946) / 24.7238)) + (-0.441097 * clampz((CheckTimeModifier - 3.64865) / 15.7106)) + (0.0335108 * clampz((Weight - 0.391784) / 0.279646)) + (0.0581875 * clampz((IsHeavy - 0.27027) / 0.444099)) + (-0.0677789 * clampz((Width - 1.18919) / 0.391659)) + (0.00352298 * clampz((IsDrum - 0.216216) / 0.411663))
+    pred = min(max(pred, -42), 102)
+    if isinstance(template, dict) and "LoadUnloadModifier" in template:
+        t_val = to_f(template["LoadUnloadModifier"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["LoadUnloadModifier"] = r(pred, 3)
+
+    # Target: MalfunctionChance
+    pred = 0.311506 + (-0.106478 * clampz((Ergonomics - -6.20423) / 7.64373)) + (0.119993 * clampz((MalfunctionChance - 0.119746) / 0.115483)) + (0.198203 * clampz((IsHeavy - 0.15493) / 0.361838)) + (0.0334529 * clampz((LoadUnloadModifier - 5.73239) / 23.3274)) + (0.0899205 * clampz((Width - 1.11268) / 0.316196)) + (0.0205482 * clampz((CheckTimeModifier - 1.26761) / 13.9597)) + (-0.0839655 * clampz((CapacityGuess - 32.7465) / 19.9603)) + (-0.00701345 * clampz((Weight - 0.331197) / 0.233278))
+    pred = min(max(pred, -1), 11)
+    if isinstance(template, dict) and "MalfunctionChance" in template:
+        t_val = to_f(template["MalfunctionChance"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 53% of the 17 zeroed items while keeping 89% of the 71 valued ones (balanced acc 71%)
+    if (0.672222 + (0.838278 * clampz((Height - 1.875) / 0.330719)) + (-0.206627 * clampz((LogErgo - 0.182374) / 0.496236)) + (-0.446999 * clampz((BeltMagazineRefreshCount - 1.13636) / 6.42824)) + (1.29263 * clampz((magAnimationIndex - 1.42045) / 1.88126))) < 0:
+        pred = 0.0
+    item_entry["MalfunctionChance"] = r(pred, 3)
+
+    # Target: ReloadSpeed
+    pred = -2.94815 + (3.87838 * clampz((Ergonomics - -6.5431) / 8.06989)) + (-0.188446 * clampz((IsHeavy - 0.189655) / 0.392028)) + (-0.691613 * clampz((Weight - 0.348) / 0.249674)) + (1.57779 * clampz((MalfunctionChance - 0.131931) / 0.12373)) + (-0.57732 * clampz((Width - 1.12069) / 0.325766)) + (-1.82828 * clampz((magAnimationIndex - 1.91379) / 2.0196)) + (-1.7259 * clampz((CheckTimeModifier - 2.06897) / 15.5651)) + (-0.527148 * clampz((IsDrum - 0.137931) / 0.344828))
+    pred = min(max(pred, -22.5), 7.5)
+    if isinstance(template, dict) and "ReloadSpeed" in template:
+        t_val = to_f(template["ReloadSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["ReloadSpeed"] = r(pred, 3)
+
+    # Target: Weight
+    pred = 0.318659 + (0.221031 * clampz((Weight - 0.317841) / 0.223955)) + (-0.000243947 * clampz((IsHeavy - 0.136364) / 0.343174)) + (0.0052676 * clampz((Ergonomics - -5.5625) / 7.7938)) + (0.0102054 * clampz((MalfunctionChance - 0.106932) / 0.109076)) + (0.0050485 * clampz((Width - 1.11364) / 0.317369)) + (-0.00105112 * clampz((IsDrum - 0.0909091) / 0.28748)) + (-0.00276997 * clampz((CapacityGuess - 31.7045) / 21.7925)) + (-0.00303528 * clampz((LoadUnloadModifier - 3.94318) / 21.4133))
+    pred += (0.0025 * CapacityGuess) + (0.10 * IsDrum)
+    pred = min(max(pred, 0), 1.1566)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- MagazinesFlush (Mod) Formulas ---
+def apply_magazinesflush_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    CheckOverride = to_f(props.get("CheckOverride", 0.0))
+    CheckTimeModifier = to_f(props.get("CheckTimeModifier", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    ExtraSizeLeft = to_f(props.get("ExtraSizeLeft", 0.0))
+    Height = to_f(props.get("Height", 0.0))
+    LoadUnloadModifier = to_f(props.get("LoadUnloadModifier", 0.0))
+    MalfunctionChance = to_f(props.get("MalfunctionChance", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    BarrelLengthMM = eng.get("BarrelLengthMM", 0.0)
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    CapacityGuess = eng.get("CapacityGuess", 0.0)
+    IsDrum = eng.get("IsDrum", 0.0)
+    IsHeavy = eng.get("IsHeavy", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    IsShotgun = eng.get("IsShotgun", 0.0)
+    LogErgo = eng.get("LogErgo", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+    WeaponFootprint = eng.get("WeaponFootprint", 0.0)
+
+    # Target: CheckTimeModifier
+    pred = -1.48148 + (5.22579 * clampz((CheckTimeModifier - -1.2963) / 5.70779)) + (-0.156999 * clampz((BarrelLengthMM - 0.0185185) / 0.134817)) + (-0.0302743 * clampz((CheckOverride - 0.037037) / 0.188853)) + (0.155926 * clampz((IsShotgun - 0.388889) / 0.487498)) + (0.0484331 * clampz((LogWeight - 0.238579) / 0.150102)) + (-0.00208244 * clampz((WeaponFootprint - 1.7963) / 1.49542)) + (0.110739 * clampz((LogErgo - 0.197659) / 0.472549)) + (0.164314 * clampz((CaliberNumeric - 13.9056) / 6.76452))
+    pred = min(max(pred, -33), 3)
+    if isinstance(template, dict) and "CheckTimeModifier" in template:
+        t_val = to_f(template["CheckTimeModifier"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 100% of the 50 zeroed items while keeping 100% of the 4 valued ones (balanced acc 100%)
+    if (-3.86599 + (-1.80661 * clampz((CheckTimeModifier - -1.2963) / 5.70779)) + (0.160134 * clampz((BarrelLengthMM - 0.0185185) / 0.134817)) + (0.0567457 * clampz((CheckOverride - 0.037037) / 0.188853)) + (-0.36777 * clampz((IsShotgun - 0.388889) / 0.487498))) < 0:
+        pred = 0.0
+    item_entry["CheckTimeModifier"] = r(pred, 3)
+
+    # Target: LoadUnloadModifier
+    pred = -10.8824 + (11.2766 * clampz((LoadUnloadModifier - -10.8824) / 11.2766))
+    pred = min(max(pred, -34.5), 19.5)
+    if isinstance(template, dict) and "LoadUnloadModifier" in template:
+        t_val = to_f(template["LoadUnloadModifier"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 100% of the 37 zeroed items while keeping 94% of the 17 valued ones (balanced acc 97%)
+    if (-0.546955 + (-1.49931 * clampz((LoadUnloadModifier - -3.24074) / 8.28639)) + (-0.640893 * clampz((IsShotgun - 0.388889) / 0.487498)) + (-0.68423 * clampz((ExtraSizeLeft - 0.388889) / 0.755637)) + (1.19583 * clampz((CheckOverride - 0.037037) / 0.188853))) < 0:
+        pred = 0.0
+    item_entry["LoadUnloadModifier"] = r(pred, 3)
+
+    # Target: Weight
+    pred = 0.271754 + (0.196714 * clampz((LogWeight - 0.238579) / 0.150102)) + (0.0012318 * clampz((Ergonomics - -2.44444) / 3.78431)) + (0.0528289 * clampz((IsDrum - 0.0185185) / 0.134817)) + (0.00698563 * clampz((IsLight - 0.333333) / 0.471405)) + (-0.0505515 * clampz((IsHeavy - 0.0555556) / 0.229061)) + (-0.000132744 * clampz((Height - 1.22222) / 0.458123)) + (-0.00154306 * clampz((MalfunctionChance - 0.0393889) / 0.0448774)) + (0.0043694 * clampz((CheckOverride - 0.037037) / 0.188853))
+    pred = min(max(pred, 0), 1.2425)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- MarksmanRifles (Gun) Formulas ---
+def apply_marksmanrifles_gun_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    CenterOfImpact = to_f(props.get("CenterOfImpact", 0.0))
+    CoolFactorGunMods = to_f(props.get("CoolFactorGunMods", 0.0))
+    DeviationCurve = to_f(props.get("DeviationCurve", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    HeatFactorByShot = to_f(props.get("HeatFactorByShot", 0.0))
+    HeatFactorGun = to_f(props.get("HeatFactorGun", 0.0))
+    OperatingResource = to_f(props.get("OperatingResource", 0.0))
+    RecoilCamera = to_f(props.get("RecoilCamera", 0.0))
+    RecoilDampingHandRotation = to_f(props.get("RecoilDampingHandRotation", 0.0))
+    RecoilForceBack = to_f(props.get("RecoilForceBack", 0.0))
+    RecoilForceUp = to_f(props.get("RecoilForceUp", 0.0))
+    RecoilReturnSpeedHandRotation = to_f(props.get("RecoilReturnSpeedHandRotation", 0.0))
+    RecoilStableIndexShot = to_f(props.get("RecoilStableIndexShot", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    bFirerate = to_f(props.get("bFirerate", 0.0))
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    IsHeavy = eng.get("IsHeavy", 0.0)
+    LogErgo = eng.get("LogErgo", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+
+    # Target: BaseChamberCheckSpeed
+    pred = 1.35489 + (0.367571 * clampz((RecoilForceBack - 499.5) / 303.022)) + (-0.121842 * clampz((RecoilReturnSpeedHandRotation - 2.6125) / 0.301817)) + (0.183043 * clampz((Weight - 1.478) / 0.740848)) + (0.0670913 * clampz((RecoilDampingHandRotation - 0.85875) / 0.0105327))
+    pred = min(max(pred, 0.635), 3.215)
+    if isinstance(template, dict) and "BaseChamberCheckSpeed" in template:
+        t_val = to_f(template["BaseChamberCheckSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseChamberCheckSpeed"] = r(pred, 3)
+
+    # Target: BaseChamberSpeedMulti
+    pred = 1.01112 + (-0.131856 * clampz((Ergonomics - 38) / 12.5996)) + (-0.143066 * clampz((RecoilStableIndexShot - 4) / 0.707107)) + (-0.205967 * clampz((RecoilCamera - 0.05625) / 0.0149478)) + (0.0032338 * clampz((Width - 1.875) / 0.927025))
+    pred = min(max(pred, 0.875), 1.175)
+    if isinstance(template, dict) and "BaseChamberSpeedMulti" in template:
+        t_val = to_f(template["BaseChamberSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseChamberSpeedMulti"] = r(pred, 3)
+
+    # Target: BaseFixSpeed
+    pred = 1.33784 + (0.370219 * clampz((RecoilForceBack - 499.5) / 303.022)) + (-0.176378 * clampz((RecoilReturnSpeedHandRotation - 2.6125) / 0.301817)) + (0.158983 * clampz((Weight - 1.478) / 0.740848)) + (0.0366713 * clampz((RecoilDampingHandRotation - 0.85875) / 0.0105327))
+    pred = min(max(pred, 0.635), 3.215)
+    if isinstance(template, dict) and "BaseFixSpeed" in template:
+        t_val = to_f(template["BaseFixSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseFixSpeed"] = r(pred, 3)
+
+    # Target: BaseMalfunctionChance
+    pred = 0.00183298 + (-0.000414697 * clampz((Width - 1.875) / 0.927025)) + (-0.00207344 * clampz((LogWeight - 0.861339) / 0.3076)) + (0.00258108 * clampz((IsHeavy - 0.75) / 0.433013)) + (-0.00163633 * clampz((OperatingResource - 2500) / 466.369))
+    explicit_val = explicit_override_value(base_data, ['BaseMalfunctionChance'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.0008), 0.0032)
+    if isinstance(template, dict) and "BaseMalfunctionChance" in template:
+        t_val = to_f(template["BaseMalfunctionChance"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseMalfunctionChance"] = r(pred, 4)
+
+    # Target: BaseReloadSpeedMulti
+    pred = 1.06919 + (0.262276 * clampz((HeatFactorByShot - 2.54875) / 0.680008)) + (0.066982 * clampz((LogErgo - 3.59275) / 0.407695)) + (0.0640151 * clampz((Weight - 1.478) / 0.740848)) + (-0.1005 * clampz((RecoilDampingHandRotation - 0.85875) / 0.0105327))
+    pred = min(max(pred, 0.785), 1.565)
+    if isinstance(template, dict) and "BaseReloadSpeedMulti" in template:
+        t_val = to_f(template["BaseReloadSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseReloadSpeedMulti"] = r(pred, 3)
+
+    # Target: BaseTorque
+    pred = 0.666591 + (3.26404 * clampz((Width - 1.83333) / 1.06719)) + (1.39806 * clampz((LogWeight - 0.833973) / 0.349386)) + (-3.23167 * clampz((IsHeavy - 0.666667) / 0.471405))
+    pred = min(max(pred, -2.25), 6.75)
+    if isinstance(template, dict) and "BaseTorque" in template:
+        t_val = to_f(template["BaseTorque"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseTorque"] = r(pred, 3)
+
+    # Target: CameraRecoil
+    pred = 0.0776463 + (0.0395577 * clampz((RecoilForceUp - 211.125) / 143.981)) + (0.0065915 * clampz((RecoilDampingHandRotation - 0.85875) / 0.0105327)) + (0.00546636 * clampz((RecoilReturnSpeedHandRotation - 2.6125) / 0.301817)) + (-0.00281033 * clampz((Weight - 1.478) / 0.740848))
+    pred = min(max(pred, 0.0188), 0.1892)
+    if isinstance(template, dict) and "CameraRecoil" in template:
+        t_val = to_f(template["CameraRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CameraRecoil"] = r(pred, 3)
+
+    # Target: CenterOfImpact
+    pred = 0.00605263 + (0.0131236 * clampz((CenterOfImpact - 0.014375) / 0.0311686))
+    explicit_val = explicit_override_value(base_data, ['CenterOfImpact'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0), 0.044)
+    if isinstance(template, dict) and "CenterOfImpact" in template:
+        t_val = to_f(template["CenterOfImpact"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CenterOfImpact"] = r(pred, 3)
+
+    # Target: Convergence
+    pred = 9.64645 + (-0.729113 * clampz((Weight - 1.478) / 0.740848)) + (-2.39581 * clampz((RecoilForceUp - 211.125) / 143.981)) + (-0.221649 * clampz((RecoilReturnSpeedHandRotation - 2.6125) / 0.301817)) + (0.584612 * clampz((RecoilDampingHandRotation - 0.85875) / 0.0105327))
+    pred = min(max(pred, 2.775), 14.475)
+    if isinstance(template, dict) and "Convergence" in template:
+        t_val = to_f(template["Convergence"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Convergence"] = r(pred, 3)
+
+    # Target: CoolFactorGun
+    pred = 0.103658 + (-0.000448353 * clampz((HeatFactorGun - 0.992413) / 0.0514571)) + (0.016664 * clampz((CaliberNumeric - 8.10875) / 0.499536)) + (-0.0130233 * clampz((HeatFactorByShot - 2.54875) / 0.680008)) + (-0.00382373 * clampz((Weight - 1.478) / 0.740848))
+    explicit_val = explicit_override_value(base_data, ['CoolFactorGun'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.073), 0.157)
+    if isinstance(template, dict) and "CoolFactorGun" in template:
+        t_val = to_f(template["CoolFactorGun"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactorGun"] = r(pred, 3)
+
+    # Target: CoolFactorGunMods
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "CoolFactorGunMods" in template:
+        t_val = to_f(template["CoolFactorGunMods"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactorGunMods"] = r(pred, 3)
+
+    # Target: Dispersion
+    pred = 9.86486 + (0.55585 * clampz((Width - 1.875) / 0.927025)) + (0.101211 * clampz((CaliberNumeric - 8.10875) / 0.499536))
+    pred = min(max(pred, 7.6), 12.4)
+    if isinstance(template, dict) and "Dispersion" in template:
+        t_val = to_f(template["Dispersion"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Dispersion"] = r(pred, 3)
+
+    # Target: DurabilityBurnRatio
+    pred = 0.453055 + (0.0539872 * clampz((Weight - 1.478) / 0.740848)) + (0.027936 * clampz((Width - 1.875) / 0.927025)) + (-0.015007 * clampz((IsHeavy - 0.75) / 0.433013))
+    explicit_val = explicit_override_value(base_data, ['DurabilityBurnRatio'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.165), 0.585)
+    if isinstance(template, dict) and "DurabilityBurnRatio" in template:
+        t_val = to_f(template["DurabilityBurnRatio"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnRatio"] = r(pred, 3)
+
+    # Target: Ergonomics
+    pred = 80.375 + (1.04954 * clampz((Width - 1.875) / 0.927025)) + (0.056515 * clampz((LogWeight - 0.861339) / 0.3076)) + (-0.403091 * clampz((IsHeavy - 0.75) / 0.433013))
+    pred = min(max(pred, 79.7), 83.3)
+    if isinstance(template, dict) and "Ergonomics" in template:
+        t_val = to_f(template["Ergonomics"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Ergonomics"] = r_half(pred)
+
+    # Target: HasShoulderContact
+    pred = 0.134091 + (0.30339 * clampz((Width - 1.875) / 0.927025)) + (0.219504 * clampz((RecoilReturnSpeedHandRotation - 2.6125) / 0.301817)) + (0.134052 * clampz((RecoilDampingHandRotation - 0.85875) / 0.0105327))
+    pred = min(max(pred, -0.1), 1.1)
+    if isinstance(template, dict) and "HasShoulderContact" in template:
+        item_entry["HasShoulderContact"] = bool(template.get("HasShoulderContact", False))
+    else:
+        item_entry["HasShoulderContact"] = True if pred >= 0.5 else False
+
+    # Target: HeatFactorByShot
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "HeatFactorByShot" in template:
+        t_val = to_f(template["HeatFactorByShot"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactorByShot"] = r(pred, 3)
+
+    # Target: HeatFactorGun
+    pred = 0.564972 + (0.175338 * clampz((HeatFactorByShot - 2.54875) / 0.680008)) + (0.00577903 * clampz((Weight - 1.478) / 0.740848)) + (-0.0327085 * clampz((Width - 1.875) / 0.927025)) + (-0.0699558 * clampz((HeatFactorGun - 0.992413) / 0.0514571))
+    explicit_val = explicit_override_value(base_data, ['HeatFactorGun'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.23), 1.07)
+    if isinstance(template, dict) and "HeatFactorGun" in template:
+        t_val = to_f(template["HeatFactorGun"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactorGun"] = r(pred, 3)
+
+    # Target: HipAccuracyRestorationDelay
+    pred = 0.2
+    pred = min(max(pred, 0.2), 0.2)
+    if isinstance(template, dict) and "HipAccuracyRestorationDelay" in template:
+        t_val = to_f(template["HipAccuracyRestorationDelay"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipAccuracyRestorationDelay"] = r(pred, 4)
+
+    # Target: HipAccuracyRestorationSpeed
+    pred = 7
+    pred = min(max(pred, 7), 7)
+    if isinstance(template, dict) and "HipAccuracyRestorationSpeed" in template:
+        t_val = to_f(template["HipAccuracyRestorationSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipAccuracyRestorationSpeed"] = r(pred, 4)
+
+    # Target: HipInnaccuracyGain
+    pred = 0.16
+    pred = min(max(pred, 0.16), 0.16)
+    if isinstance(template, dict) and "HipInnaccuracyGain" in template:
+        t_val = to_f(template["HipInnaccuracyGain"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipInnaccuracyGain"] = r(pred, 4)
+
+    # Target: HorizontalRecoil
+    pred = 239.51 + (36.257 * clampz((RecoilDampingHandRotation - 0.85875) / 0.0105327)) + (98.528 * clampz((RecoilForceUp - 211.125) / 143.981)) + (-6.78544 * clampz((RecoilStableIndexShot - 4) / 0.707107)) + (77.7497 * clampz((RecoilReturnSpeedHandRotation - 2.6125) / 0.301817))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 79), 451)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: MaxChamberSpeed
+    pred = 1.5
+    pred = min(max(pred, 1.46), 1.94)
+    if isinstance(template, dict) and "MaxChamberSpeed" in template:
+        t_val = to_f(template["MaxChamberSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["MaxChamberSpeed"] = r(pred, 3)
+
+    # Target: MinChamberSpeed
+    pred = 0.704129 + (0.00962515 * clampz((IsHeavy - 0.75) / 0.433013)) + (0.0103091 * clampz((CoolFactorGunMods - 1.02394) / 0.0261249)) + (0.00184949 * clampz((LogWeight - 0.861339) / 0.3076)) + (0.00260339 * clampz((OperatingResource - 2500) / 466.369))
+    pred = min(max(pred, 0.585), 0.765)
+    if isinstance(template, dict) and "MinChamberSpeed" in template:
+        t_val = to_f(template["MinChamberSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["MinChamberSpeed"] = r(pred, 3)
+
+    # Target: OffsetRotation
+    pred = 0.0093625 + (-0.00168667 * clampz((DeviationCurve - 1.13125) / 0.0826797))
+    pred = min(max(pred, 0.00439), 0.01051)
+    if isinstance(template, dict) and "OffsetRotation" in template:
+        t_val = to_f(template["OffsetRotation"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["OffsetRotation"] = r(pred, 4)
+
+    # Target: RecoilAngle
+    pred = 87.8514 + (-3.36945 * clampz((Width - 1.875) / 0.927025)) + (-1.33856 * clampz((CaliberNumeric - 8.10875) / 0.499536)) + (-0.306384 * clampz((RecoilDampingHandRotation - 0.85875) / 0.0105327))
+    pred = min(max(pred, 78.7), 94.3)
+    if isinstance(template, dict) and "RecoilAngle" in template:
+        t_val = to_f(template["RecoilAngle"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilAngle"] = r(pred, 3)
+
+    # Target: RecoilDamping
+    pred = 0.838997 + (0.0205909 * clampz((Width - 1.875) / 0.927025)) + (0.00069433 * clampz((Weight - 1.478) / 0.740848)) + (-0.0198382 * clampz((Ergonomics - 38) / 12.5996)) + (-0.00154931 * clampz((IsHeavy - 0.75) / 0.433013))
+    pred = min(max(pred, 0.792), 0.888)
+    if isinstance(template, dict) and "RecoilDamping" in template:
+        t_val = to_f(template["RecoilDamping"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilDamping"] = r(pred, 3)
+
+    # Target: RecoilHandDamping
+    pred = 0.466506 + (-0.101972 * clampz((DeviationCurve - 1.13125) / 0.0826797)) + (0.160108 * clampz((CaliberNumeric - 8.10875) / 0.499536)) + (-0.105327 * clampz((RecoilDampingHandRotation - 0.85875) / 0.0105327))
+    pred = min(max(pred, 0.365), 0.785)
+    if isinstance(template, dict) and "RecoilHandDamping" in template:
+        t_val = to_f(template["RecoilHandDamping"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilHandDamping"] = r(pred, 3)
+
+    # Target: RecoilIntensity
+    pred = 0.219125 + (-0.0287725 * clampz((DeviationCurve - 1.13125) / 0.0826797))
+    pred = min(max(pred, 0.1343), 0.2387)
+    if isinstance(template, dict) and "RecoilIntensity" in template:
+        t_val = to_f(template["RecoilIntensity"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilIntensity"] = r(pred, 3)
+
+    # Target: VerticalRecoil
+    pred = 113.53 + (18.307 * clampz((RecoilDampingHandRotation - 0.85875) / 0.0105327)) + (16.9673 * clampz((RecoilForceUp - 211.125) / 143.981)) + (4.34459 * clampz((RecoilReturnSpeedHandRotation - 2.6125) / 0.301817)) + (2.86157 * clampz((RecoilStableIndexShot - 4) / 0.707107))
+    explicit_val = explicit_override_value(base_data, ['VerticalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 56.8), 191.2)
+    if isinstance(template, dict) and "VerticalRecoil" in template:
+        t_val = to_f(template["VerticalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["VerticalRecoil"] = r_half(pred)
+
+    # Target: VisualMulti
+    pred = 1.1
+    pred = min(max(pred, 0.975), 1.275)
+    if isinstance(template, dict) and "VisualMulti" in template:
+        t_val = to_f(template["VisualMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["VisualMulti"] = r(pred, 3)
+
+    # Target: WeaponAllowADS
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "WeaponAllowADS" in template:
+        item_entry["WeaponAllowADS"] = bool(template.get("WeaponAllowADS", False))
+    else:
+        item_entry["WeaponAllowADS"] = True if pred >= 0.5 else False
+
+    # Target: Weight
+    pred = 1.3508 + (0.676373 * clampz((Weight - 1.478) / 0.740848)) + (0.257324 * clampz((bFirerate - 641.25) / 240.127)) + (0.203319 * clampz((RecoilDampingHandRotation - 0.85875) / 0.0105327)) + (0.0474743 * clampz((RecoilStableIndexShot - 4) / 0.707107))
+    pred = min(max(pred, 0.329), 2.501)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    # ShotgunDispersion (fixed value — not ML-calculated)
+    if isinstance(template, dict) and "ShotgunDispersion" in template:
+        item_entry["ShotgunDispersion"] = int(to_f(template.get("ShotgunDispersion", 0)))
+    else:
+        item_entry["ShotgunDispersion"] = 0
+
+    return item_entry
+
+# --- Mounts (Mod) Formulas ---
+def apply_mounts_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    ExtraSizeUp = to_f(props.get("ExtraSizeUp", 0.0))
+    HeatFactor = to_f(props.get("HeatFactor", 0.0))
+    Recoil = to_f(props.get("Recoil", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    IsLight = eng.get("IsLight", 0.0)
+    IsMagnified = eng.get("IsMagnified", 0.0)
+
+    # Target: Weight
+    pred = 0.104202 + (0.0880504 * clampz((Weight - 0.104769) / 0.0891739)) + (-0.000806779 * clampz((IsLight - 0.772727) / 0.41907)) + (-0.000254181 * clampz((IsMagnified - 0.0785124) / 0.268976))
+    pred = min(max(pred, 0), 0.5494)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- SuppressorsPistol (Mod) Formulas ---
+def apply_suppressorspistol_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    CoolFactor = to_f(props.get("CoolFactor", 0.0))
+    DurabilityBurnModificator = to_f(props.get("DurabilityBurnModificator", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    ExtraSizeLeft = to_f(props.get("ExtraSizeLeft", 0.0))
+    HeatFactor = to_f(props.get("HeatFactor", 0.0))
+    Loudness = to_f(props.get("Loudness", 0.0))
+    Recoil = to_f(props.get("Recoil", 0.0))
+    Velocity = to_f(props.get("Velocity", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    BarrelLengthMM = eng.get("BarrelLengthMM", 0.0)
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    IsHeavy = eng.get("IsHeavy", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    IsMagnified = eng.get("IsMagnified", 0.0)
+    IsSuppressor = eng.get("IsSuppressor", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+
+    # Target: Accuracy
+    pred = 6.55549 + (4.22989 * clampz((Loudness - -24.1905) / 3.88672)) + (1.90755 * clampz((IsLight - 0.0952381) / 0.293544)) + (-3.77935 * clampz((CoolFactor - 1.01524) / 0.0315654)) + (-0.428797 * clampz((Recoil - -7.04762) / 1.91426)) + (-2.19153 * clampz((LogWeight - 0.307704) / 0.111286)) + (-2.78946 * clampz((HeatFactor - 1.13333) / 0.0142539)) + (4.40658 * clampz((BarrelLengthMM - 9.67619) / 43.2732)) + (0.395535 * clampz((CaliberNumeric - 8.70571) / 1.59412))
+    explicit_val = explicit_override_value(base_data, ['Accuracy', 'WeapAccuracy'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -19.6), 23.6)
+    if isinstance(template, dict) and "Accuracy" in template:
+        t_val = to_f(template["Accuracy"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 83% of the 6 zeroed items while keeping 95% of the 21 valued ones (balanced acc 89%)
+    if (0.602479 + (-1.22619 * clampz((Ergonomics - -13.7037) / 6.13318)) + (0.4781 * clampz((DurabilityBurnModificator - 1.55519) / 0.200303))) < 0:
+        pred = 0.0
+    item_entry["Accuracy"] = r(pred, 3)
+
+    # Target: AutoROF
+    pred = 1.5791 + (0.083369 * clampz((Loudness - -24.2308) / 4.88568)) + (0.298558 * clampz((DurabilityBurnModificator - 1.65385) / 0.0916967)) + (0.013895 * clampz((Weight - 0.430385) / 0.189614)) + (-0.0772153 * clampz((IsHeavy - 0.230769) / 0.421325)) + (-0.193628 * clampz((Recoil - -7.30769) / 2.19736)) + (0.215042 * clampz((CaliberNumeric - 8.32769) / 1.81992))
+    pred = min(max(pred, 0), 5.5)
+    if isinstance(template, dict) and "AutoROF" in template:
+        t_val = to_f(template["AutoROF"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 57% of the 14 zeroed items while keeping 92% of the 13 valued ones (balanced acc 75%)
+    if (-0.319355 + (-0.860383 * clampz((Ergonomics - -13.7037) / 6.13318)) + (0.723266 * clampz((DurabilityBurnModificator - 1.55519) / 0.200303))) < 0:
+        pred = 0.0
+    item_entry["AutoROF"] = int(round(pred))
+
+    # Target: CameraRecoil
+    pred = -9.41937 + (0.273394 * clampz((LogWeight - 0.328358) / 0.115177)) + (-0.0772497 * clampz((IsHeavy - 0.12) / 0.324962)) + (-0.372496 * clampz((BarrelLengthMM - 20.32) / 70.3905))
+    pred = min(max(pred, -16.5), 1.5)
+    if isinstance(template, dict) and "CameraRecoil" in template:
+        t_val = to_f(template["CameraRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CameraRecoil"] = r(pred, 3)
+
+    # Target: CanCycleSubs
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "CanCycleSubs" in template:
+        item_entry["CanCycleSubs"] = bool(template.get("CanCycleSubs", False))
+    else:
+        item_entry["CanCycleSubs"] = True if pred >= 0.5 else False
+
+    # Target: CoolFactor
+    pred = 1.01237 + (0.0126108 * clampz((BarrelLengthMM - 18.8148) / 67.9421)) + (0.0104134 * clampz((CoolFactor - 1.01926) / 0.0331021)) + (-0.00135216 * clampz((IsLight - 0.148148) / 0.355247)) + (-0.00119619 * clampz((IsHeavy - 0.111111) / 0.31427))
+    explicit_val = explicit_override_value(base_data, ['CoolFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.99), 1.11)
+    if isinstance(template, dict) and "CoolFactor" in template:
+        t_val = to_f(template["CoolFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactor"] = r(pred, 3)
+
+    # Target: Dispersion
+    pred = -9.32 + (-1.11991 * clampz((BarrelLengthMM - 20.32) / 70.3905)) + (1.10733 * clampz((CaliberNumeric - 8.756) / 1.46557))
+    pred = min(max(pred, -16.5), 1.5)
+    if isinstance(template, dict) and "Dispersion" in template:
+        t_val = to_f(template["Dispersion"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Dispersion"] = r(pred, 3)
+
+    # Target: DurabilityBurnModificator
+    pred = 1.16745 + (0.0320432 * clampz((ExtraSizeLeft - 0.925926) / 0.261891)) + (-0.00785108 * clampz((IsLight - 0.148148) / 0.355247)) + (0.0117706 * clampz((DurabilityBurnModificator - 1.55519) / 0.200303)) + (-0.0030458 * clampz((LogWeight - 0.313611) / 0.122484)) + (0.0259599 * clampz((BarrelLengthMM - 18.8148) / 67.9421))
+    pred = min(max(pred, 0.97), 1.33)
+    if isinstance(template, dict) and "DurabilityBurnModificator" in template:
+        t_val = to_f(template["DurabilityBurnModificator"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnModificator"] = r(pred, 3)
+
+    # Target: Flash
+    pred = 15
+    pred = min(max(pred, -70), 50)
+    if isinstance(template, dict) and "Flash" in template:
+        t_val = to_f(template["Flash"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Flash"] = r(pred, 3)
+
+    # Target: HeatFactor
+    pred = 1.11788 + (0.0363313 * clampz((ExtraSizeLeft - 0.925926) / 0.261891)) + (-0.0027699 * clampz((Velocity - 0.692593) / 0.247844)) + (0.00273252 * clampz((IsLight - 0.148148) / 0.355247)) + (0.000124073 * clampz((CaliberNumeric - 8.95926) / 1.58279)) + (0.00404898 * clampz((LogWeight - 0.313611) / 0.122484)) + (-0.000322627 * clampz((IsHeavy - 0.111111) / 0.31427)) + (-0.00752254 * clampz((BarrelLengthMM - 18.8148) / 67.9421))
+    explicit_val = explicit_override_value(base_data, ['HeatFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.985), 1.165)
+    if isinstance(template, dict) and "HeatFactor" in template:
+        t_val = to_f(template["HeatFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactor"] = r(pred, 3)
+
+    # Target: HorizontalRecoil
+    pred = -4.00917 + (1.28952 * clampz((Recoil - -7.68) / 2.72353)) + (-0.667405 * clampz((BarrelLengthMM - 20.32) / 70.3905)) + (-0.534515 * clampz((LogWeight - 0.328358) / 0.115177))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -11), 1)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: Loudness
+    pred = -33.3707 + (-5.00435 * clampz((BarrelLengthMM - 20.32) / 70.3905)) + (3.1954 * clampz((Loudness - -24.68) / 4.50529))
+    explicit_val = explicit_override_value(base_data, ['Loudness'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -66), 6)
+    if isinstance(template, dict) and "Loudness" in template:
+        t_val = to_f(template["Loudness"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Loudness"] = r(pred, 3)
+
+    # Target: ModMalfunctionChance
+    pred = -16.0788 + (-5.84715 * clampz((CaliberNumeric - 8.30818) / 1.96204)) + (-0.501698 * clampz((IsHeavy - 0.181818) / 0.385695)) + (-1.51216 * clampz((IsMagnified - 0.0909091) / 0.28748)) + (0.594747 * clampz((DurabilityBurnModificator - 1.64) / 0.0928342)) + (-1.66072 * clampz((Loudness - -24.3636) / 4.5181))
+    explicit_val = explicit_override_value(base_data, ['ModMalfunctionChance', 'BaseMalfunctionChance'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -24.2), 2.2)
+    if isinstance(template, dict) and "ModMalfunctionChance" in template:
+        t_val = to_f(template["ModMalfunctionChance"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 56% of the 16 zeroed items while keeping 91% of the 11 valued ones (balanced acc 74%)
+    if (-0.301851 + (-1.20396 * clampz((Ergonomics - -13.7037) / 6.13318)) + (0.263998 * clampz((DurabilityBurnModificator - 1.55519) / 0.200303))) < 0:
+        pred = 0.0
+    item_entry["ModMalfunctionChance"] = r(pred, 4)
+
+    # Target: SemiROF
+    pred = 2.2 + (0.262904 * clampz((CaliberNumeric - 8.32769) / 1.81992)) + (0.291708 * clampz((Loudness - -24.2308) / 4.88568)) + (0.246785 * clampz((Velocity - 0.746154) / 0.159882)) + (0.0647546 * clampz((DurabilityBurnModificator - 1.65385) / 0.0916967)) + (-0.11536 * clampz((IsMagnified - 0.0769231) / 0.266469)) + (0.035744 * clampz((Weight - 0.430385) / 0.189614))
+    pred = min(max(pred, 0), 5.5)
+    if isinstance(template, dict) and "SemiROF" in template:
+        t_val = to_f(template["SemiROF"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 57% of the 14 zeroed items while keeping 92% of the 13 valued ones (balanced acc 75%)
+    if (-0.319355 + (-0.860383 * clampz((Ergonomics - -13.7037) / 6.13318)) + (0.723266 * clampz((DurabilityBurnModificator - 1.55519) / 0.200303))) < 0:
+        pred = 0.0
+    item_entry["SemiROF"] = int(round(pred))
+
+    # Target: VerticalRecoil
+    pred = -6 + (-0.949667 * clampz((BarrelLengthMM - 127) / 131.982))
+    explicit_val = explicit_override_value(base_data, ['VerticalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -11), 1)
+    if isinstance(template, dict) and "VerticalRecoil" in template:
+        t_val = to_f(template["VerticalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 96% of the 23 zeroed items while keeping 100% of the 4 valued ones (balanced acc 98%)
+    if (-1.38616 + (0.996792 * clampz((BarrelLengthMM - 18.8148) / 67.9421)) + (-1.65388 * clampz((Recoil - -7.11111) / 3.30357))) < 0:
+        pred = 0.0
+    item_entry["VerticalRecoil"] = r_half(pred)
+
+    # Target: Weight
+    pred = 0.375649 + (0.169086 * clampz((LogWeight - 0.313611) / 0.122484)) + (0.00788657 * clampz((IsLight - 0.148148) / 0.355247)) + (0.000112858 * clampz((Velocity - 0.692593) / 0.247844)) + (-0.000284413 * clampz((HeatFactor - 1.12167) / 0.0371932)) + (0.00103646 * clampz((IsHeavy - 0.111111) / 0.31427)) + (0.00103335 * clampz((DurabilityBurnModificator - 1.55519) / 0.200303)) + (0.000432329 * clampz((Recoil - -7.11111) / 3.30357)) + (0.00173211 * clampz((IsMagnified - 0.037037) / 0.188853))
+    pred += (0.08 * IsSuppressor)
+    pred = min(max(pred, 0.075), 0.735)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- Suppressors (Mod) Formulas ---
+def apply_suppressors_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    Accuracy = to_f(props.get("Accuracy", 0.0))
+    CoolFactor = to_f(props.get("CoolFactor", 0.0))
+    DurabilityBurnModificator = to_f(props.get("DurabilityBurnModificator", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    ExtraSizeLeft = to_f(props.get("ExtraSizeLeft", 0.0))
+    HeatFactor = to_f(props.get("HeatFactor", 0.0))
+    Loudness = to_f(props.get("Loudness", 0.0))
+    Recoil = to_f(props.get("Recoil", 0.0))
+    Velocity = to_f(props.get("Velocity", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    BarrelLengthMM = eng.get("BarrelLengthMM", 0.0)
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    GaugeNumeric = eng.get("GaugeNumeric", 0.0)
+    IsBrake = eng.get("IsBrake", 0.0)
+    IsCollimator = eng.get("IsCollimator", 0.0)
+    IsHeavy = eng.get("IsHeavy", 0.0)
+    IsMagnified = eng.get("IsMagnified", 0.0)
+    IsSuppressor = eng.get("IsSuppressor", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+    LoudnessHint = eng.get("LoudnessHint", 0.0)
+    WeaponFootprint = eng.get("WeaponFootprint", 0.0)
+    _preset_len_norm = ((BarrelLengthMM - 406.4) / 101.6) if BarrelLengthMM else 0.0
+    _preset_cal_norm = ((CaliberNumeric - 7.62) / 2.06) if CaliberNumeric else 0.0
+
+    # Target: Accuracy
+    pred = 6.52641 + (2.69833 * clampz((Accuracy - -0.1) / 1.15326)) + (5.01482 * clampz((Velocity - 0.672) / 0.274073)) + (-1.94569 * clampz((LogWeight - 0.401591) / 0.136704)) + (1.4496 * clampz((IsMagnified - 0.36) / 0.48))
+    explicit_val = explicit_override_value(base_data, ['Accuracy', 'WeapAccuracy'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -35.2), 27.2)
+    if isinstance(template, dict) and "Accuracy" in template:
+        t_val = to_f(template["Accuracy"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 50% of the 10 zeroed items while keeping 90% of the 50 valued ones (balanced acc 70%)
+    if (2.20753 + (-1.03247 * clampz((Ergonomics - -17.025) / 9.35166)) + (0.712775 * clampz((DurabilityBurnModificator - 1.548) / 0.273866)) + (-0.223405 * clampz((Width - 1.85) / 0.357071)) + (-0.122059 * clampz((LogWeight - 0.378631) / 0.147317))) < 0:
+        pred = 0.0
+    item_entry["Accuracy"] = r(pred, 3)
+
+    # Target: AutoROF
+    pred = 1.8393 + (0.234828 * clampz((ExtraSizeLeft - 0.953488) / 0.370637)) + (0.117173 * clampz((Velocity - 0.734884) / 0.188795)) + (0.0440422 * clampz((LogWeight - 0.416849) / 0.100629)) + (-0.0513248 * clampz((IsMagnified - 0.27907) / 0.448542)) + (0.234656 * clampz((IsCollimator - 0.0232558) / 0.150715))
+    pred = min(max(pred, 0), 3.85)
+    if isinstance(template, dict) and "AutoROF" in template:
+        t_val = to_f(template["AutoROF"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 65% of the 17 zeroed items while keeping 95% of the 43 valued ones (balanced acc 80%)
+    if (0.138538 + (1.51063 * clampz((Width - 1.85) / 0.357071)) + (0.29514 * clampz((DurabilityBurnModificator - 1.548) / 0.273866)) + (-0.139959 * clampz((Ergonomics - -17.025) / 9.35166)) + (-0.445998 * clampz((WeaponFootprint - 2.7) / 0.802081))) < 0:
+        pred = 0.0
+    item_entry["AutoROF"] = int(round(pred))
+
+    # Target: CameraRecoil
+    pred = -10.4471 + (0.983055 * clampz((Width - 1.98077) / 0.137335)) + (0.224646 * clampz((Recoil - -8.13462) / 2.85569)) + (-0.442311 * clampz((IsHeavy - 0.25) / 0.433013)) + (-0.0889248 * clampz((LogWeight - 0.418074) / 0.115534))
+    pred = min(max(pred, -27.5), 2.5)
+    if isinstance(template, dict) and "CameraRecoil" in template:
+        t_val = to_f(template["CameraRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 100% of the 8 zeroed items while keeping 98% of the 52 valued ones (balanced acc 99%)
+    if (4.33556 + (1.14665 * clampz((Width - 1.85) / 0.357071)) + (0.784903 * clampz((WeaponFootprint - 2.7) / 0.802081)) + (0.500817 * clampz((LogWeight - 0.378631) / 0.147317)) + (-0.642105 * clampz((Recoil - -7.38333) / 3.4307))) < 0:
+        pred = 0.0
+    item_entry["CameraRecoil"] = r(pred, 3)
+
+    # Target: CanCycleSubs
+    pred = 0.0333333 + (-0.0768147 * clampz((Accuracy - -0.0166667) / 1.08768)) + (0.00125887 * clampz((IsHeavy - 0.216667) / 0.411974)) + (-0.0101706 * clampz((IsMagnified - 0.316667) / 0.465176))
+    pred = min(max(pred, -0.1), 1.1)
+    if isinstance(template, dict) and "CanCycleSubs" in template:
+        item_entry["CanCycleSubs"] = bool(template.get("CanCycleSubs", False))
+    else:
+        item_entry["CanCycleSubs"] = True if pred >= 0.5 else False
+
+    # Target: CoolFactor
+    pred = 1.03691 + (0.0416458 * clampz((CoolFactor - 1.04185) / 0.0452356)) + (0.00907612 * clampz((HeatFactor - 1.12837) / 0.0752283)) + (0.00275966 * clampz((IsHeavy - 0.216667) / 0.411974)) + (-0.00357433 * clampz((WeaponFootprint - 2.7) / 0.802081)) + (-0.000458276 * clampz((Width - 1.85) / 0.357071)) + (-0.00135403 * clampz((Velocity - 0.64) / 0.329621)) + (-0.00281214 * clampz((LogWeight - 0.378631) / 0.147317)) + (-0.0150443 * clampz((GaugeNumeric - 0.8) / 2.99333))
+    explicit_val = explicit_override_value(base_data, ['CoolFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.878), 1.142)
+    if isinstance(template, dict) and "CoolFactor" in template:
+        t_val = to_f(template["CoolFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactor"] = r(pred, 3)
+
+    # Target: Dispersion
+    pred = -9.23049 + (1.92939 * clampz((WeaponFootprint - 2.85455) / 0.644365)) + (-1.03653 * clampz((CaliberNumeric - 8.09345) / 8.44559)) + (-0.587797 * clampz((Width - 1.92727) / 0.259688))
+    pred = min(max(pred, -27.5), 2.5)
+    if isinstance(template, dict) and "Dispersion" in template:
+        t_val = to_f(template["Dispersion"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 100% of the 5 zeroed items while keeping 93% of the 55 valued ones (balanced acc 96%)
+    if (3.3865 + (1.31493 * clampz((Width - 1.85) / 0.357071)) + (1.02966 * clampz((WeaponFootprint - 2.7) / 0.802081)) + (-0.495393 * clampz((GaugeNumeric - 0.8) / 2.99333)) + (-0.282755 * clampz((CaliberNumeric - 9.68067) / 13.7045))) < 0:
+        pred = 0.0
+    item_entry["Dispersion"] = r(pred, 3)
+
+    # Target: DurabilityBurnModificator
+    pred = 1.16104 + (0.0461522 * clampz((Width - 1.85) / 0.357071)) + (0.00466969 * clampz((WeaponFootprint - 2.7) / 0.802081)) + (0.0151004 * clampz((LogWeight - 0.378631) / 0.147317)) + (0.00964745 * clampz((DurabilityBurnModificator - 1.548) / 0.273866)) + (-0.00757607 * clampz((HeatFactor - 1.12837) / 0.0752283)) + (0.00426802 * clampz((IsHeavy - 0.216667) / 0.411974)) + (-0.00612792 * clampz((CaliberNumeric - 9.68067) / 13.7045)) + (-0.00499506 * clampz((GaugeNumeric - 0.8) / 2.99333))
+    pred = min(max(pred, 0.97), 1.33)
+    if isinstance(template, dict) and "DurabilityBurnModificator" in template:
+        t_val = to_f(template["DurabilityBurnModificator"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnModificator"] = r(pred, 3)
+
+    # Target: Flash
+    pred = 14.4909 + (-9.47398 * clampz((IsBrake - 0.0727273) / 0.259688)) + (5.38705 * clampz((CaliberNumeric - 9.78436) / 14.0838))
+    pred = min(max(pred, -94), 74)
+    if isinstance(template, dict) and "Flash" in template:
+        t_val = to_f(template["Flash"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Flash"] = r(pred, 3)
+
+    # Target: HeatFactor
+    pred = 1.12801 + (0.0518625 * clampz((HeatFactor - 1.12837) / 0.0752283)) + (0.00877227 * clampz((Width - 1.85) / 0.357071)) + (0.00405718 * clampz((WeaponFootprint - 2.7) / 0.802081)) + (0.00162456 * clampz((Velocity - 0.64) / 0.329621)) + (0.000538659 * clampz((LogWeight - 0.378631) / 0.147317)) + (0.000716935 * clampz((IsHeavy - 0.216667) / 0.411974)) + (0.00107634 * clampz((CaliberNumeric - 9.68067) / 13.7045)) + (0.00123282 * clampz((GaugeNumeric - 0.8) / 2.99333))
+    explicit_val = explicit_override_value(base_data, ['HeatFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.97), 1.33)
+    if isinstance(template, dict) and "HeatFactor" in template:
+        t_val = to_f(template["HeatFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactor"] = r(pred, 3)
+
+    # Target: HorizontalRecoil
+    pred = -5.12379 + (2.309 * clampz((Width - 1.92727) / 0.259688)) + (0.229559 * clampz((WeaponFootprint - 2.85455) / 0.644365)) + (-1.0921 * clampz((LogWeight - 0.401932) / 0.130939)) + (0.261128 * clampz((IsHeavy - 0.236364) / 0.424848))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -22), 2)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 100% of the 5 zeroed items while keeping 100% of the 55 valued ones (balanced acc 100%)
+    if (5.55551 + (0.819828 * clampz((Width - 1.85) / 0.357071)) + (0.479834 * clampz((WeaponFootprint - 2.7) / 0.802081)) + (-1.56444 * clampz((Recoil - -7.38333) / 3.4307)) + (0.35722 * clampz((LogWeight - 0.378631) / 0.147317))) < 0:
+        pred = 0.0
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: Loudness
+    pred = -27.2063 + (-11.0054 * clampz((Width - 1.92727) / 0.259688)) + (1.85972 * clampz((WeaponFootprint - 2.85455) / 0.644365)) + (2.55484 * clampz((Loudness - -20.9273) / 11.4873))
+    explicit_val = explicit_override_value(base_data, ['Loudness'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -54.4), 70.4)
+    if isinstance(template, dict) and "Loudness" in template:
+        t_val = to_f(template["Loudness"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 100% of the 5 zeroed items while keeping 93% of the 55 valued ones (balanced acc 96%)
+    if (3.21238 + (1.42589 * clampz((Width - 1.85) / 0.357071)) + (1.17633 * clampz((WeaponFootprint - 2.7) / 0.802081)) + (0.351027 * clampz((Loudness - -19.1833) / 12.4264)) + (-0.495766 * clampz((GaugeNumeric - 0.8) / 2.99333))) < 0:
+        pred = 0.0
+    item_entry["Loudness"] = r(pred, 3)
+
+    # Target: ModMalfunctionChance
+    pred = -17.9939 + (-0.136593 * clampz((DurabilityBurnModificator - 1.6569) / 0.119851)) + (2.03309 * clampz((Ergonomics - -20.381) / 6.17195)) + (-3.78683 * clampz((LogWeight - 0.415958) / 0.101653)) + (1.27171 * clampz((Accuracy - -0.190476) / 0.663257)) + (-2.35448 * clampz((Recoil - -7.66667) / 2.61558)) + (-1.23229 * clampz((IsCollimator - 0.0238095) / 0.152455)) + (1.02557 * clampz((IsMagnified - 0.285714) / 0.451754)) + (2.8817 * clampz((IsHeavy - 0.214286) / 0.410326))
+    explicit_val = explicit_override_value(base_data, ['ModMalfunctionChance', 'BaseMalfunctionChance'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -27.5), 2.5)
+    if isinstance(template, dict) and "ModMalfunctionChance" in template:
+        t_val = to_f(template["ModMalfunctionChance"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 67% of the 18 zeroed items while keeping 98% of the 42 valued ones (balanced acc 82%)
+    if (0.150422 + (1.48244 * clampz((Width - 1.85) / 0.357071)) + (0.41361 * clampz((DurabilityBurnModificator - 1.548) / 0.273866)) + (-0.302757 * clampz((Ergonomics - -17.025) / 9.35166)) + (-0.671692 * clampz((WeaponFootprint - 2.7) / 0.802081))) < 0:
+        pred = 0.0
+    item_entry["ModMalfunctionChance"] = r(pred, 4)
+
+    # Target: SemiROF
+    pred = 2.41493 + (0.215791 * clampz((WeaponFootprint - 2.95349) / 0.370637)) + (0.247967 * clampz((LogWeight - 0.416849) / 0.100629)) + (-0.251757 * clampz((GaugeNumeric - 0.55814) / 2.52708)) + (-0.175114 * clampz((IsMagnified - 0.27907) / 0.448542)) + (0.246817 * clampz((IsCollimator - 0.0232558) / 0.150715))
+    pred = min(max(pred, 0), 5.5)
+    if isinstance(template, dict) and "SemiROF" in template:
+        t_val = to_f(template["SemiROF"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 65% of the 17 zeroed items while keeping 95% of the 43 valued ones (balanced acc 80%)
+    if (0.138538 + (1.51063 * clampz((Width - 1.85) / 0.357071)) + (0.29514 * clampz((DurabilityBurnModificator - 1.548) / 0.273866)) + (-0.139959 * clampz((Ergonomics - -17.025) / 9.35166)) + (-0.445998 * clampz((WeaponFootprint - 2.7) / 0.802081))) < 0:
+        pred = 0.0
+    item_entry["SemiROF"] = int(round(pred))
+
+    # Target: Velocity
+    pred = 0.8
+    explicit_val = explicit_override_value(base_data, ['Velocity'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -2.075), 1.825)
+    if isinstance(template, dict) and "Velocity" in template:
+        t_val = to_f(template["Velocity"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 100% of the 12 zeroed items while keeping 98% of the 48 valued ones (balanced acc 99%)
+    if (1.01129 + (3.04333 * clampz((Width - 1.85) / 0.357071)) + (-1.19187 * clampz((WeaponFootprint - 2.7) / 0.802081)) + (-0.415408 * clampz((Velocity - 0.64) / 0.329621)) + (-0.293116 * clampz((CaliberNumeric - 9.68067) / 13.7045))) < 0:
+        pred = 0.0
+    item_entry["Velocity"] = r_half(pred)
+
+    # Target: Weight
+    pred = 0.4772 + (0.216468 * clampz((Weight - 0.476033) / 0.214864)) + (-0.00203865 * clampz((IsHeavy - 0.216667) / 0.411974)) + (-0.000992414 * clampz((Width - 1.85) / 0.357071)) + (5.92049e-05 * clampz((WeaponFootprint - 2.7) / 0.802081)) + (-0.00120958 * clampz((Ergonomics - -17.025) / 9.35166)) + (0.000147767 * clampz((HeatFactor - 1.12837) / 0.0752283)) + (-0.000441134 * clampz((Velocity - 0.64) / 0.329621)) + (0.000191269 * clampz((DurabilityBurnModificator - 1.548) / 0.273866))
+    pred += (0.08 * IsSuppressor)
+    pred = min(max(pred, 0.011), 1.199)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- MuzzleBrakes (Mod) Formulas ---
+def apply_muzzlebrakes_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    CoolFactor = to_f(props.get("CoolFactor", 0.0))
+    DurabilityBurnModificator = to_f(props.get("DurabilityBurnModificator", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    ExtraSizeLeft = to_f(props.get("ExtraSizeLeft", 0.0))
+    HeatFactor = to_f(props.get("HeatFactor", 0.0))
+    Loudness = to_f(props.get("Loudness", 0.0))
+    Recoil = to_f(props.get("Recoil", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    BarrelLengthMM = eng.get("BarrelLengthMM", 0.0)
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    GaugeNumeric = eng.get("GaugeNumeric", 0.0)
+    IsBrake = eng.get("IsBrake", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    IsLong = eng.get("IsLong", 0.0)
+    IsMagnified = eng.get("IsMagnified", 0.0)
+    IsShort = eng.get("IsShort", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+    _preset_len_norm = ((BarrelLengthMM - 406.4) / 101.6) if BarrelLengthMM else 0.0
+    _preset_cal_norm = ((CaliberNumeric - 7.62) / 2.06) if CaliberNumeric else 0.0
+
+    # Target: AutoROF
+    pred = 0.0966102 + (-0.224137 * clampz((IsLight - 0.728814) / 0.444572)) + (-0.100931 * clampz((DurabilityBurnModificator - 0.975763) / 0.0179645)) + (-0.102064 * clampz((Ergonomics - -1.60169) / 0.881926)) + (0.0565754 * clampz((IsMagnified - 0.338983) / 0.473364)) + (-0.0181995 * clampz((CaliberNumeric - 7.69492) / 3.41259)) + (-0.200073 * clampz((LogWeight - 0.126981) / 0.0668175))
+    pred = min(max(pred, 0), 1.65)
+    if isinstance(template, dict) and "AutoROF" in template:
+        t_val = to_f(template["AutoROF"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 91% of the 55 zeroed items while keeping 100% of the 4 valued ones (balanced acc 95%)
+    if (-2.08992 + (-0.149567 * clampz((IsLight - 0.728814) / 0.444572)) + (-1.64248 * clampz((Ergonomics - -1.60169) / 0.881926)) + (-0.803943 * clampz((DurabilityBurnModificator - 0.975763) / 0.0179645)) + (1.46094 * clampz((IsMagnified - 0.338983) / 0.473364))) < 0:
+        pred = 0.0
+    item_entry["AutoROF"] = int(round(pred))
+
+    # Target: CanCycleSubs
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "CanCycleSubs" in template:
+        item_entry["CanCycleSubs"] = bool(template.get("CanCycleSubs", False))
+    else:
+        item_entry["CanCycleSubs"] = True if pred >= 0.5 else False
+
+    # Target: CoolFactor
+    pred = 1.00339 + (0.0258162 * clampz((IsShort - 0.0169492) / 0.129081))
+    explicit_val = explicit_override_value(base_data, ['CoolFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.98), 1.22)
+    if isinstance(template, dict) and "CoolFactor" in template:
+        t_val = to_f(template["CoolFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactor"] = r(pred, 3)
+
+    # Target: Dispersion
+    pred = -13.8061 + (0.785143 * clampz((GaugeNumeric - 0.489796) / 2.37437))
+    pred = min(max(pred, -30.8), 2.8)
+    if isinstance(template, dict) and "Dispersion" in template:
+        t_val = to_f(template["Dispersion"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Dispersion"] = r(pred, 3)
+
+    # Target: DurabilityBurnModificator
+    pred = 1.00814 + (-0.0107661 * clampz((DurabilityBurnModificator - 0.975763) / 0.0179645)) + (-0.0155105 * clampz((IsLight - 0.728814) / 0.444572)) + (-0.00866039 * clampz((CaliberNumeric - 7.69492) / 3.41259)) + (-0.000898317 * clampz((GaugeNumeric - 0.813559) / 3.01676)) + (-0.00566655 * clampz((LogWeight - 0.126981) / 0.0668175))
+    pred = min(max(pred, 0.87), 1.23)
+    if isinstance(template, dict) and "DurabilityBurnModificator" in template:
+        t_val = to_f(template["DurabilityBurnModificator"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnModificator"] = r(pred, 3)
+
+    # Target: Flash
+    pred = 20
+    pred += (1.2 * IsBrake)
+    pred += ((3.0 * (CaliberNumeric - 7.62))) if CaliberNumeric else 0
+    pred = min(max(pred, -97.5), 52.5)
+    if isinstance(template, dict) and "Flash" in template:
+        t_val = to_f(template["Flash"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Flash"] = r(pred, 3)
+
+    # Target: HeatFactor
+    pred = 0.99661 + (-0.0258162 * clampz((IsShort - 0.0169492) / 0.129081))
+    explicit_val = explicit_override_value(base_data, ['HeatFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.78), 1.02)
+    if isinstance(template, dict) and "HeatFactor" in template:
+        t_val = to_f(template["HeatFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactor"] = r(pred, 3)
+
+    # Target: HorizontalRecoil
+    pred = -10.4128 + (4.20963 * clampz((Recoil - -8.51087) / 3.18025)) + (0.309517 * clampz((GaugeNumeric - 0.26087) / 1.74997))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred -= (0.7 * IsBrake)
+    pred = min(max(pred, -33), 3)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: Loudness
+    pred = 33.0687 + (5.25346 * clampz((Loudness - 4.66071) / 8.88071)) + (-3.14292 * clampz((IsLong - 0.0178571) / 0.132432))
+    explicit_val = explicit_override_value(base_data, ['Loudness'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred += ((6.0 * (CaliberNumeric - 7.62))) if CaliberNumeric else 0
+    pred = min(max(pred, -24), 84)
+    if isinstance(template, dict) and "Loudness" in template:
+        t_val = to_f(template["Loudness"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Loudness"] = r(pred, 3)
+
+    # Target: SemiROF
+    pred = 0.0966102 + (-0.224137 * clampz((IsLight - 0.728814) / 0.444572)) + (-0.100931 * clampz((DurabilityBurnModificator - 0.975763) / 0.0179645)) + (-0.102064 * clampz((Ergonomics - -1.60169) / 0.881926)) + (0.0565754 * clampz((IsMagnified - 0.338983) / 0.473364)) + (-0.0181995 * clampz((CaliberNumeric - 7.69492) / 3.41259)) + (-0.200073 * clampz((LogWeight - 0.126981) / 0.0668175))
+    pred = min(max(pred, 0), 1.65)
+    if isinstance(template, dict) and "SemiROF" in template:
+        t_val = to_f(template["SemiROF"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 91% of the 55 zeroed items while keeping 100% of the 4 valued ones (balanced acc 95%)
+    if (-2.08992 + (-0.149567 * clampz((IsLight - 0.728814) / 0.444572)) + (-1.64248 * clampz((Ergonomics - -1.60169) / 0.881926)) + (-0.803943 * clampz((DurabilityBurnModificator - 0.975763) / 0.0179645)) + (1.46094 * clampz((IsMagnified - 0.338983) / 0.473364))) < 0:
+        pred = 0.0
+    item_entry["SemiROF"] = int(round(pred))
+
+    # Target: Velocity
+    pred = 0.0169492 + (0.129081 * clampz((IsLong - 0.0169492) / 0.129081))
+    explicit_val = explicit_override_value(base_data, ['Velocity'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -0.1), 1.1)
+    if isinstance(template, dict) and "Velocity" in template:
+        t_val = to_f(template["Velocity"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Velocity"] = r_half(pred)
+
+    # Target: Weight
+    pred = 0.139085 + (0.0796158 * clampz((Weight - 0.138034) / 0.0807379)) + (-0.00036628 * clampz((IsLight - 0.728814) / 0.444572)) + (-0.00016443 * clampz((Ergonomics - -1.60169) / 0.881926)) + (0.000582495 * clampz((ExtraSizeLeft - 0.0169492) / 0.129081)) + (0.00056884 * clampz((Recoil - -8.41525) / 3.59396)) + (-0.000807098 * clampz((CaliberNumeric - 7.69492) / 3.41259))
+    pred += (0.03 * IsBrake)
+    pred = min(max(pred, 0.0189), 0.5001)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- MuzzleBrakesFactory (Mod) Formulas ---
+def apply_muzzlebrakesfactory_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    Accuracy = to_f(props.get("Accuracy", 0.0))
+    DurabilityBurnModificator = to_f(props.get("DurabilityBurnModificator", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    HeatFactor = to_f(props.get("HeatFactor", 0.0))
+    Recoil = to_f(props.get("Recoil", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+
+    # Target: CanCycleSubs
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "CanCycleSubs" in template:
+        item_entry["CanCycleSubs"] = bool(template.get("CanCycleSubs", False))
+    else:
+        item_entry["CanCycleSubs"] = True if pred >= 0.5 else False
+
+    # Target: CoolFactor
+    pred = 1
+    explicit_val = explicit_override_value(base_data, ['CoolFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "CoolFactor" in template:
+        t_val = to_f(template["CoolFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactor"] = r(pred, 3)
+
+    # Target: Dispersion
+    pred = -9.32634 + (-1.77625 * clampz((CaliberNumeric - 6.96417) / 1.74276))
+    pred = min(max(pred, -22), 2)
+    if isinstance(template, dict) and "Dispersion" in template:
+        t_val = to_f(template["Dispersion"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Dispersion"] = r(pred, 3)
+
+    # Target: DurabilityBurnModificator
+    pred = 1.02731 + (-0.00765781 * clampz((CaliberNumeric - 7.03) / 1.68985)) + (0.00772662 * clampz((DurabilityBurnModificator - 0.993077) / 0.0120158)) + (0.000756711 * clampz((IsLight - 0.884615) / 0.319486))
+    pred = min(max(pred, 0.98), 1.22)
+    if isinstance(template, dict) and "DurabilityBurnModificator" in template:
+        t_val = to_f(template["DurabilityBurnModificator"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnModificator"] = r(pred, 3)
+
+    # Target: Flash
+    pred = -20.2289 + (10.3237 * clampz((CaliberNumeric - 7.0872) / 1.69845))
+    pred = min(max(pred, -79.5), 34.5)
+    if isinstance(template, dict) and "Flash" in template:
+        t_val = to_f(template["Flash"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Flash"] = r(pred, 3)
+
+    # Target: HeatFactor
+    pred = 0.999231 + (-0.000650835 * clampz((Weight - 0.104423) / 0.0329722)) + (0.000122718 * clampz((IsLight - 0.884615) / 0.319486)) + (0.000414846 * clampz((HeatFactor - 0.998077) / 0.00785407)) + (-0.000115792 * clampz((CaliberNumeric - 7.03) / 1.68985))
+    explicit_val = explicit_override_value(base_data, ['HeatFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.989), 1.001)
+    if isinstance(template, dict) and "HeatFactor" in template:
+        t_val = to_f(template["HeatFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactor"] = r(pred, 3)
+
+    # Target: HorizontalRecoil
+    pred = -8.55764 + (1.34348 * clampz((Recoil - -6.32) / 2.37857)) + (-0.304433 * clampz((CaliberNumeric - 6.9984) / 1.71576))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -33), 3)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: Loudness
+    pred = 17.0926 + (5.65787 * clampz((CaliberNumeric - 6.9984) / 1.71576))
+    explicit_val = explicit_override_value(base_data, ['Loudness'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -6.5), 71.5)
+    if isinstance(template, dict) and "Loudness" in template:
+        t_val = to_f(template["Loudness"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Loudness"] = r(pred, 3)
+
+    # Target: Weight
+    pred = 0.104423 + (0.0329722 * clampz((Weight - 0.104423) / 0.0329722))
+    pred = min(max(pred, 0.0504), 0.2136)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- Compensators (Mod) Formulas ---
+def apply_compensators_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    Accuracy = to_f(props.get("Accuracy", 0.0))
+    DurabilityBurnModificator = to_f(props.get("DurabilityBurnModificator", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    HeatFactor = to_f(props.get("HeatFactor", 0.0))
+    Loudness = to_f(props.get("Loudness", 0.0))
+    Recoil = to_f(props.get("Recoil", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    BarrelLengthMM = eng.get("BarrelLengthMM", 0.0)
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    _preset_len_norm = ((BarrelLengthMM - 406.4) / 101.6) if BarrelLengthMM else 0.0
+    _preset_cal_norm = ((CaliberNumeric - 7.62) / 2.06) if CaliberNumeric else 0.0
+
+    # Target: CameraRecoil
+    pred = -11.3022 + (3.17619 * clampz((IsLight - 0.818182) / 0.385695)) + (1.27953 * clampz((Weight - 0.117636) / 0.049935)) + (0.330171 * clampz((Recoil - -6.63636) / 1.66639))
+    pred = min(max(pred, -22), 2)
+    if isinstance(template, dict) and "CameraRecoil" in template:
+        t_val = to_f(template["CameraRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 78% of the 23 zeroed items while keeping 91% of the 11 valued ones (balanced acc 85%)
+    if (-0.344118 + (-1.10478 * clampz((CaliberNumeric - 7.73118) / 1.35553)) + (0.850403 * clampz((Weight - 0.0822059) / 0.0487712))) < 0:
+        pred = 0.0
+    item_entry["CameraRecoil"] = r(pred, 3)
+
+    # Target: CanCycleSubs
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "CanCycleSubs" in template:
+        item_entry["CanCycleSubs"] = bool(template.get("CanCycleSubs", False))
+    else:
+        item_entry["CanCycleSubs"] = True if pred >= 0.5 else False
+
+    # Target: Convergence
+    pred = 17.5652 + (-4.57916 * clampz((Recoil - -6.86957) / 2.09148)) + (0.567404 * clampz((IsLight - 0.956522) / 0.203931))
+    pred = min(max(pred, -4), 44)
+    if isinstance(template, dict) and "Convergence" in template:
+        t_val = to_f(template["Convergence"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Convergence"] = r(pred, 3)
+
+    # Target: CoolFactor
+    pred = 1
+    explicit_val = explicit_override_value(base_data, ['CoolFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "CoolFactor" in template:
+        t_val = to_f(template["CoolFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactor"] = r(pred, 3)
+
+    # Target: DurabilityBurnModificator
+    pred = 1.00353 + (-0.00974854 * clampz((IsLight - 0.911765) / 0.283637)) + (-0.00701945 * clampz((DurabilityBurnModificator - 0.98) / 0.0153393)) + (-0.000677751 * clampz((CaliberNumeric - 7.73118) / 1.35553))
+    pred = min(max(pred, 0.976), 1.144)
+    if isinstance(template, dict) and "DurabilityBurnModificator" in template:
+        t_val = to_f(template["DurabilityBurnModificator"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnModificator"] = r(pred, 3)
+
+    # Target: Flash
+    pred = 17.192 + (6.23044 * clampz((CaliberNumeric - 7.65414) / 1.42501))
+    pred = min(max(pred, -81), 51)
+    if isinstance(template, dict) and "Flash" in template:
+        t_val = to_f(template["Flash"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Flash"] = r(pred, 3)
+
+    # Target: HeatFactor
+    pred = 1
+    explicit_val = explicit_override_value(base_data, ['HeatFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.989), 1.001)
+    if isinstance(template, dict) and "HeatFactor" in template:
+        t_val = to_f(template["HeatFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactor"] = r(pred, 3)
+
+    # Target: HorizontalRecoil
+    pred = -11.597 + (-2.05627 * clampz((Weight - 0.0917826) / 0.0449985))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -27.5), 2.5)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: Loudness
+    pred = 22.7419 + (8.65533 * clampz((Loudness - -0.483871) / 5.72978)) + (4.20743 * clampz((CaliberNumeric - 7.66097) / 1.37898))
+    explicit_val = explicit_override_value(base_data, ['Loudness'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -27.5), 62.5)
+    if isinstance(template, dict) and "Loudness" in template:
+        t_val = to_f(template["Loudness"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Loudness"] = r(pred, 3)
+
+    # Target: Weight
+    pred = 0.0843824 + (0.0434804 * clampz((Weight - 0.0822059) / 0.0487712)) + (-0.00119526 * clampz((Ergonomics - -1.05882) / 0.829287)) + (-0.00145345 * clampz((DurabilityBurnModificator - 0.98) / 0.0153393)) + (-0.00083458 * clampz((IsLight - 0.911765) / 0.283637)) + (-0.00160224 * clampz((HeatFactor - 0.991794) / 0.00427565)) + (-0.000678628 * clampz((Loudness - -0.441176) / 5.47288)) + (-0.000656702 * clampz((Accuracy - 0.676471) / 1.36599)) + (0.000572089 * clampz((CaliberNumeric - 7.73118) / 1.35553))
+    pred = min(max(pred, 0), 0.2234)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- MuzzleCombos (Mod) Formulas ---
+def apply_muzzlecombos_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    DurabilityBurnModificator = to_f(props.get("DurabilityBurnModificator", 0.0))
+    HeatFactor = to_f(props.get("HeatFactor", 0.0))
+    Recoil = to_f(props.get("Recoil", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    BarrelLengthMM = eng.get("BarrelLengthMM", 0.0)
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    GaugeNumeric = eng.get("GaugeNumeric", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    LogErgo = eng.get("LogErgo", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+    _preset_len_norm = ((BarrelLengthMM - 406.4) / 101.6) if BarrelLengthMM else 0.0
+    _preset_cal_norm = ((CaliberNumeric - 7.62) / 2.06) if CaliberNumeric else 0.0
+
+    # Target: Accuracy
+    pred = -0.118037 + (-4.26129 * clampz((Weight - 0.0994) / 0.0753435)) + (1.14818 * clampz((IsLight - 0.8) / 0.4))
+    explicit_val = explicit_override_value(base_data, ['Accuracy', 'WeapAccuracy'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -11.5), 6.5)
+    if isinstance(template, dict) and "Accuracy" in template:
+        t_val = to_f(template["Accuracy"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Accuracy"] = r(pred, 3)
+
+    # Target: CameraRecoil
+    pred = -2.47383 + (2.09383 * clampz((Recoil - -2.55556) / 3.74496)) + (2.95568 * clampz((IsLight - 0.888889) / 0.31427)) + (-0.000394409 * clampz((Weight - 0.100444) / 0.0588333)) + (-0.000649317 * clampz((GaugeNumeric - 2.66667) / 4.98888))
+    pred = min(max(pred, -16.5), 1.5)
+    if isinstance(template, dict) and "CameraRecoil" in template:
+        t_val = to_f(template["CameraRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CameraRecoil"] = r(pred, 3)
+
+    # Target: CanCycleSubs
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "CanCycleSubs" in template:
+        item_entry["CanCycleSubs"] = bool(template.get("CanCycleSubs", False))
+    else:
+        item_entry["CanCycleSubs"] = True if pred >= 0.5 else False
+
+    # Target: Convergence
+    pred = 2.22222 + (-6.28539 * clampz((IsLight - 0.888889) / 0.31427))
+    pred = min(max(pred, -2), 22)
+    if isinstance(template, dict) and "Convergence" in template:
+        t_val = to_f(template["Convergence"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Convergence"] = r(pred, 3)
+
+    # Target: CoolFactor
+    pred = 1.00111 + (-0.0038865 * clampz((LogWeight - 0.0943213) / 0.0524569)) + (-0.0010259 * clampz((GaugeNumeric - 2.66667) / 4.98888)) + (-0.00330148 * clampz((IsLight - 0.888889) / 0.31427))
+    explicit_val = explicit_override_value(base_data, ['CoolFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.999), 1.011)
+    if isinstance(template, dict) and "CoolFactor" in template:
+        t_val = to_f(template["CoolFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactor"] = r(pred, 3)
+
+    # Target: DurabilityBurnModificator
+    pred = 0.998521 + (-0.017441 * clampz((HeatFactor - 0.995444) / 0.00736525)) + (-0.000926632 * clampz((LogWeight - 0.0943213) / 0.0524569)) + (0.0160335 * clampz((DurabilityBurnModificator - 0.992222) / 0.0113312)) + (-0.00535142 * clampz((CaliberNumeric - 9.63778) / 5.49458))
+    pred = min(max(pred, 0.965), 1.025)
+    if isinstance(template, dict) and "DurabilityBurnModificator" in template:
+        t_val = to_f(template["DurabilityBurnModificator"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnModificator"] = r(pred, 3)
+
+    # Target: Flash
+    pred = 10 + (30 * clampz((CaliberNumeric - 12.03) / 6.47))
+    pred = min(max(pred, -26), 46)
+    if isinstance(template, dict) and "Flash" in template:
+        t_val = to_f(template["Flash"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Flash"] = r(pred, 3)
+
+    # Target: HeatFactor
+    pred = 1.00145 + (-0.0028517 * clampz((HeatFactor - 0.995444) / 0.00736525)) + (-0.00177484 * clampz((LogWeight - 0.0943213) / 0.0524569)) + (-0.000853431 * clampz((CaliberNumeric - 9.63778) / 5.49458))
+    explicit_val = explicit_override_value(base_data, ['HeatFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.988), 1.012)
+    if isinstance(template, dict) and "HeatFactor" in template:
+        t_val = to_f(template["HeatFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactor"] = r(pred, 3)
+
+    # Target: HorizontalRecoil
+    pred = -2.44444 + (5.88136 * clampz((IsLight - 0.888889) / 0.31427)) + (0.0406545 * clampz((Weight - 0.100444) / 0.0588333)) + (0.509784 * clampz((Recoil - -2.55556) / 3.74496)) + (0.0105322 * clampz((GaugeNumeric - 2.66667) / 4.98888))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -22), 2)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: VerticalRecoil
+    pred = -1.66667 + (4.71405 * clampz((IsLight - 0.888889) / 0.31427))
+    explicit_val = explicit_override_value(base_data, ['VerticalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -16.5), 1.5)
+    if isinstance(template, dict) and "VerticalRecoil" in template:
+        t_val = to_f(template["VerticalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["VerticalRecoil"] = r_half(pred)
+
+    # Target: Weight
+    pred = 0.100444 + (0.0588333 * clampz((Weight - 0.100444) / 0.0588333))
+    pred = min(max(pred, 0), 0.2553)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- FlashHiders (Mod) Formulas ---
+def apply_flashhiders_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    Accuracy = to_f(props.get("Accuracy", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    BarrelLengthMM = eng.get("BarrelLengthMM", 0.0)
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    IsBrake = eng.get("IsBrake", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    IsLong = eng.get("IsLong", 0.0)
+    IsMagnified = eng.get("IsMagnified", 0.0)
+    _preset_len_norm = ((BarrelLengthMM - 406.4) / 101.6) if BarrelLengthMM else 0.0
+    _preset_cal_norm = ((CaliberNumeric - 7.62) / 2.06) if CaliberNumeric else 0.0
+
+    # Target: CanCycleSubs
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "CanCycleSubs" in template:
+        item_entry["CanCycleSubs"] = bool(template.get("CanCycleSubs", False))
+    else:
+        item_entry["CanCycleSubs"] = True if pred >= 0.5 else False
+
+    # Target: CoolFactor
+    pred = 1
+    explicit_val = explicit_override_value(base_data, ['CoolFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "CoolFactor" in template:
+        t_val = to_f(template["CoolFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactor"] = r(pred, 3)
+
+    # Target: Dispersion
+    pred = -12.0833 + (-0.399605 * clampz((IsLong - 0.0416667) / 0.199826))
+    pred = min(max(pred, -19.5), -1.5)
+    if isinstance(template, dict) and "Dispersion" in template:
+        t_val = to_f(template["Dispersion"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Dispersion"] = r(pred, 3)
+
+    # Target: DurabilityBurnModificator
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "DurabilityBurnModificator" in template:
+        t_val = to_f(template["DurabilityBurnModificator"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnModificator"] = r(pred, 3)
+
+    # Target: Ergonomics
+    pred = 0
+    pred -= (0.3 * IsBrake)
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "Ergonomics" in template:
+        t_val = to_f(template["Ergonomics"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Ergonomics"] = r_half(pred)
+
+    # Target: Flash
+    pred = -53.8287 + (-5.61376 * clampz((CaliberNumeric - 6.62083) / 1.98955))
+    pred -= (3.0 * IsBrake)
+    pred = min(max(pred, -75.5), -9.5)
+    if isinstance(template, dict) and "Flash" in template:
+        t_val = to_f(template["Flash"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Flash"] = r(pred, 3)
+
+    # Target: HeatFactor
+    pred = 1
+    explicit_val = explicit_override_value(base_data, ['HeatFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "HeatFactor" in template:
+        t_val = to_f(template["HeatFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactor"] = r(pred, 3)
+
+    # Target: HorizontalRecoil
+    pred = -6.84957 + (-0.571719 * clampz((IsLong - 0.0416667) / 0.199826)) + (-0.677744 * clampz((CaliberNumeric - 6.62083) / 1.98955))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -10.9), -0.1)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: Loudness
+    pred = 9.16331 + (-0.712365 * clampz((IsLong - 0.0416667) / 0.199826)) + (0.420629 * clampz((CaliberNumeric - 6.62083) / 1.98955))
+    explicit_val = explicit_override_value(base_data, ['Loudness'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 2.4), 21.6)
+    if isinstance(template, dict) and "Loudness" in template:
+        t_val = to_f(template["Loudness"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Loudness"] = r(pred, 3)
+
+    # Target: VerticalRecoil
+    pred = -6.44125 + (-0.501613 * clampz((IsLight - 0.888889) / 0.31427)) + (-0.0925007 * clampz((IsLong - 0.0555556) / 0.229061))
+    explicit_val = explicit_override_value(base_data, ['VerticalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -8.8), 0.8)
+    if isinstance(template, dict) and "VerticalRecoil" in template:
+        t_val = to_f(template["VerticalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["VerticalRecoil"] = r_half(pred)
+
+    # Target: Weight
+    pred = 0.0860417 + (0.0325198 * clampz((Weight - 0.0860417) / 0.0325198))
+    pred += (0.02 * IsBrake)
+    pred = min(max(pred, 0.039), 0.171)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- MuzzleAdapters (Mod) Formulas ---
+def apply_muzzleadapters_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    Accuracy = to_f(props.get("Accuracy", 0.0))
+    DurabilityBurnModificator = to_f(props.get("DurabilityBurnModificator", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    HeatFactor = to_f(props.get("HeatFactor", 0.0))
+    Recoil = to_f(props.get("Recoil", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    BarrelLengthMM = eng.get("BarrelLengthMM", 0.0)
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    ChokeTightness = eng.get("ChokeTightness", 0.0)
+    GaugeNumeric = eng.get("GaugeNumeric", 0.0)
+    IsAdapter = eng.get("IsAdapter", 0.0)
+    IsCombo = eng.get("IsCombo", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    IsMagnified = eng.get("IsMagnified", 0.0)
+    LogErgo = eng.get("LogErgo", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+    _preset_len_norm = ((BarrelLengthMM - 406.4) / 101.6) if BarrelLengthMM else 0.0
+    _preset_cal_norm = ((CaliberNumeric - 7.62) / 2.06) if CaliberNumeric else 0.0
+
+    # Target: Accuracy
+    pred = 0.384866 + (5.03816 * clampz((LogErgo - 0.415487) / 0.364001)) + (2.22558 * clampz((ChokeTightness - -0.0134615) / 0.0673077)) + (1.19852 * clampz((IsCombo - 0.653846) / 0.475743)) + (-2.36119 * clampz((Ergonomics - 0.230769) / 1.12002)) + (-3.50406 * clampz((LogWeight - 0.0543296) / 0.0598806)) + (5.79983 * clampz((Accuracy - 0.153846) / 0.532939)) + (-0.532939 * clampz((GaugeNumeric - 0.923077) / 3.19763))
+    explicit_val = explicit_override_value(base_data, ['Accuracy', 'WeapAccuracy'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -23), 13)
+    if isinstance(template, dict) and "Accuracy" in template:
+        t_val = to_f(template["Accuracy"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Accuracy"] = r(pred, 3)
+
+    # Target: CameraRecoil
+    pred = -1.31579 + (4.42883 * clampz((Recoil - -0.447368) / 1.3707)) + (1.38149 * clampz((IsLight - 0.921053) / 0.269657)) + (0.365134 * clampz((Weight - 0.0618421) / 0.0574372)) + (-0.116042 * clampz((CaliberNumeric - 8.75579) / 2.88791))
+    pred = min(max(pred, -27.5), 2.5)
+    if isinstance(template, dict) and "CameraRecoil" in template:
+        t_val = to_f(template["CameraRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CameraRecoil"] = r(pred, 3)
+
+    # Target: CanCycleSubs
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "CanCycleSubs" in template:
+        item_entry["CanCycleSubs"] = bool(template.get("CanCycleSubs", False))
+    else:
+        item_entry["CanCycleSubs"] = True if pred >= 0.5 else False
+
+    # Target: CoolFactor
+    pred = 1.00184 + (0.000539313 * clampz((IsLight - 0.921053) / 0.269657))
+    explicit_val = explicit_override_value(base_data, ['CoolFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.998), 1.022)
+    if isinstance(template, dict) and "CoolFactor" in template:
+        t_val = to_f(template["CoolFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactor"] = r(pred, 3)
+
+    # Target: DurabilityBurnModificator
+    pred = 0.997402 + (-0.000878681 * clampz((IsLight - 0.921053) / 0.269657)) + (-0.0111905 * clampz((HeatFactor - 0.999) / 0.00291999)) + (0.0060361 * clampz((Weight - 0.0618421) / 0.0574372)) + (-0.000120687 * clampz((CaliberNumeric - 8.75579) / 2.88791)) + (-0.00881509 * clampz((GaugeNumeric - 0.631579) / 2.67956))
+    pred = min(max(pred, 0.94), 1.06)
+    if isinstance(template, dict) and "DurabilityBurnModificator" in template:
+        t_val = to_f(template["DurabilityBurnModificator"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnModificator"] = r(pred, 3)
+
+    # Target: Ergonomics
+    pred = 0
+    pred -= (0.2 * IsAdapter)
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "Ergonomics" in template:
+        t_val = to_f(template["Ergonomics"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Ergonomics"] = r_half(pred)
+
+    # Target: Flash
+    pred = 5
+    pred = min(max(pred, 5), 5)
+    if isinstance(template, dict) and "Flash" in template:
+        t_val = to_f(template["Flash"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Flash"] = r(pred, 3)
+
+    # Target: HeatFactor
+    pred = 0.998158 + (-0.000539313 * clampz((IsLight - 0.921053) / 0.269657))
+    explicit_val = explicit_override_value(base_data, ['HeatFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.978), 1.002)
+    if isinstance(template, dict) and "HeatFactor" in template:
+        t_val = to_f(template["HeatFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactor"] = r(pred, 3)
+
+    # Target: HorizontalRecoil
+    pred = -0.365973 + (0.797872 * clampz((Recoil - -0.447368) / 1.3707)) + (0.399343 * clampz((IsLight - 0.921053) / 0.269657)) + (-0.0126139 * clampz((Weight - 0.0618421) / 0.0574372)) + (-0.00352507 * clampz((CaliberNumeric - 8.75579) / 2.88791))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -5.5), 0.5)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: ModMalfunctionChance
+    pred = -0.526316 + (-2.23297 * clampz((Accuracy - 0.105263) / 0.446594))
+    explicit_val = explicit_override_value(base_data, ['ModMalfunctionChance', 'BaseMalfunctionChance'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -11), 1)
+    if isinstance(template, dict) and "ModMalfunctionChance" in template:
+        t_val = to_f(template["ModMalfunctionChance"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["ModMalfunctionChance"] = r(pred, 4)
+
+    # Target: Weight
+    pred = 0.0618421 + (0.0574372 * clampz((Weight - 0.0618421) / 0.0574372))
+    pred += (0.015 * IsAdapter)
+    pred = min(max(pred, 0), 0.2421)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- PistolGripPistol (Mod) Formulas ---
+def apply_pistolgrippistol_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    ExtraSizeDown = to_f(props.get("ExtraSizeDown", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    LogErgo = eng.get("LogErgo", 0.0)
+
+    # Target: Ergonomics
+    pred = 5.69643 + (-0.674368 * clampz((ExtraSizeDown - 0.0967742) / 0.29565)) + (-0.745368 * clampz((IsLight - 0.967742) / 0.176685))
+    pred = min(max(pred, -1.5), 16.5)
+    if isinstance(template, dict) and "Ergonomics" in template:
+        t_val = to_f(template["Ergonomics"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Ergonomics"] = r_half(pred)
+
+    # Target: Weight
+    pred = 0.0985 + (0.0443334 * clampz((Weight - 0.0975588) / 0.0451124)) + (0.000618582 * clampz((CaliberNumeric - 8.13) / 3.11728)) + (-0.000602722 * clampz((LogErgo - 1.93272) / 0.367801))
+    pred = min(max(pred, 0.0335), 0.2915)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- PistolGrip (Mod) Formulas ---
+def apply_pistolgrip_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    ExtraSizeDown = to_f(props.get("ExtraSizeDown", 0.0))
+    ExtraSizeRight = to_f(props.get("ExtraSizeRight", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    IsAdapter = eng.get("IsAdapter", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    WeaponFootprint = eng.get("WeaponFootprint", 0.0)
+
+    # Target: Ergonomics
+    pred = 4.01883 + (-0.235537 * clampz((IsLight - 0.936709) / 0.243486)) + (0.409262 * clampz((Weight - 0.092519) / 0.0331532)) + (-0.13519 * clampz((WeaponFootprint - 1.03797) / 0.248695))
+    pred = min(max(pred, -0.8), 8.8)
+    if isinstance(template, dict) and "Ergonomics" in template:
+        t_val = to_f(template["Ergonomics"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 71% of the 7 zeroed items while keeping 94% of the 79 valued ones (balanced acc 83%)
+    if (0.750385 + (1.10272 * clampz((ExtraSizeDown - 0.883721) / 0.320559))) < 0:
+        pred = 0.0
+    item_entry["Ergonomics"] = r_half(pred)
+
+    # Target: HorizontalRecoil
+    pred = -0.122093 + (0.492861 * clampz((ExtraSizeRight - 0.0116279) / 0.107204)) + (0.33675 * clampz((WeaponFootprint - 1.03488) / 0.238585)) + (0.332983 * clampz((IsLight - 0.930233) / 0.254755)) + (-0.461218 * clampz((CaliberNumeric - 3.60709) / 5.39629)) + (-0.00427502 * clampz((Weight - 0.0923721) / 0.0334754)) + (0.0115916 * clampz((ExtraSizeDown - 0.883721) / 0.320559))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -8.45), 8.95)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 96% of the 82 zeroed items while keeping 100% of the 4 valued ones (balanced acc 98%)
+    if (-4.06701 + (1.02052 * clampz((ExtraSizeRight - 0.0116279) / 0.107204)) + (2.23063 * clampz((CaliberNumeric - 3.60709) / 5.39629)) + (-0.333261 * clampz((WeaponFootprint - 1.03488) / 0.238585)) + (-1.28908 * clampz((IsLight - 0.930233) / 0.254755))) < 0:
+        pred = 0.0
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: VerticalRecoil
+    pred = -0.255814 + (-1.35527 * clampz((ExtraSizeRight - 0.0116279) / 0.107204)) + (-0.122266 * clampz((WeaponFootprint - 1.03488) / 0.238585)) + (-0.150378 * clampz((CaliberNumeric - 3.60709) / 5.39629))
+    explicit_val = explicit_override_value(base_data, ['VerticalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -16.5), 1.5)
+    if isinstance(template, dict) and "VerticalRecoil" in template:
+        t_val = to_f(template["VerticalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 96% of the 82 zeroed items while keeping 100% of the 4 valued ones (balanced acc 98%)
+    if (-4.06701 + (1.02052 * clampz((ExtraSizeRight - 0.0116279) / 0.107204)) + (2.23063 * clampz((CaliberNumeric - 3.60709) / 5.39629)) + (-0.333261 * clampz((WeaponFootprint - 1.03488) / 0.238585)) + (-1.28908 * clampz((IsLight - 0.930233) / 0.254755))) < 0:
+        pred = 0.0
+    item_entry["VerticalRecoil"] = r_half(pred)
+
+    # Target: Weight
+    pred = 0.0917907 + (0.0315153 * clampz((Weight - 0.0923721) / 0.0334754)) + (0.000621244 * clampz((IsLight - 0.930233) / 0.254755)) + (0.0011468 * clampz((Ergonomics - 7.73837) / 3.32252)) + (-4.59904e-05 * clampz((IsAdapter - 0.0348837) / 0.183485)) + (0.00150798 * clampz((CaliberNumeric - 3.60709) / 5.39629))
+    pred = min(max(pred, 0.0173), 0.2057)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- Pistol (Gun) Formulas ---
+def apply_pistol_gun_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    CenterOfImpact = to_f(props.get("CenterOfImpact", 0.0))
+    CoolFactorGun = to_f(props.get("CoolFactorGun", 0.0))
+    CoolFactorGunMods = to_f(props.get("CoolFactorGunMods", 0.0))
+    DeviationCurve = to_f(props.get("DeviationCurve", 0.0))
+    Durability = to_f(props.get("Durability", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    HeatFactorByShot = to_f(props.get("HeatFactorByShot", 0.0))
+    HeatFactorGun = to_f(props.get("HeatFactorGun", 0.0))
+    OperatingResource = to_f(props.get("OperatingResource", 0.0))
+    RecoilAngle = to_f(props.get("RecoilAngle", 0.0))
+    RecoilCamera = to_f(props.get("RecoilCamera", 0.0))
+    RecoilCategoryMultiplierHandRotation = to_f(props.get("RecoilCategoryMultiplierHandRotation", 0.0))
+    RecoilDampingHandRotation = to_f(props.get("RecoilDampingHandRotation", 0.0))
+    RecoilForceBack = to_f(props.get("RecoilForceBack", 0.0))
+    RecoilForceUp = to_f(props.get("RecoilForceUp", 0.0))
+    RecoilPosZMult = to_f(props.get("RecoilPosZMult", 0.0))
+    RecoilReturnSpeedHandRotation = to_f(props.get("RecoilReturnSpeedHandRotation", 0.0))
+    RecoilStableIndexShot = to_f(props.get("RecoilStableIndexShot", 0.0))
+    RecolDispersion = to_f(props.get("RecolDispersion", 0.0))
+    Velocity = to_f(props.get("Velocity", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    durabSpawnMax = to_f(props.get("durabSpawnMax", 0.0))
+    shotgunDispersion = to_f(props.get("shotgunDispersion", 0.0))
+    BarrelLengthMM = eng.get("BarrelLengthMM", 0.0)
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    IsHeavy = eng.get("IsHeavy", 0.0)
+    LogErgo = eng.get("LogErgo", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+
+    # Target: BaseChamberCheckSpeed
+    pred = 1
+    pred = min(max(pred, 0.975), 1.275)
+    if isinstance(template, dict) and "BaseChamberCheckSpeed" in template:
+        t_val = to_f(template["BaseChamberCheckSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseChamberCheckSpeed"] = r(pred, 3)
+
+    # Target: BaseChamberSpeedMulti
+    pred = 1
+    pred = min(max(pred, 0.985), 1.165)
+    if isinstance(template, dict) and "BaseChamberSpeedMulti" in template:
+        t_val = to_f(template["BaseChamberSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseChamberSpeedMulti"] = r(pred, 3)
+
+    # Target: BaseFixSpeed
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "BaseFixSpeed" in template:
+        t_val = to_f(template["BaseFixSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseFixSpeed"] = r(pred, 3)
+
+    # Target: BaseMalfunctionChance
+    pred = 0.0107815 + (0.0434922 * clampz((BarrelLengthMM - 0.0384615) / 0.192308)) + (0.000587157 * clampz((CaliberNumeric - 9.99923) / 2.72698)) + (0.000610184 * clampz((DeviationCurve - 2.28846) / 0.0902003)) + (-0.000380177 * clampz((Ergonomics - 78.7308) / 9.85884)) + (-0.00133037 * clampz((CenterOfImpact - 0.101923) / 0.155885)) + (0.00107309 * clampz((LogWeight - 0.360962) / 0.166329)) + (7.52301e-05 * clampz((RecolDispersion - 9.5) / 1.59928)) + (0.000538367 * clampz((HeatFactorGun - 1.00458) / 0.0533322))
+    explicit_val = explicit_override_value(base_data, ['BaseMalfunctionChance'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0), 0.25042)
+    if isinstance(template, dict) and "BaseMalfunctionChance" in template:
+        t_val = to_f(template["BaseMalfunctionChance"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseMalfunctionChance"] = r(pred, 4)
+
+    # Target: BaseReloadSpeedMulti
+    pred = 1.00962 + (-0.0115247 * clampz((RecoilPosZMult - 0.965385) / 0.12071)) + (-0.011961 * clampz((RecoilStableIndexShot - 4.03846) / 0.436839)) + (-0.00860435 * clampz((LogWeight - 0.360962) / 0.166329)) + (-0.00812851 * clampz((RecolDispersion - 9.5) / 1.59928)) + (0.00185717 * clampz((CoolFactorGun - 3.94338) / 0.285432)) + (0.0018079 * clampz((IsHeavy - 0.307692) / 0.461538))
+    pred = min(max(pred, 0.985), 1.165)
+    if isinstance(template, dict) and "BaseReloadSpeedMulti" in template:
+        t_val = to_f(template["BaseReloadSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseReloadSpeedMulti"] = r(pred, 3)
+
+    # Target: BaseTorque
+    pred = -1.51848 + (-0.612412 * clampz((Weight - 0.5508) / 0.219572)) + (-0.128587 * clampz((IsHeavy - 0.466667) / 0.498888))
+    pred = min(max(pred, -2.86), 0.26)
+    if isinstance(template, dict) and "BaseTorque" in template:
+        t_val = to_f(template["BaseTorque"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseTorque"] = r(pred, 3)
+
+    # Target: CameraRecoil
+    pred = 0.00594324 + (0.00458059 * clampz((RecoilCategoryMultiplierHandRotation - 0.115385) / 0.0110352)) + (-0.000320479 * clampz((RecoilForceBack - 290.038) / 35.2415)) + (-2.5873e-05 * clampz((RecoilAngle - 84.6154) / 4.58322)) + (0.000486753 * clampz((CaliberNumeric - 9.99923) / 2.72698)) + (0.000534429 * clampz((RecoilForceUp - 396.923) / 76.5375)) + (0.00048468 * clampz((LogWeight - 0.360962) / 0.166329)) + (-0.000687438 * clampz((IsHeavy - 0.307692) / 0.461538))
+    pred = min(max(pred, 0.0002), 0.0218)
+    if isinstance(template, dict) and "CameraRecoil" in template:
+        t_val = to_f(template["CameraRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CameraRecoil"] = r(pred, 3)
+
+    # Target: CenterOfImpact
+    pred = 0.2125 + (0.0711046 * clampz((BarrelLengthMM - 0.125) / 0.330719)) + (0.027436 * clampz((CenterOfImpact - 0.33125) / 0.054872)) + (-0.04 * clampz((DeviationCurve - 2.375) / 0.125))
+    explicit_val = explicit_override_value(base_data, ['CenterOfImpact'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0), 0.429)
+    if isinstance(template, dict) and "CenterOfImpact" in template:
+        t_val = to_f(template["CenterOfImpact"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 100% of the 18 zeroed items while keeping 100% of the 8 valued ones (balanced acc 100%)
+    if (-1.16105 + (2.08404 * clampz((CenterOfImpact - 0.101923) / 0.155885)) + (0.369803 * clampz((DeviationCurve - 2.28846) / 0.0902003))) < 0:
+        pred = 0.0
+    item_entry["CenterOfImpact"] = r(pred, 3)
+
+    # Target: Convergence
+    pred = 17.3477 + (-2.60959 * clampz((BarrelLengthMM - 0.0384615) / 0.192308)) + (1.27512 * clampz((RecoilReturnSpeedHandRotation - 4.61538) / 1.52988)) + (-0.277107 * clampz((RecoilDampingHandRotation - 0.814231) / 0.0380458)) + (0.182882 * clampz((RecoilForceUp - 396.923) / 76.5375)) + (0.067902 * clampz((RecoilAngle - 84.6154) / 4.58322)) + (-0.232672 * clampz((RecoilForceBack - 290.038) / 35.2415))
+    pred = min(max(pred, 3.5), 21.5)
+    if isinstance(template, dict) and "Convergence" in template:
+        t_val = to_f(template["Convergence"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Convergence"] = r(pred, 3)
+
+    # Target: CoolFactorGun
+    pred = 0.251231 + (0.756154 * clampz((BarrelLengthMM - 0.0384615) / 0.192308))
+    explicit_val = explicit_override_value(base_data, ['CoolFactorGun'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0), 4.4252)
+    if isinstance(template, dict) and "CoolFactorGun" in template:
+        t_val = to_f(template["CoolFactorGun"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactorGun"] = r(pred, 3)
+
+    # Target: CoolFactorGunMods
+    pred = 1.01642 + (0.08211 * clampz((BarrelLengthMM - 0.0384615) / 0.192308))
+    pred = min(max(pred, 0.957303), 1.46967)
+    if isinstance(template, dict) and "CoolFactorGunMods" in template:
+        t_val = to_f(template["CoolFactorGunMods"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactorGunMods"] = r(pred, 3)
+
+    # Target: Dispersion
+    pred = 10.2308 + (1.69065 * clampz((shotgunDispersion - 9.23077) / 2.66469)) + (2.67522 * clampz((CaliberNumeric - 9.99923) / 2.72698)) + (-1.70595 * clampz((BarrelLengthMM - 0.0384615) / 0.192308))
+    pred = min(max(pred, 2.6), 19.4)
+    if isinstance(template, dict) and "Dispersion" in template:
+        t_val = to_f(template["Dispersion"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Dispersion"] = r(pred, 3)
+
+    # Target: DurabilityBurnRatio
+    pred = 0.284248 + (0.088733 * clampz((CaliberNumeric - 9.99923) / 2.72698)) + (0.138041 * clampz((BarrelLengthMM - 0.0384615) / 0.192308)) + (-0.102528 * clampz((IsHeavy - 0.307692) / 0.461538)) + (0.130367 * clampz((LogWeight - 0.360962) / 0.166329))
+    explicit_val = explicit_override_value(base_data, ['DurabilityBurnRatio'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0), 1.261)
+    if isinstance(template, dict) and "DurabilityBurnRatio" in template:
+        t_val = to_f(template["DurabilityBurnRatio"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnRatio"] = r(pred, 3)
+
+    # Target: Ergonomics
+    pred = 73.6978 + (5.63723 * clampz((BarrelLengthMM - 0.0384615) / 0.192308)) + (-4.77279 * clampz((IsHeavy - 0.307692) / 0.461538)) + (3.02568 * clampz((LogWeight - 0.360962) / 0.166329))
+    pred = min(max(pred, 60.4), 103.6)
+    if isinstance(template, dict) and "Ergonomics" in template:
+        t_val = to_f(template["Ergonomics"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Ergonomics"] = r_half(pred)
+
+    # Target: HasShoulderContact
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "HasShoulderContact" in template:
+        item_entry["HasShoulderContact"] = bool(template.get("HasShoulderContact", False))
+    else:
+        item_entry["HasShoulderContact"] = True if pred >= 0.5 else False
+
+    # Target: HeatFactorByShot
+    pred = 1.02154 + (0.107692 * clampz((BarrelLengthMM - 0.0384615) / 0.192308))
+    pred = min(max(pred, 0.944), 1.616)
+    if isinstance(template, dict) and "HeatFactorByShot" in template:
+        t_val = to_f(template["HeatFactorByShot"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactorByShot"] = r(pred, 3)
+
+    # Target: HeatFactorGun
+    pred = 0.299519 + (0.119414 * clampz((BarrelLengthMM - 0.0384615) / 0.192308)) + (0.0501783 * clampz((CaliberNumeric - 9.99923) / 2.72698)) + (0.0125528 * clampz((LogWeight - 0.360962) / 0.166329))
+    explicit_val = explicit_override_value(base_data, ['HeatFactorGun'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.111251), 1.17624)
+    if isinstance(template, dict) and "HeatFactorGun" in template:
+        t_val = to_f(template["HeatFactorGun"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactorGun"] = r(pred, 3)
+
+    # Target: HipAccuracyRestorationDelay
+    pred = 0.2
+    pred = min(max(pred, 0.2), 0.2)
+    if isinstance(template, dict) and "HipAccuracyRestorationDelay" in template:
+        t_val = to_f(template["HipAccuracyRestorationDelay"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipAccuracyRestorationDelay"] = r(pred, 4)
+
+    # Target: HipAccuracyRestorationSpeed
+    pred = 7
+    pred = min(max(pred, 7), 7)
+    if isinstance(template, dict) and "HipAccuracyRestorationSpeed" in template:
+        t_val = to_f(template["HipAccuracyRestorationSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipAccuracyRestorationSpeed"] = r(pred, 4)
+
+    # Target: HipInnaccuracyGain
+    pred = 0.16
+    pred = min(max(pred, 0.16), 0.16)
+    if isinstance(template, dict) and "HipInnaccuracyGain" in template:
+        t_val = to_f(template["HipInnaccuracyGain"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipInnaccuracyGain"] = r(pred, 4)
+
+    # Target: HorizontalRecoil
+    pred = 256.398 + (112.388 * clampz((RecoilDampingHandRotation - 0.814231) / 0.0380458)) + (-10.1034 * clampz((RecoilReturnSpeedHandRotation - 4.61538) / 1.52988)) + (5.98013 * clampz((RecoilForceBack - 290.038) / 35.2415)) + (-5.1362 * clampz((RecoilAngle - 84.6154) / 4.58322)) + (13.0034 * clampz((RecoilForceUp - 396.923) / 76.5375)) + (-21.7261 * clampz((LogWeight - 0.360962) / 0.166329)) + (-38.2702 * clampz((BarrelLengthMM - 0.0384615) / 0.192308)) + (8.09347 * clampz((CaliberNumeric - 9.99923) / 2.72698))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -32), 592)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: MaxChamberSpeed
+    pred = 1.5
+    pred = min(max(pred, 1.5), 1.5)
+    if isinstance(template, dict) and "MaxChamberSpeed" in template:
+        t_val = to_f(template["MaxChamberSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["MaxChamberSpeed"] = r(pred, 3)
+
+    # Target: MinChamberSpeed
+    pred = 0.796154 + (-0.0192308 * clampz((BarrelLengthMM - 0.0384615) / 0.192308))
+    pred = min(max(pred, 0.69), 0.81)
+    if isinstance(template, dict) and "MinChamberSpeed" in template:
+        t_val = to_f(template["MinChamberSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["MinChamberSpeed"] = r(pred, 3)
+
+    # Target: OffsetRotation
+    pred = 0.00992308 + (0.000216034 * clampz((durabSpawnMax - 70.9615) / 4.80769)) + (0.000286115 * clampz((RecoilForceBack - 290.038) / 35.2415)) + (-0.000119664 * clampz((RecolDispersion - 9.5) / 1.59928)) + (0.000281346 * clampz((RecoilDampingHandRotation - 0.814231) / 0.0380458)) + (0.000270346 * clampz((IsHeavy - 0.307692) / 0.461538)) + (-0.000219692 * clampz((CoolFactorGunMods - 1.1399) / 0.159126)) + (0.000346273 * clampz((LogErgo - 4.37101) / 0.12373))
+    pred = min(max(pred, 0.0076), 0.0124)
+    if isinstance(template, dict) and "OffsetRotation" in template:
+        t_val = to_f(template["OffsetRotation"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["OffsetRotation"] = r(pred, 4)
+
+    # Target: RecoilAngle
+    pred = 93.7811 + (1.38574 * clampz((RecoilDampingHandRotation - 0.814231) / 0.0380458)) + (-1.61352 * clampz((RecoilReturnSpeedHandRotation - 4.61538) / 1.52988)) + (-1.15014 * clampz((BarrelLengthMM - 0.0384615) / 0.192308)) + (0.356656 * clampz((RecoilForceBack - 290.038) / 35.2415)) + (0.0491812 * clampz((RecoilForceUp - 396.923) / 76.5375)) + (0.112287 * clampz((RecoilAngle - 84.6154) / 4.58322)) + (-0.306245 * clampz((CaliberNumeric - 9.99923) / 2.72698))
+    pred = min(max(pred, 83.5), 101.5)
+    if isinstance(template, dict) and "RecoilAngle" in template:
+        t_val = to_f(template["RecoilAngle"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilAngle"] = r(pred, 3)
+
+    # Target: RecoilDamping
+    pred = 0.753518 + (0.00779473 * clampz((CoolFactorGun - 3.94338) / 0.285432)) + (0.00961842 * clampz((shotgunDispersion - 9.23077) / 2.66469)) + (0.0121969 * clampz((RecolDispersion - 9.5) / 1.59928)) + (0.00411859 * clampz((DeviationCurve - 2.28846) / 0.0902003)) + (0.00152822 * clampz((RecoilForceUp - 396.923) / 76.5375)) + (-0.00051901 * clampz((CaliberNumeric - 9.99923) / 2.72698)) + (0.00414316 * clampz((OperatingResource - 3034.62) / 786.15)) + (0.00220036 * clampz((CoolFactorGunMods - 1.1399) / 0.159126))
+    pred = min(max(pred, 0.679), 0.811)
+    if isinstance(template, dict) and "RecoilDamping" in template:
+        t_val = to_f(template["RecoilDamping"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilDamping"] = r(pred, 3)
+
+    # Target: RecoilHandDamping
+    pred = 0.465744 + (0.027808 * clampz((RecoilDampingHandRotation - 0.814231) / 0.0380458)) + (-0.0299123 * clampz((RecoilReturnSpeedHandRotation - 4.61538) / 1.52988)) + (0.0074269 * clampz((LogErgo - 4.37101) / 0.12373)) + (-0.00719566 * clampz((RecoilForceBack - 290.038) / 35.2415)) + (0.00752359 * clampz((LogWeight - 0.360962) / 0.166329)) + (0.0162054 * clampz((HeatFactorGun - 1.00458) / 0.0533322)) + (-0.00779478 * clampz((RecoilAngle - 84.6154) / 4.58322)) + (0.0232793 * clampz((HeatFactorByShot - 2.63092) / 1.02782))
+    pred = min(max(pred, 0.383), 0.587)
+    if isinstance(template, dict) and "RecoilHandDamping" in template:
+        t_val = to_f(template["RecoilHandDamping"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilHandDamping"] = r(pred, 3)
+
+    # Target: RecoilIntensity
+    pred = 0.393119 + (0.133171 * clampz((RecoilCamera - 0.0175) / 0.0158872)) + (0.03261 * clampz((LogErgo - 4.37101) / 0.12373)) + (-0.0154571 * clampz((RecoilForceBack - 290.038) / 35.2415)) + (0.0671915 * clampz((RecoilForceUp - 396.923) / 76.5375)) + (0.00772186 * clampz((HeatFactorGun - 1.00458) / 0.0533322)) + (0.00139756 * clampz((RecoilAngle - 84.6154) / 4.58322)) + (0.00286158 * clampz((CenterOfImpact - 0.101923) / 0.155885)) + (-0.00594561 * clampz((LogWeight - 0.360962) / 0.166329))
+    pred = min(max(pred, 0.0858), 0.7122)
+    if isinstance(template, dict) and "RecoilIntensity" in template:
+        t_val = to_f(template["RecoilIntensity"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilIntensity"] = r(pred, 3)
+
+    # Target: VerticalRecoil
+    pred = 410.801 + (90.4304 * clampz((RecoilDampingHandRotation - 0.814231) / 0.0380458)) + (-86.9471 * clampz((BarrelLengthMM - 0.0384615) / 0.192308)) + (14.8138 * clampz((RecoilReturnSpeedHandRotation - 4.61538) / 1.52988)) + (12.7818 * clampz((RecoilForceBack - 290.038) / 35.2415)) + (9.61565 * clampz((RecoilForceUp - 396.923) / 76.5375)) + (6.90436 * clampz((RecoilAngle - 84.6154) / 4.58322)) + (-25.0097 * clampz((LogWeight - 0.360962) / 0.166329)) + (21.8961 * clampz((CaliberNumeric - 9.99923) / 2.72698))
+    explicit_val = explicit_override_value(base_data, ['VerticalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -49), 659)
+    if isinstance(template, dict) and "VerticalRecoil" in template:
+        t_val = to_f(template["VerticalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["VerticalRecoil"] = r_half(pred)
+
+    # Target: VisualMulti
+    pred = 2.15038 + (-0.271591 * clampz((BarrelLengthMM - 0.0384615) / 0.192308)) + (0.00228547 * clampz((Ergonomics - 78.7308) / 9.85884)) + (0.086369 * clampz((LogWeight - 0.360962) / 0.166329)) + (-0.184115 * clampz((Velocity - -1.26615) / 2.88188)) + (-0.156415 * clampz((RecoilStableIndexShot - 4.03846) / 0.436839)) + (0.162442 * clampz((RecoilCamera - 0.0175) / 0.0158872)) + (0.0879282 * clampz((RecoilPosZMult - 0.965385) / 0.12071)) + (0.00475445 * clampz((CaliberNumeric - 9.99923) / 2.72698))
+    pred = min(max(pred, 0.25), 3.25)
+    if isinstance(template, dict) and "VisualMulti" in template:
+        t_val = to_f(template["VisualMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["VisualMulti"] = r(pred, 3)
+
+    # Target: WeaponAllowADS
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "WeaponAllowADS" in template:
+        item_entry["WeaponAllowADS"] = bool(template.get("WeaponAllowADS", False))
+    else:
+        item_entry["WeaponAllowADS"] = True if pred >= 0.5 else False
+
+    # Target: Weight
+    pred = 0.429651 + (0.0884747 * clampz((Weight - 0.454769) / 0.243352)) + (0.0830568 * clampz((IsHeavy - 0.307692) / 0.461538)) + (0.0917 * clampz((CoolFactorGunMods - 1.1399) / 0.159126)) + (0.0259397 * clampz((Velocity - -1.26615) / 2.88188)) + (-0.0224637 * clampz((shotgunDispersion - 9.23077) / 2.66469)) + (0.0117012 * clampz((HeatFactorByShot - 2.63092) / 1.02782)) + (0.0168213 * clampz((Ergonomics - 78.7308) / 9.85884)) + (-0.0694509 * clampz((BarrelLengthMM - 0.0384615) / 0.192308))
+    pred = min(max(pred, 0.0075), 0.9375)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    # ShotgunDispersion (fixed value — not ML-calculated)
+    if isinstance(template, dict) and "ShotgunDispersion" in template:
+        item_entry["ShotgunDispersion"] = int(to_f(template.get("ShotgunDispersion", 10)))
+    else:
+        item_entry["ShotgunDispersion"] = 10
+
+    return item_entry
+
+# --- Receiver (Mod) Formulas ---
+def apply_receiver_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    CoolFactor = to_f(props.get("CoolFactor", 0.0))
+    DurabilityBurnModificator = to_f(props.get("DurabilityBurnModificator", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    ExtraSizeLeft = to_f(props.get("ExtraSizeLeft", 0.0))
+    ExtraSizeUp = to_f(props.get("ExtraSizeUp", 0.0))
+    HeatFactor = to_f(props.get("HeatFactor", 0.0))
+    Velocity = to_f(props.get("Velocity", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    DurabilityBurnMod = eng.get("DurabilityBurnMod", 0.0)
+    IsHeavy = eng.get("IsHeavy", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+    WeaponFootprint = eng.get("WeaponFootprint", 0.0)
+
+    # Target: CoolFactor
+    pred = 1.02226 + (0.0310682 * clampz((CoolFactor - 1.02695) / 0.034925)) + (-0.000194977 * clampz((HeatFactor - 0.985377) / 0.0288016)) + (-0.00156512 * clampz((LogWeight - 0.23883) / 0.121808)) + (-0.000384207 * clampz((IsLight - 0.204082) / 0.403029)) + (-0.00242646 * clampz((Velocity - -0.336735) / 3.31645)) + (-0.00236608 * clampz((CaliberNumeric - 7.77133) / 3.37849)) + (-0.00110239 * clampz((IsHeavy - 0.0510204) / 0.220039))
+    explicit_val = explicit_override_value(base_data, ['CoolFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.94698), 1.13922)
+    if isinstance(template, dict) and "CoolFactor" in template:
+        t_val = to_f(template["CoolFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactor"] = r(pred, 3)
+
+    # Target: DurabilityBurnModificator
+    pred = 0.974694 + (0.0175051 * clampz((DurabilityBurnModificator - 0.98699) / 0.0148589)) + (0.00688001 * clampz((LogWeight - 0.23883) / 0.121808)) + (-0.00133044 * clampz((IsLight - 0.204082) / 0.403029)) + (0.00344565 * clampz((CaliberNumeric - 7.77133) / 3.37849)) + (0.00313728 * clampz((WeaponFootprint - 2.17347) / 0.700226)) + (-0.000750629 * clampz((IsHeavy - 0.0510204) / 0.220039))
+    pred = min(max(pred, 0.45), 1.05)
+    if isinstance(template, dict) and "DurabilityBurnModificator" in template:
+        t_val = to_f(template["DurabilityBurnModificator"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnModificator"] = r(pred, 3)
+
+    # Target: HeatFactor
+    pred = 0.988458 + (0.0262364 * clampz((HeatFactor - 0.985377) / 0.0288016)) + (0.00221901 * clampz((LogWeight - 0.23883) / 0.121808)) + (-0.00087271 * clampz((ExtraSizeUp - 0.0306122) / 0.172265)) + (0.000527387 * clampz((IsLight - 0.204082) / 0.403029)) + (0.00169884 * clampz((CaliberNumeric - 7.77133) / 3.37849)) + (-0.000258067 * clampz((IsHeavy - 0.0510204) / 0.220039))
+    explicit_val = explicit_override_value(base_data, ['HeatFactor'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.91126), 1.07134)
+    if isinstance(template, dict) and "HeatFactor" in template:
+        t_val = to_f(template["HeatFactor"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactor"] = r(pred, 3)
+
+    # Target: ModMalfunctionChance
+    pred = -4.99992 + (5.73822e-05 * clampz((Ergonomics - 4.72222) / 2.75491)) + (-0.000183445 * clampz((HeatFactor - 0.996222) / 0.00998085)) + (-0.000121167 * clampz((LogWeight - 0.151717) / 0.0817141)) + (-5.52852e-05 * clampz((IsLight - 0.555556) / 0.496904))
+    explicit_val = explicit_override_value(base_data, ['ModMalfunctionChance', 'BaseMalfunctionChance'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -6.6), 0.6)
+    if isinstance(template, dict) and "ModMalfunctionChance" in template:
+        t_val = to_f(template["ModMalfunctionChance"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    # zero-gate: catches 94% of the 62 zeroed items while keeping 97% of the 36 valued ones (balanced acc 95%)
+    if (-1.20869 + (-1.81831 * clampz((DurabilityBurnModificator - 0.98699) / 0.0148589)) + (1.63785 * clampz((IsLight - 0.204082) / 0.403029)) + (-0.399705 * clampz((LogWeight - 0.23883) / 0.121808)) + (-1.24209 * clampz((CoolFactor - 1.02695) / 0.034925))) < 0:
+        pred = 0.0
+    item_entry["ModMalfunctionChance"] = r(pred, 4)
+
+    # Target: Weight
+    pred = 0.279077 + (0.169306 * clampz((Weight - 0.279724) / 0.169528)) + (0.000557331 * clampz((IsHeavy - 0.0510204) / 0.220039)) + (-0.000274863 * clampz((IsLight - 0.204082) / 0.403029)) + (-0.00397653 * clampz((CoolFactor - 1.02695) / 0.034925)) + (-0.000420317 * clampz((DurabilityBurnModificator - 0.98699) / 0.0148589)) + (-0.00370817 * clampz((HeatFactor - 0.985377) / 0.0288016)) + (0.00048217 * clampz((ExtraSizeLeft - 0.173469) / 0.495397)) + (0.000588483 * clampz((CaliberNumeric - 7.77133) / 3.37849))
+    pred = min(max(pred, 0), 1.205)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+# --- Shotguns (Gun) Formulas ---
+def apply_shotguns_gun_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    AimPlane = to_f(props.get("AimPlane", 0.0))
+    CameraSnap = to_f(props.get("CameraSnap", 0.0))
+    CenterOfImpact = to_f(props.get("CenterOfImpact", 0.0))
+    CoolFactorGun = to_f(props.get("CoolFactorGun", 0.0))
+    CoolFactorGunMods = to_f(props.get("CoolFactorGunMods", 0.0))
+    DurabilityBurnRatio = to_f(props.get("DurabilityBurnRatio", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    HeatFactorByShot = to_f(props.get("HeatFactorByShot", 0.0))
+    HeatFactorGun = to_f(props.get("HeatFactorGun", 0.0))
+    Height = to_f(props.get("Height", 0.0))
+    RecoilAngle = to_f(props.get("RecoilAngle", 0.0))
+    RecoilCamera = to_f(props.get("RecoilCamera", 0.0))
+    RecoilDampingHandRotation = to_f(props.get("RecoilDampingHandRotation", 0.0))
+    RecoilForceBack = to_f(props.get("RecoilForceBack", 0.0))
+    RecoilForceUp = to_f(props.get("RecoilForceUp", 0.0))
+    RecoilReturnPathOffsetHandRotation = to_f(props.get("RecoilReturnPathOffsetHandRotation", 0.0))
+    RecoilReturnSpeedHandRotation = to_f(props.get("RecoilReturnSpeedHandRotation", 0.0))
+    RecoilStableIndexShot = to_f(props.get("RecoilStableIndexShot", 0.0))
+    RecolDispersion = to_f(props.get("RecolDispersion", 0.0))
+    SingleFireRate = to_f(props.get("SingleFireRate", 0.0))
+    Velocity = to_f(props.get("Velocity", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    bEffDist = to_f(props.get("bEffDist", 0.0))
+    bFirerate = to_f(props.get("bFirerate", 0.0))
+    bHearDist = to_f(props.get("bHearDist", 0.0))
+    durabSpawnMax = to_f(props.get("durabSpawnMax", 0.0))
+    BarrelLengthMM = eng.get("BarrelLengthMM", 0.0)
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    ChokeTightness = eng.get("ChokeTightness", 0.0)
+    FireRateRPM = eng.get("FireRateRPM", 0.0)
+    GaugeNumeric = eng.get("GaugeNumeric", 0.0)
+    IsManuallyOperatedGun = eng.get("IsManuallyOperatedGun", 0.0)
+    IsPumpAction = eng.get("IsPumpAction", 0.0)
+    IsSemiAutoShotgun = eng.get("IsSemiAutoShotgun", 0.0)
+    IsShotgun = eng.get("IsShotgun", 0.0)
+    IsTubeFed = eng.get("IsTubeFed", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+
+    # Target: BaseChamberCheckSpeed
+    pred = 1.01206 + (-0.0491021 * clampz((CoolFactorGunMods - 1.02595) / 0.0121158)) + (0.00721873 * clampz((DurabilityBurnRatio - 1.14) / 0.0374166)) + (0.0043082 * clampz((IsPumpAction - 0.466667) / 0.498888)) + (-0.0331986 * clampz((RecolDispersion - 13.8667) / 5.25188)) + (0.0108525 * clampz((RecoilForceBack - 487.6) / 126.928)) + (-0.0549259 * clampz((CaliberNumeric - 17.9013) / 3.00245)) + (-0.0372479 * clampz((CameraSnap - 2.48667) / 0.260427))
+    pred = min(max(pred, 0.727), 1.243)
+    if isinstance(template, dict) and "BaseChamberCheckSpeed" in template:
+        t_val = to_f(template["BaseChamberCheckSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseChamberCheckSpeed"] = r(pred, 3)
+
+    # Target: BaseChamberSpeedMulti
+    pred = 1.00603 + (0.791018 * clampz((RecoilReturnPathOffsetHandRotation - 0.0148667) / 0.000498888)) + (-0.0136377 * clampz((Ergonomics - 44) / 6.03324)) + (-0.0758303 * clampz((HeatFactorGun - 0.972867) / 0.0263211)) + (-0.0978168 * clampz((RecoilForceUp - 345.467) / 114.423)) + (0.905527 * clampz((bHearDist - 22.0667) / 34.9351)) + (0.955631 * clampz((AimPlane - 0.0928) / 0.0518578)) + (0.00767791 * clampz((GaugeNumeric - 12.4667) / 4.66))
+    pred = min(max(pred, 0.8), 1.4)
+    if isinstance(template, dict) and "BaseChamberSpeedMulti" in template:
+        t_val = to_f(template["BaseChamberSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseChamberSpeedMulti"] = r(pred, 3)
+
+    # Target: BaseFixSpeed
+    pred = 0.925688 + (-0.104502 * clampz((IsPumpAction - 0.466667) / 0.498888)) + (-0.00724406 * clampz((durabSpawnMax - 81.6667) / 11.0554)) + (-0.0370362 * clampz((HeatFactorGun - 0.972867) / 0.0263211)) + (-0.00985895 * clampz((CoolFactorGunMods - 1.02595) / 0.0121158)) + (0.00223822 * clampz((CameraSnap - 2.48667) / 0.260427)) + (0.0128302 * clampz((RecoilForceUp - 345.467) / 114.423)) + (0.000604718 * clampz((bFirerate - 216.667) / 299.904))
+    pred = min(max(pred, 0.545), 1.205)
+    if isinstance(template, dict) and "BaseFixSpeed" in template:
+        t_val = to_f(template["BaseFixSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseFixSpeed"] = r(pred, 3)
+
+    # Target: BaseMalfunctionChance
+    pred = 0.00186326 + (0.000854901 * clampz((RecoilAngle - 90.4167) / 1.38193)) + (-0.000955344 * clampz((HeatFactorByShot - 5.42275) / 0.955377)) + (-0.000277522 * clampz((IsManuallyOperatedGun - 0.416667) / 0.493007)) + (0.000512377 * clampz((CameraSnap - 2.55833) / 0.243099)) + (-0.00100872 * clampz((Width - 3.41667) / 0.493007)) + (0.00100436 * clampz((CenterOfImpact - 0.520833) / 0.093136))
+    explicit_val = explicit_override_value(base_data, ['BaseMalfunctionChance'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred += (-0.002 * IsPumpAction)
+    pred += (0.0015 * IsSemiAutoShotgun)
+    pred = min(max(pred, 0), 0.00495)
+    if isinstance(template, dict) and "BaseMalfunctionChance" in template:
+        t_val = to_f(template["BaseMalfunctionChance"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseMalfunctionChance"] = r(pred, 4)
+
+    # Target: BaseReloadSpeedMulti
+    pred = 1.11602 + (0.12291 * clampz((IsManuallyOperatedGun - 0.533333) / 0.498888)) + (0.904167 * clampz((Velocity - 0.840667) / 1.20652)) + (0.031226 * clampz((SingleFireRate - 424) / 52.3832)) + (-0.385748 * clampz((Height - 1.13333) / 0.339935)) + (0.017414 * clampz((RecoilReturnSpeedHandRotation - 2.16) / 0.489626)) + (0.755998 * clampz((HeatFactorGun - 0.972867) / 0.0263211)) + (-0.0357527 * clampz((Weight - 1.65293) / 0.740425))
+    pred = min(max(pred, 0.817), 1.453)
+    if isinstance(template, dict) and "BaseReloadSpeedMulti" in template:
+        t_val = to_f(template["BaseReloadSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseReloadSpeedMulti"] = r(pred, 3)
+
+    # Target: CameraRecoil
+    pred = 0.102934 + (0.00612761 * clampz((LogWeight - 0.940192) / 0.260146)) + (-0.0331725 * clampz((Width - 3.06667) / 0.85375)) + (-0.0151067 * clampz((CaliberNumeric - 17.9013) / 3.00245)) + (0.0036941 * clampz((GaugeNumeric - 12.4667) / 4.66)) + (0.0139526 * clampz((RecoilForceBack - 487.6) / 126.928)) + (-0.0182044 * clampz((RecoilReturnSpeedHandRotation - 2.16) / 0.489626)) + (0.0276134 * clampz((RecoilAngle - 90.3333) / 1.24722))
+    pred += (0.06 * ((GaugeNumeric - 12.0) / 8.0))
+    pred += (0.04 * IsSemiAutoShotgun)
+    pred = min(max(pred, 0.0515), 0.2135)
+    if isinstance(template, dict) and "CameraRecoil" in template:
+        t_val = to_f(template["CameraRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CameraRecoil"] = r(pred, 3)
+
+    # Target: CenterOfImpact
+    pred = 0.108
+    explicit_val = explicit_override_value(base_data, ['CenterOfImpact'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0), 0.55)
+    if isinstance(template, dict) and "CenterOfImpact" in template:
+        t_val = to_f(template["CenterOfImpact"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CenterOfImpact"] = r(pred, 3)
+
+    # Target: Convergence
+    pred = 7.59395 + (-1.95391 * clampz((RecoilCamera - 0.06) / 0.00894427)) + (-0.845945 * clampz((RecoilReturnPathOffsetHandRotation - 0.0148667) / 0.000498888)) + (0.998031 * clampz((RecoilDampingHandRotation - 0.842) / 0.0155778)) + (0.987878 * clampz((Weight - 1.65293) / 0.740425)) + (-1.10715 * clampz((RecoilAngle - 90.3333) / 1.24722))
+    pred += (0.20 * ((BarrelLengthMM - 470.0) / 100.0))
+    pred += (0.15 * ChokeTightness)
+    pred = min(max(pred, 1), 13)
+    if isinstance(template, dict) and "Convergence" in template:
+        t_val = to_f(template["Convergence"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Convergence"] = r(pred, 3)
+
+    # Target: CoolFactorGun
+    pred = 0.302864 + (-1.09676 * clampz((CaliberNumeric - 17.9013) / 3.00245)) + (0.126912 * clampz((CoolFactorGun - 4.1088) / 0.580463)) + (-0.613232 * clampz((GaugeNumeric - 12.4667) / 4.66)) + (-0.0346223 * clampz((HeatFactorByShot - 6.6622) / 2.62205)) + (0.0658483 * clampz((LogWeight - 0.940192) / 0.260146)) + (0.0264181 * clampz((Width - 3.06667) / 0.85375))
+    explicit_val = explicit_override_value(base_data, ['CoolFactorGun'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0), 6.328)
+    if isinstance(template, dict) and "CoolFactorGun" in template:
+        t_val = to_f(template["CoolFactorGun"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactorGun"] = r(pred, 3)
+
+    # Target: CoolFactorGunMods
+    pred = 1.00133 + (-0.00498888 * clampz((DurabilityBurnRatio - 1.14) / 0.0374166))
+    pred = min(max(pred, 0.998), 1.022)
+    if isinstance(template, dict) and "CoolFactorGunMods" in template:
+        t_val = to_f(template["CoolFactorGunMods"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactorGunMods"] = r(pred, 3)
+
+    # Target: Dispersion
+    pred = 6 + (1.22234 * clampz((CenterOfImpact - 0.418667) / 0.220662)) + (-0.556171 * clampz((RecolDispersion - 13.8667) / 5.25188))
+    pred = min(max(pred, 0), 13.1)
+    if isinstance(template, dict) and "Dispersion" in template:
+        t_val = to_f(template["Dispersion"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Dispersion"] = r(pred, 3)
+
+    # Target: DurabilityBurnRatio
+    pred = 0.535784 + (-0.208762 * clampz((HeatFactorByShot - 6.6622) / 2.62205)) + (-0.0676664 * clampz((Width - 3.06667) / 0.85375)) + (-0.0611559 * clampz((CaliberNumeric - 17.9013) / 3.00245)) + (0.0483153 * clampz((HeatFactorGun - 0.972867) / 0.0263211))
+    explicit_val = explicit_override_value(base_data, ['DurabilityBurnRatio'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.01), 1.09)
+    if isinstance(template, dict) and "DurabilityBurnRatio" in template:
+        t_val = to_f(template["DurabilityBurnRatio"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnRatio"] = r(pred, 3)
+
+    # Target: Ergonomics
+    pred = 80
+    pred = min(max(pred, 79.2), 88.8)
+    if isinstance(template, dict) and "Ergonomics" in template:
+        t_val = to_f(template["Ergonomics"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Ergonomics"] = r_half(pred)
+
+    # Target: HasShoulderContact
+    pred = 0
+    pred = min(max(pred, -0.1), 1.1)
+    if isinstance(template, dict) and "HasShoulderContact" in template:
+        item_entry["HasShoulderContact"] = bool(template.get("HasShoulderContact", False))
+    else:
+        item_entry["HasShoulderContact"] = True if pred >= 0.5 else False
+
+    # Target: HeatFactorByShot
+    pred = 1.708 + (-2.64909 * clampz((DurabilityBurnRatio - 1.14) / 0.0374166))
+    pred = min(max(pred, 0), 12.682)
+    if isinstance(template, dict) and "HeatFactorByShot" in template:
+        t_val = to_f(template["HeatFactorByShot"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactorByShot"] = r(pred, 3)
+
+    # Target: HeatFactorGun
+    pred = 0.588177 + (-0.050934 * clampz((CaliberNumeric - 17.9013) / 3.00245)) + (0.0679578 * clampz((HeatFactorByShot - 6.6622) / 2.62205)) + (-0.0721769 * clampz((LogWeight - 0.940192) / 0.260146)) + (-0.00941812 * clampz((GaugeNumeric - 12.4667) / 4.66)) + (0.0245651 * clampz((Width - 3.06667) / 0.85375)) + (0.00976291 * clampz((Velocity - 0.840667) / 1.20652))
+    explicit_val = explicit_override_value(base_data, ['HeatFactorGun'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.341), 1.049)
+    if isinstance(template, dict) and "HeatFactorGun" in template:
+        t_val = to_f(template["HeatFactorGun"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactorGun"] = r(pred, 3)
+
+    # Target: HipAccuracyRestorationDelay
+    pred = 0.2
+    pred = min(max(pred, 0.2), 0.2)
+    if isinstance(template, dict) and "HipAccuracyRestorationDelay" in template:
+        t_val = to_f(template["HipAccuracyRestorationDelay"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipAccuracyRestorationDelay"] = r(pred, 4)
+
+    # Target: HipAccuracyRestorationSpeed
+    pred = 7
+    pred = min(max(pred, 7), 7)
+    if isinstance(template, dict) and "HipAccuracyRestorationSpeed" in template:
+        t_val = to_f(template["HipAccuracyRestorationSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipAccuracyRestorationSpeed"] = r(pred, 4)
+
+    # Target: HipInnaccuracyGain
+    pred = 0.16
+    pred = min(max(pred, 0.16), 0.16)
+    if isinstance(template, dict) and "HipInnaccuracyGain" in template:
+        t_val = to_f(template["HipInnaccuracyGain"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipInnaccuracyGain"] = r(pred, 4)
+
+    # Target: HorizontalRecoil
+    pred = 348.636 + (40.007 * clampz((GaugeNumeric - 12.4667) / 4.66)) + (-4.54738 * clampz((CaliberNumeric - 17.9013) / 3.00245)) + (-37.0901 * clampz((Width - 3.06667) / 0.85375)) + (0.876786 * clampz((RecoilReturnSpeedHandRotation - 2.16) / 0.489626)) + (57.6976 * clampz((LogWeight - 0.940192) / 0.260146)) + (51.4673 * clampz((RecoilStableIndexShot - 2.86667) / 0.339935)) + (15.413 * clampz((RecoilCamera - 0.06) / 0.00894427))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 214), 526)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: MaxChamberSpeed
+    pred = 1.44959 + (0.117361 * clampz((RecoilAngle - 90.3333) / 1.24722)) + (0.0049101 * clampz((GaugeNumeric - 12.4667) / 4.66)) + (0.20263 * clampz((RecoilReturnPathOffsetHandRotation - 0.0148667) / 0.000498888)) + (0.0904226 * clampz((RecoilForceUp - 345.467) / 114.423)) + (-0.170591 * clampz((RecoilCamera - 0.06) / 0.00894427)) + (-0.00494048 * clampz((AimPlane - 0.0928) / 0.0518578)) + (-0.0387694 * clampz((CenterOfImpact - 0.418667) / 0.220662))
+    pred = min(max(pred, 0.9), 2.1)
+    if isinstance(template, dict) and "MaxChamberSpeed" in template:
+        t_val = to_f(template["MaxChamberSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["MaxChamberSpeed"] = r(pred, 3)
+
+    # Target: MinChamberSpeed
+    pred = 0.668667 + (-0.0396388 * clampz((IsPumpAction - 0.466667) / 0.498888)) + (0.00864608 * clampz((Weight - 1.65293) / 0.740425)) + (-0.0107513 * clampz((RecoilReturnSpeedHandRotation - 2.16) / 0.489626))
+    pred = min(max(pred, 0.53), 0.77)
+    if isinstance(template, dict) and "MinChamberSpeed" in template:
+        t_val = to_f(template["MinChamberSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["MinChamberSpeed"] = r(pred, 3)
+
+    # Target: OffsetRotation
+    pred = 0.0143254 + (0.00107221 * clampz((CaliberNumeric - 17.9013) / 3.00245)) + (-0.000300373 * clampz((RecoilForceBack - 487.6) / 126.928)) + (0.000218699 * clampz((DurabilityBurnRatio - 1.14) / 0.0374166)) + (-0.000546616 * clampz((IsSemiAutoShotgun - 0.0666667) / 0.249444)) + (-0.000578095 * clampz((GaugeNumeric - 12.4667) / 4.66)) + (0.000152692 * clampz((RecolDispersion - 13.8667) / 5.25188)) + (0.000260577 * clampz((IsPumpAction - 0.466667) / 0.498888))
+    pred = min(max(pred, 0.0106), 0.0154)
+    if isinstance(template, dict) and "OffsetRotation" in template:
+        t_val = to_f(template["OffsetRotation"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["OffsetRotation"] = r(pred, 4)
+
+    # Target: RecoilAngle
+    pred = 82.9668 + (-2.16695 * clampz((GaugeNumeric - 12.4667) / 4.66)) + (-0.574569 * clampz((CaliberNumeric - 17.9013) / 3.00245)) + (1.85203 * clampz((RecoilAngle - 90.3333) / 1.24722)) + (-0.382066 * clampz((RecoilCamera - 0.06) / 0.00894427))
+    pred = min(max(pred, 68), 92)
+    if isinstance(template, dict) and "RecoilAngle" in template:
+        t_val = to_f(template["RecoilAngle"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilAngle"] = r(pred, 3)
+
+    # Target: RecoilDamping
+    pred = 0.840176 + (-0.0100228 * clampz((RecoilReturnSpeedHandRotation - 2.16) / 0.489626)) + (-0.00251399 * clampz((IsSemiAutoShotgun - 0.0666667) / 0.249444)) + (-0.00166585 * clampz((CoolFactorGunMods - 1.02595) / 0.0121158)) + (0.00969504 * clampz((IsManuallyOperatedGun - 0.533333) / 0.498888)) + (0.00228609 * clampz((IsPumpAction - 0.466667) / 0.498888)) + (-0.00655641 * clampz((RecolDispersion - 13.8667) / 5.25188)) + (-0.000839392 * clampz((Height - 1.13333) / 0.339935))
+    pred = min(max(pred, 0.805), 0.865)
+    if isinstance(template, dict) and "RecoilDamping" in template:
+        t_val = to_f(template["RecoilDamping"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilDamping"] = r(pred, 3)
+
+    # Target: RecoilHandDamping
+    pred = 0.513673 + (0.0221984 * clampz((DurabilityBurnRatio - 1.14) / 0.0374166)) + (0.00218916 * clampz((CaliberNumeric - 17.9013) / 3.00245)) + (-0.00128827 * clampz((GaugeNumeric - 12.4667) / 4.66)) + (-0.00042846 * clampz((CoolFactorGun - 4.1088) / 0.580463)) + (-0.000284316 * clampz((RecoilForceBack - 487.6) / 126.928)) + (0.00240377 * clampz((bEffDist - 76) / 12)) + (0.00266948 * clampz((AimPlane - 0.0928) / 0.0518578))
+    pred = min(max(pred, 0.4155), 0.5295)
+    if isinstance(template, dict) and "RecoilHandDamping" in template:
+        t_val = to_f(template["RecoilHandDamping"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilHandDamping"] = r(pred, 3)
+
+    # Target: RecoilIntensity
+    pred = 0.333844 + (-0.0997987 * clampz((DurabilityBurnRatio - 1.14) / 0.0374166)) + (-0.00469528 * clampz((CoolFactorGun - 4.1088) / 0.580463)) + (-0.0144164 * clampz((CaliberNumeric - 17.9013) / 3.00245)) + (0.010569 * clampz((RecoilForceBack - 487.6) / 126.928)) + (0.00747983 * clampz((HeatFactorByShot - 6.6622) / 2.62205)) + (0.0604938 * clampz((IsManuallyOperatedGun - 0.533333) / 0.498888)) + (-0.0106482 * clampz((LogWeight - 0.940192) / 0.260146))
+    pred = min(max(pred, 0.1295), 0.9155)
+    if isinstance(template, dict) and "RecoilIntensity" in template:
+        t_val = to_f(template["RecoilIntensity"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilIntensity"] = r(pred, 3)
+
+    # Target: VerticalRecoil
+    pred = 201.14 + (72.4327 * clampz((RecoilCamera - 0.06) / 0.00894427)) + (4.92487 * clampz((CaliberNumeric - 17.9013) / 3.00245)) + (-0.412137 * clampz((GaugeNumeric - 12.4667) / 4.66)) + (-3.29137 * clampz((RecoilDampingHandRotation - 0.842) / 0.0155778)) + (7.2326 * clampz((RecoilReturnPathOffsetHandRotation - 0.0148667) / 0.000498888)) + (-14.609 * clampz((RecoilForceBack - 487.6) / 126.928)) + (12.6196 * clampz((RecoilForceUp - 345.467) / 114.423))
+    explicit_val = explicit_override_value(base_data, ['VerticalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 81.5), 483.5)
+    if isinstance(template, dict) and "VerticalRecoil" in template:
+        t_val = to_f(template["VerticalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["VerticalRecoil"] = r_half(pred)
+
+    # Target: VisualMulti
+    pred = 1.73243 + (0.117961 * clampz((SingleFireRate - 424) / 52.3832)) + (0.0490251 * clampz((Height - 1.13333) / 0.339935)) + (-0.0296293 * clampz((IsManuallyOperatedGun - 0.533333) / 0.498888)) + (0.148964 * clampz((RecoilDampingHandRotation - 0.842) / 0.0155778)) + (-0.160239 * clampz((CenterOfImpact - 0.418667) / 0.220662)) + (-0.218594 * clampz((IsSemiAutoShotgun - 0.0666667) / 0.249444)) + (-0.161031 * clampz((Velocity - 0.840667) / 1.20652))
+    pred = min(max(pred, 0.685), 2.665)
+    if isinstance(template, dict) and "VisualMulti" in template:
+        t_val = to_f(template["VisualMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["VisualMulti"] = r(pred, 3)
+
+    # Target: WeapAccuracy
+    pred = 0
+    explicit_val = explicit_override_value(base_data, ['WeapAccuracy', 'Accuracy'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred += (0.85 * ((BarrelLengthMM - 470.0) / 100.0))
+    pred += (5.0 * ChokeTightness)
+    pred += (-0.20 * ((GaugeNumeric - 12.0) / 8.0))
+    pred += (-0.75 * IsPumpAction)
+    pred += (0.45 * IsSemiAutoShotgun)
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "WeapAccuracy" in template:
+        t_val = to_f(template["WeapAccuracy"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["WeapAccuracy"] = r(pred, 3)
+
+    # Target: WeaponAllowADS
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "WeaponAllowADS" in template:
+        item_entry["WeaponAllowADS"] = bool(template.get("WeaponAllowADS", False))
+    else:
+        item_entry["WeaponAllowADS"] = True if pred >= 0.5 else False
+
+    # Target: Weight
+    pred = 1.66627 + (0.566406 * clampz((LogWeight - 0.940192) / 0.260146)) + (0.084558 * clampz((Velocity - 0.840667) / 1.20652)) + (-0.051221 * clampz((RecoilForceBack - 487.6) / 126.928)) + (-0.073231 * clampz((RecoilReturnSpeedHandRotation - 2.16) / 0.489626)) + (-0.0489461 * clampz((IsPumpAction - 0.466667) / 0.498888)) + (-0.00171916 * clampz((Height - 1.13333) / 0.339935)) + (0.00257977 * clampz((bFirerate - 216.667) / 299.904))
+    pred = min(max(pred, 0.486), 3.774)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    # ShotgunDispersion (fixed value — not ML-calculated)
+    if isinstance(template, dict) and "ShotgunDispersion" in template:
+        item_entry["ShotgunDispersion"] = int(to_f(template.get("ShotgunDispersion", 1)))
+    else:
+        item_entry["ShotgunDispersion"] = 1
+
+    return item_entry
+
+# --- SMGs (Gun) Formulas ---
+def apply_smgs_gun_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    AimPlane = to_f(props.get("AimPlane", 0.0))
+    BurstShotsCount = to_f(props.get("BurstShotsCount", 0.0))
+    CameraSnap = to_f(props.get("CameraSnap", 0.0))
+    CoolFactorGunMods = to_f(props.get("CoolFactorGunMods", 0.0))
+    DeviationCurve = to_f(props.get("DeviationCurve", 0.0))
+    DeviationMax = to_f(props.get("DeviationMax", 0.0))
+    Durability = to_f(props.get("Durability", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    HeatFactorByShot = to_f(props.get("HeatFactorByShot", 0.0))
+    HeatFactorGun = to_f(props.get("HeatFactorGun", 0.0))
+    Height = to_f(props.get("Height", 0.0))
+    IronSightRange = to_f(props.get("IronSightRange", 0.0))
+    OperatingResource = to_f(props.get("OperatingResource", 0.0))
+    RecoilAngle = to_f(props.get("RecoilAngle", 0.0))
+    RecoilCamera = to_f(props.get("RecoilCamera", 0.0))
+    RecoilDampingHandRotation = to_f(props.get("RecoilDampingHandRotation", 0.0))
+    RecoilForceBack = to_f(props.get("RecoilForceBack", 0.0))
+    RecoilForceUp = to_f(props.get("RecoilForceUp", 0.0))
+    RecoilPosZMult = to_f(props.get("RecoilPosZMult", 0.0))
+    RecoilReturnPathOffsetHandRotation = to_f(props.get("RecoilReturnPathOffsetHandRotation", 0.0))
+    RecoilReturnSpeedHandRotation = to_f(props.get("RecoilReturnSpeedHandRotation", 0.0))
+    RecoilStableAngleIncreaseStep = to_f(props.get("RecoilStableAngleIncreaseStep", 0.0))
+    RecolDispersion = to_f(props.get("RecolDispersion", 0.0))
+    Velocity = to_f(props.get("Velocity", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    bEffDist = to_f(props.get("bEffDist", 0.0))
+    bFirerate = to_f(props.get("bFirerate", 0.0))
+    bHearDist = to_f(props.get("bHearDist", 0.0))
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    IsMagnified = eng.get("IsMagnified", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+
+    # Target: BaseChamberCheckSpeed
+    pred = 1.01675 + (0.0844935 * clampz((IsMagnified - 0.0909091) / 0.28748)) + (0.138898 * clampz((DeviationMax - 11.2955) / 1.6832)) + (0.0231367 * clampz((DeviationCurve - 2.26818) / 0.296013)) + (0.0143791 * clampz((CaliberNumeric - 8.66136) / 1.66598)) + (-0.0218257 * clampz((RecoilForceBack - 244.864) / 42.3087)) + (0.0998337 * clampz((RecoilStableAngleIncreaseStep - 2.32273) / 0.16769)) + (-0.0606891 * clampz((LogWeight - 0.769156) / 0.228885)) + (0.0744101 * clampz((Velocity - 4.57636) / 11.3321))
+    pred = min(max(pred, 0.75), 1.35)
+    if isinstance(template, dict) and "BaseChamberCheckSpeed" in template:
+        t_val = to_f(template["BaseChamberCheckSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseChamberCheckSpeed"] = r(pred, 3)
+
+    # Target: BaseChamberSpeedMulti
+    pred = 1.00909 + (0.028748 * clampz((IsMagnified - 0.0909091) / 0.28748))
+    pred = min(max(pred, 0.825), 1.125)
+    if isinstance(template, dict) and "BaseChamberSpeedMulti" in template:
+        t_val = to_f(template["BaseChamberSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseChamberSpeedMulti"] = r(pred, 3)
+
+    # Target: BaseFixSpeed
+    pred = 1.00797 + (0.0804082 * clampz((DeviationMax - 11.2955) / 1.6832)) + (-0.00178966 * clampz((DeviationCurve - 2.26818) / 0.296013)) + (-0.0204795 * clampz((Width - 1.95455) / 0.637985)) + (-0.0450822 * clampz((RecoilForceBack - 244.864) / 42.3087)) + (0.0159094 * clampz((LogWeight - 0.769156) / 0.228885)) + (-0.00234152 * clampz((bFirerate - 893.182) / 146.974)) + (0.00294322 * clampz((HeatFactorByShot - 2.00682) / 0.317625)) + (0.00115282 * clampz((IronSightRange - 50) / 13.0558))
+    pred = min(max(pred, 0.75), 1.35)
+    if isinstance(template, dict) and "BaseFixSpeed" in template:
+        t_val = to_f(template["BaseFixSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseFixSpeed"] = r(pred, 3)
+
+    # Target: BaseMalfunctionChance
+    pred = 0.0017017 + (0.00030801 * clampz((bFirerate - 893.182) / 146.974)) + (-0.000334503 * clampz((RecoilPosZMult - 0.972727) / 0.0686349)) + (-0.000103273 * clampz((Ergonomics - 58.1818) / 15.1437)) + (-2.6293e-05 * clampz((OperatingResource - 5568.18) / 1182.21)) + (0.000356933 * clampz((CameraSnap - 3.6) / 0.317662)) + (0.00038301 * clampz((IronSightRange - 50) / 13.0558)) + (-0.00015515 * clampz((DeviationMax - 11.2955) / 1.6832)) + (-5.84337e-05 * clampz((bEffDist - 209.091) / 104.05))
+    explicit_val = explicit_override_value(base_data, ['BaseMalfunctionChance'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.0002), 0.0038)
+    if isinstance(template, dict) and "BaseMalfunctionChance" in template:
+        t_val = to_f(template["BaseMalfunctionChance"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseMalfunctionChance"] = r(pred, 4)
+
+    # Target: BaseReloadSpeedMulti
+    pred = 0.927271 + (0.032729 * clampz((Durability - 98.6364) / 2.22681)) + (-0.0285741 * clampz((Width - 1.95455) / 0.637985)) + (-0.0492227 * clampz((RecoilForceBack - 244.864) / 42.3087)) + (0.0167649 * clampz((Velocity - 4.57636) / 11.3321)) + (0.0298146 * clampz((RecoilPosZMult - 0.972727) / 0.0686349)) + (-0.00740891 * clampz((IsMagnified - 0.0909091) / 0.28748)) + (0.0261286 * clampz((HeatFactorByShot - 2.00682) / 0.317625)) + (0.0205501 * clampz((RecoilStableAngleIncreaseStep - 2.32273) / 0.16769))
+    pred = min(max(pred, 0.835), 1.015)
+    if isinstance(template, dict) and "BaseReloadSpeedMulti" in template:
+        t_val = to_f(template["BaseReloadSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseReloadSpeedMulti"] = r(pred, 3)
+
+    # Target: BaseTorque
+    pred = -0.390024 + (-0.488664 * clampz((Weight - 1.19228) / 0.490303)) + (0.143257 * clampz((Width - 1.94444) / 0.704921))
+    pred = min(max(pred, -2.675), 2.425)
+    if isinstance(template, dict) and "BaseTorque" in template:
+        t_val = to_f(template["BaseTorque"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseTorque"] = r(pred, 3)
+
+    # Target: CameraRecoil
+    pred = 0.0394172 + (0.00343792 * clampz((RecoilCamera - 0.0322727) / 0.00516264)) + (0.00117648 * clampz((RecoilForceUp - 54.9545) / 9.46514)) + (-0.00138352 * clampz((RecoilReturnSpeedHandRotation - 3.10682) / 0.507063)) + (-0.00232134 * clampz((RecoilAngle - 90.4545) / 3.34021)) + (0.00113905 * clampz((RecoilStableAngleIncreaseStep - 2.32273) / 0.16769)) + (-0.000229713 * clampz((RecoilForceBack - 244.864) / 42.3087)) + (-0.00232727 * clampz((RecoilReturnPathOffsetHandRotation - 0.0100909) / 0.000416598)) + (-0.000644853 * clampz((RecoilDampingHandRotation - 0.844091) / 0.00576754))
+    pred = min(max(pred, 0.015), 0.075)
+    if isinstance(template, dict) and "CameraRecoil" in template:
+        t_val = to_f(template["CameraRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CameraRecoil"] = r(pred, 3)
+
+    # Target: CenterOfImpact
+    pred = 0.140288 + (0.033816 * clampz((Width - 2.05) / 0.589491))
+    explicit_val = explicit_override_value(base_data, ['CenterOfImpact'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0), 0.275)
+    if isinstance(template, dict) and "CenterOfImpact" in template:
+        t_val = to_f(template["CenterOfImpact"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CenterOfImpact"] = r(pred, 3)
+
+    # Target: Convergence
+    pred = 19.5
+    pred = min(max(pred, 7.55), 24.95)
+    if isinstance(template, dict) and "Convergence" in template:
+        t_val = to_f(template["Convergence"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Convergence"] = r(pred, 3)
+
+    # Target: CoolFactorGun
+    pred = 0.1
+    explicit_val = explicit_override_value(base_data, ['CoolFactorGun'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.06), 0.54)
+    if isinstance(template, dict) and "CoolFactorGun" in template:
+        t_val = to_f(template["CoolFactorGun"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactorGun"] = r(pred, 3)
+
+    # Target: CoolFactorGunMods
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "CoolFactorGunMods" in template:
+        t_val = to_f(template["CoolFactorGunMods"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactorGunMods"] = r(pred, 3)
+
+    # Target: Dispersion
+    pred = 8.73335 + (-0.66791 * clampz((DeviationCurve - 2.26818) / 0.296013)) + (0.550793 * clampz((RecolDispersion - 11.5455) / 3.70169)) + (0.140128 * clampz((CaliberNumeric - 8.66136) / 1.66598))
+    pred = min(max(pred, 4.3), 12.7)
+    if isinstance(template, dict) and "Dispersion" in template:
+        t_val = to_f(template["Dispersion"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Dispersion"] = r(pred, 3)
+
+    # Target: DurabilityBurnRatio
+    pred = 0.173685 + (0.0725421 * clampz((HeatFactorGun - 1.01639) / 0.0567916)) + (-0.0170213 * clampz((HeatFactorByShot - 2.00682) / 0.317625)) + (0.0362577 * clampz((CaliberNumeric - 8.66136) / 1.66598)) + (0.0489649 * clampz((LogWeight - 0.769156) / 0.228885))
+    explicit_val = explicit_override_value(base_data, ['DurabilityBurnRatio'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0), 0.494)
+    if isinstance(template, dict) and "DurabilityBurnRatio" in template:
+        t_val = to_f(template["DurabilityBurnRatio"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnRatio"] = r(pred, 3)
+
+    # Target: Ergonomics
+    pred = 80
+    pred = min(max(pred, 68.4), 87.6)
+    if isinstance(template, dict) and "Ergonomics" in template:
+        t_val = to_f(template["Ergonomics"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Ergonomics"] = r_half(pred)
+
+    # Target: HasShoulderContact
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "HasShoulderContact" in template:
+        item_entry["HasShoulderContact"] = bool(template.get("HasShoulderContact", False))
+    else:
+        item_entry["HasShoulderContact"] = True if pred >= 0.5 else False
+
+    # Target: HeatFactorByShot
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "HeatFactorByShot" in template:
+        t_val = to_f(template["HeatFactorByShot"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactorByShot"] = r(pred, 3)
+
+    # Target: HeatFactorGun
+    pred = 0.241727 + (0.065821 * clampz((Velocity - 4.57636) / 11.3321)) + (0.0422552 * clampz((CaliberNumeric - 8.66136) / 1.66598))
+    explicit_val = explicit_override_value(base_data, ['HeatFactorGun'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.005), 0.545)
+    if isinstance(template, dict) and "HeatFactorGun" in template:
+        t_val = to_f(template["HeatFactorGun"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactorGun"] = r(pred, 3)
+
+    # Target: HipAccuracyRestorationDelay
+    pred = 0.2
+    pred = min(max(pred, 0.2), 0.2)
+    if isinstance(template, dict) and "HipAccuracyRestorationDelay" in template:
+        t_val = to_f(template["HipAccuracyRestorationDelay"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipAccuracyRestorationDelay"] = r(pred, 4)
+
+    # Target: HipAccuracyRestorationSpeed
+    pred = 7
+    pred = min(max(pred, 7), 7)
+    if isinstance(template, dict) and "HipAccuracyRestorationSpeed" in template:
+        t_val = to_f(template["HipAccuracyRestorationSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipAccuracyRestorationSpeed"] = r(pred, 4)
+
+    # Target: HipInnaccuracyGain
+    pred = 0.16
+    pred = min(max(pred, 0.16), 0.16)
+    if isinstance(template, dict) and "HipInnaccuracyGain" in template:
+        t_val = to_f(template["HipInnaccuracyGain"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipInnaccuracyGain"] = r(pred, 4)
+
+    # Target: HorizontalRecoil
+    pred = 119.101 + (29.154 * clampz((RecoilAngle - 90.4545) / 3.34021)) + (11.5488 * clampz((RecoilPosZMult - 0.972727) / 0.0686349)) + (-18.0596 * clampz((RecoilForceUp - 54.9545) / 9.46514)) + (0.910167 * clampz((RecoilReturnSpeedHandRotation - 3.10682) / 0.507063)) + (1.07356 * clampz((Width - 1.95455) / 0.637985)) + (27.6033 * clampz((RecoilCamera - 0.0322727) / 0.00516264)) + (13.3826 * clampz((CaliberNumeric - 8.66136) / 1.66598))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 66.9), 164.1)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: MaxChamberSpeed
+    pred = 1.5
+    pred = min(max(pred, 1.225), 1.525)
+    if isinstance(template, dict) and "MaxChamberSpeed" in template:
+        t_val = to_f(template["MaxChamberSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["MaxChamberSpeed"] = r(pred, 3)
+
+    # Target: MinChamberSpeed
+    pred = 0.704545 + (0.014374 * clampz((IsMagnified - 0.0909091) / 0.28748))
+    pred = min(max(pred, 0.695), 0.755)
+    if isinstance(template, dict) and "MinChamberSpeed" in template:
+        t_val = to_f(template["MinChamberSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["MinChamberSpeed"] = r(pred, 3)
+
+    # Target: OffsetRotation
+    pred = 0.0115091 + (0.00110278 * clampz((Width - 1.95455) / 0.637985)) + (-0.00146145 * clampz((AimPlane - 0.173636) / 0.0911814)) + (0.000382008 * clampz((LogWeight - 0.769156) / 0.228885))
+    pred = min(max(pred, 0.0035), 0.0215)
+    if isinstance(template, dict) and "OffsetRotation" in template:
+        t_val = to_f(template["OffsetRotation"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["OffsetRotation"] = r(pred, 4)
+
+    # Target: RecoilAngle
+    pred = 90.2256 + (-6.86107 * clampz((RecoilAngle - 90.4545) / 3.34021)) + (3.02613 * clampz((RecoilForceBack - 244.864) / 42.3087)) + (-0.541362 * clampz((CaliberNumeric - 8.66136) / 1.66598)) + (-2.83123 * clampz((RecoilDampingHandRotation - 0.844091) / 0.00576754))
+    pred = min(max(pred, 60), 300)
+    if isinstance(template, dict) and "RecoilAngle" in template:
+        t_val = to_f(template["RecoilAngle"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilAngle"] = r(pred, 3)
+
+    # Target: RecoilDamping
+    pred = 0.846655 + (0.0261116 * clampz((IronSightRange - 50) / 13.0558)) + (0.00473622 * clampz((DeviationCurve - 2.26818) / 0.296013)) + (0.0187469 * clampz((bHearDist - 79.5455) / 2.08299)) + (0.00208301 * clampz((RecoilReturnPathOffsetHandRotation - 0.0100909) / 0.000416598))
+    pred = min(max(pred, 0.794), 0.866)
+    if isinstance(template, dict) and "RecoilDamping" in template:
+        t_val = to_f(template["RecoilDamping"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilDamping"] = r(pred, 3)
+
+    # Target: RecoilHandDamping
+    pred = 0.493721 + (-0.0254185 * clampz((BurstShotsCount - 2.90909) / 0.28748)) + (0.0235035 * clampz((Height - 1.13636) / 0.343174)) + (-0.00448732 * clampz((CoolFactorGunMods - 1.02303) / 0.0526848)) + (0.0176085 * clampz((IronSightRange - 50) / 13.0558)) + (0.0159778 * clampz((RecoilAngle - 90.4545) / 3.34021)) + (0.0291513 * clampz((Weight - 1.21482) / 0.504027)) + (0.00812092 * clampz((AimPlane - 0.173636) / 0.0911814)) + (-0.0234948 * clampz((bHearDist - 79.5455) / 2.08299))
+    pred = min(max(pred, 0.375), 0.675)
+    if isinstance(template, dict) and "RecoilHandDamping" in template:
+        t_val = to_f(template["RecoilHandDamping"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilHandDamping"] = r(pred, 3)
+
+    # Target: RecoilIntensity
+    pred = 0.220599 + (-0.00417062 * clampz((RecoilAngle - 90.4545) / 3.34021)) + (-0.00577045 * clampz((BurstShotsCount - 2.90909) / 0.28748)) + (0.00119277 * clampz((RecoilForceBack - 244.864) / 42.3087)) + (0.00435762 * clampz((RecolDispersion - 11.5455) / 3.70169)) + (-0.00195608 * clampz((AimPlane - 0.173636) / 0.0911814)) + (0.00259762 * clampz((HeatFactorGun - 1.01639) / 0.0567916)) + (0.00518483 * clampz((CoolFactorGunMods - 1.02303) / 0.0526848)) + (0.00918613 * clampz((bEffDist - 209.091) / 104.05))
+    pred = min(max(pred, 0.1945), 0.2605)
+    if isinstance(template, dict) and "RecoilIntensity" in template:
+        t_val = to_f(template["RecoilIntensity"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilIntensity"] = r(pred, 3)
+
+    # Target: VerticalRecoil
+    pred = 35.5295 + (5.15881 * clampz((RecoilAngle - 90.4545) / 3.34021)) + (4.74827 * clampz((CaliberNumeric - 8.66136) / 1.66598)) + (-0.0327329 * clampz((RecoilReturnSpeedHandRotation - 3.10682) / 0.507063)) + (-0.683587 * clampz((RecoilStableAngleIncreaseStep - 2.32273) / 0.16769)) + (-0.467319 * clampz((LogWeight - 0.769156) / 0.228885))
+    explicit_val = explicit_override_value(base_data, ['VerticalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 20.3), 52.7)
+    if isinstance(template, dict) and "VerticalRecoil" in template:
+        t_val = to_f(template["VerticalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["VerticalRecoil"] = r_half(pred)
+
+    # Target: VisualMulti
+    pred = 1.35
+    pred = min(max(pred, 1.01), 2.09)
+    if isinstance(template, dict) and "VisualMulti" in template:
+        t_val = to_f(template["VisualMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["VisualMulti"] = r(pred, 3)
+
+    # Target: WeaponAllowADS
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "WeaponAllowADS" in template:
+        item_entry["WeaponAllowADS"] = bool(template.get("WeaponAllowADS", False))
+    else:
+        item_entry["WeaponAllowADS"] = True if pred >= 0.5 else False
+
+    # Target: Weight
+    pred = 1.21482 + (0.504027 * clampz((Weight - 1.21482) / 0.504027))
+    pred = min(max(pred, 0.159), 2.451)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    # ShotgunDispersion (fixed value — not ML-calculated)
+    if isinstance(template, dict) and "ShotgunDispersion" in template:
+        item_entry["ShotgunDispersion"] = int(to_f(template.get("ShotgunDispersion", 0)))
+    else:
+        item_entry["ShotgunDispersion"] = 0
+
+    return item_entry
+
+# --- SniperRifles (Gun) Formulas ---
+def apply_sniperrifles_gun_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    AimPlane = to_f(props.get("AimPlane", 0.0))
+    CenterOfImpact = to_f(props.get("CenterOfImpact", 0.0))
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    IronSightRange = to_f(props.get("IronSightRange", 0.0))
+    OperatingResource = to_f(props.get("OperatingResource", 0.0))
+    RecoilCamera = to_f(props.get("RecoilCamera", 0.0))
+    RecoilDampingHandRotation = to_f(props.get("RecoilDampingHandRotation", 0.0))
+    RecoilForceBack = to_f(props.get("RecoilForceBack", 0.0))
+    RecoilForceUp = to_f(props.get("RecoilForceUp", 0.0))
+    RecoilReturnSpeedHandRotation = to_f(props.get("RecoilReturnSpeedHandRotation", 0.0))
+    Velocity = to_f(props.get("Velocity", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    bHearDist = to_f(props.get("bHearDist", 0.0))
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    IsHeavy = eng.get("IsHeavy", 0.0)
+    IsMagnified = eng.get("IsMagnified", 0.0)
+    LogErgo = eng.get("LogErgo", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+
+    # Target: BaseChamberCheckSpeed
+    pred = 1.49877 + (0.25598 * clampz((OperatingResource - 2488.89) / 398.454)) + (-0.0220796 * clampz((CenterOfImpact - 0.0107222) / 0.0035987)) + (0.179333 * clampz((Velocity - 3.36111) / 1.51676)) + (0.217033 * clampz((IsHeavy - 0.666667) / 0.471405))
+    pred = min(max(pred, 0.8), 3.2)
+    if isinstance(template, dict) and "BaseChamberCheckSpeed" in template:
+        t_val = to_f(template["BaseChamberCheckSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseChamberCheckSpeed"] = r(pred, 3)
+
+    # Target: BaseChamberSpeedMulti
+    pred = 1.25059 + (-0.138275 * clampz((CaliberNumeric - 8.21333) / 0.545364)) + (0.149486 * clampz((IsHeavy - 0.666667) / 0.471405)) + (-0.116352 * clampz((LogWeight - 0.591449) / 0.150115)) + (-0.0739655 * clampz((bHearDist - 106.667) / 29.8142))
+    pred = min(max(pred, 0.74), 2.06)
+    if isinstance(template, dict) and "BaseChamberSpeedMulti" in template:
+        t_val = to_f(template["BaseChamberSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseChamberSpeedMulti"] = r(pred, 3)
+
+    # Target: BaseFixSpeed
+    pred = 1.5
+    pred = min(max(pred, 0.8), 3.2)
+    if isinstance(template, dict) and "BaseFixSpeed" in template:
+        t_val = to_f(template["BaseFixSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseFixSpeed"] = r(pred, 3)
+
+    # Target: BaseMalfunctionChance
+    pred = 0.00129302 + (0.0010865 * clampz((IronSightRange - 50) / 35.3553)) + (0.00055885 * clampz((LogErgo - 3.32332) / 0.312146)) + (0.000469919 * clampz((AimPlane - 0.296667) / 0.0329983)) + (-0.000237716 * clampz((OperatingResource - 2488.89) / 398.454))
+    explicit_val = explicit_override_value(base_data, ['BaseMalfunctionChance'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0), 0.00438)
+    if isinstance(template, dict) and "BaseMalfunctionChance" in template:
+        t_val = to_f(template["BaseMalfunctionChance"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseMalfunctionChance"] = r(pred, 4)
+
+    # Target: BaseReloadSpeedMulti
+    pred = 1.36507 + (-0.0131176 * clampz((LogErgo - 3.32332) / 0.312146)) + (0.400178 * clampz((IronSightRange - 50) / 35.3553)) + (0.0489574 * clampz((RecoilForceBack - 741) / 166.473)) + (0.0144656 * clampz((AimPlane - 0.296667) / 0.0329983))
+    pred = min(max(pred, 0.9), 2.1)
+    if isinstance(template, dict) and "BaseReloadSpeedMulti" in template:
+        t_val = to_f(template["BaseReloadSpeedMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseReloadSpeedMulti"] = r(pred, 3)
+
+    # Target: BaseTorque
+    pred = -0.379423 + (-10.7506 * clampz((Width - 1.44444) / 0.955814)) + (11.3765 * clampz((LogWeight - 0.591449) / 0.150115)) + (-4.94295 * clampz((IsHeavy - 0.666667) / 0.471405))
+    pred = min(max(pred, -9), 3)
+    if isinstance(template, dict) and "BaseTorque" in template:
+        t_val = to_f(template["BaseTorque"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["BaseTorque"] = r(pred, 3)
+
+    # Target: CameraRecoil
+    pred = 0.142837 + (0.0438445 * clampz((RecoilCamera - 0.0677778) / 0.0198762)) + (-0.0101566 * clampz((CaliberNumeric - 8.21333) / 0.545364)) + (-0.0370436 * clampz((RecoilForceBack - 741) / 166.473)) + (-0.0148006 * clampz((Weight - 0.828) / 0.293751))
+    pred = min(max(pred, 0.1175), 0.2075)
+    if isinstance(template, dict) and "CameraRecoil" in template:
+        t_val = to_f(template["CameraRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CameraRecoil"] = r(pred, 3)
+
+    # Target: CenterOfImpact
+    pred = 0.0120353 + (0.00370571 * clampz((CenterOfImpact - 0.0114375) / 0.00315671)) + (0.00104348 * clampz((Width - 1.5) / 1))
+    explicit_val = explicit_override_value(base_data, ['CenterOfImpact'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0), 0.022)
+    if isinstance(template, dict) and "CenterOfImpact" in template:
+        t_val = to_f(template["CenterOfImpact"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CenterOfImpact"] = r(pred, 3)
+
+    # Target: Convergence
+    pred = 4.81672 + (-0.000308279 * clampz((RecoilForceBack - 741) / 166.473)) + (-0.546544 * clampz((RecoilCamera - 0.0677778) / 0.0198762)) + (0.273501 * clampz((RecoilDampingHandRotation - 0.841111) / 0.00993808)) + (-6.7364e-05 * clampz((IsHeavy - 0.666667) / 0.471405))
+    pred = min(max(pred, 3.1), 7.9)
+    if isinstance(template, dict) and "Convergence" in template:
+        t_val = to_f(template["Convergence"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Convergence"] = r(pred, 3)
+
+    # Target: CoolFactorGun
+    pred = 0.1
+    explicit_val = explicit_override_value(base_data, ['CoolFactorGun'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.1), 0.1)
+    if isinstance(template, dict) and "CoolFactorGun" in template:
+        t_val = to_f(template["CoolFactorGun"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactorGun"] = r(pred, 3)
+
+    # Target: CoolFactorGunMods
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "CoolFactorGunMods" in template:
+        t_val = to_f(template["CoolFactorGunMods"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["CoolFactorGunMods"] = r(pred, 3)
+
+    # Target: Dispersion
+    pred = 2.22901 + (0.323247 * clampz((CaliberNumeric - 8.21333) / 0.545364)) + (-0.018482 * clampz((Width - 1.44444) / 0.955814))
+    pred = min(max(pred, 1.7), 5.3)
+    if isinstance(template, dict) and "Dispersion" in template:
+        t_val = to_f(template["Dispersion"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Dispersion"] = r(pred, 3)
+
+    # Target: DurabilityBurnRatio
+    pred = 0.872222 + (0.0379004 * clampz((CaliberNumeric - 8.21333) / 0.545364)) + (-0.00275807 * clampz((LogWeight - 0.591449) / 0.150115))
+    explicit_val = explicit_override_value(base_data, ['DurabilityBurnRatio'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.425), 1.325)
+    if isinstance(template, dict) and "DurabilityBurnRatio" in template:
+        t_val = to_f(template["DurabilityBurnRatio"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["DurabilityBurnRatio"] = r(pred, 3)
+
+    # Target: Ergonomics
+    pred = 80
+    pred = min(max(pred, 80), 80)
+    if isinstance(template, dict) and "Ergonomics" in template:
+        t_val = to_f(template["Ergonomics"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Ergonomics"] = r_half(pred)
+
+    # Target: HasShoulderContact
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "HasShoulderContact" in template:
+        item_entry["HasShoulderContact"] = bool(template.get("HasShoulderContact", False))
+    else:
+        item_entry["HasShoulderContact"] = True if pred >= 0.5 else False
+
+    # Target: HeatFactorByShot
+    pred = 1
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "HeatFactorByShot" in template:
+        t_val = to_f(template["HeatFactorByShot"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactorByShot"] = r(pred, 3)
+
+    # Target: HeatFactorGun
+    pred = 1.3545 + (-0.310503 * clampz((Velocity - 3.36111) / 1.51676)) + (0.402169 * clampz((LogWeight - 0.591449) / 0.150115)) + (-0.394144 * clampz((Width - 1.44444) / 0.955814)) + (0.185418 * clampz((CaliberNumeric - 8.21333) / 0.545364))
+    explicit_val = explicit_override_value(base_data, ['HeatFactorGun'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 0.795), 2.055)
+    if isinstance(template, dict) and "HeatFactorGun" in template:
+        t_val = to_f(template["HeatFactorGun"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HeatFactorGun"] = r(pred, 3)
+
+    # Target: HipAccuracyRestorationDelay
+    pred = 0.204299 + (0.0532635 * clampz((RecoilCamera - 0.0677778) / 0.0198762)) + (-0.0168676 * clampz((IsMagnified - 0.222222) / 0.41574)) + (-0.00813843 * clampz((CenterOfImpact - 0.0107222) / 0.0035987)) + (-0.022819 * clampz((RecoilForceBack - 741) / 166.473))
+    pred = min(max(pred, 0.195), 0.255)
+    if isinstance(template, dict) and "HipAccuracyRestorationDelay" in template:
+        t_val = to_f(template["HipAccuracyRestorationDelay"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipAccuracyRestorationDelay"] = r(pred, 4)
+
+    # Target: HipAccuracyRestorationSpeed
+    pred = 7.25787 + (3.19425 * clampz((RecoilCamera - 0.0677778) / 0.0198762)) + (-1.01134 * clampz((IsMagnified - 0.222222) / 0.41574)) + (-0.487717 * clampz((CenterOfImpact - 0.0107222) / 0.0035987)) + (-1.36846 * clampz((RecoilForceBack - 741) / 166.473))
+    pred = min(max(pred, 6.7), 10.3)
+    if isinstance(template, dict) and "HipAccuracyRestorationSpeed" in template:
+        t_val = to_f(template["HipAccuracyRestorationSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipAccuracyRestorationSpeed"] = r(pred, 4)
+
+    # Target: HipInnaccuracyGain
+    pred = 0.154842 + (-0.0638964 * clampz((RecoilCamera - 0.0677778) / 0.0198762)) + (0.0202315 * clampz((IsMagnified - 0.222222) / 0.41574)) + (0.00975953 * clampz((CenterOfImpact - 0.0107222) / 0.0035987)) + (0.0273748 * clampz((RecoilForceBack - 741) / 166.473))
+    pred = min(max(pred, 0.094), 0.166)
+    if isinstance(template, dict) and "HipInnaccuracyGain" in template:
+        t_val = to_f(template["HipInnaccuracyGain"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HipInnaccuracyGain"] = r(pred, 4)
+
+    # Target: HorizontalRecoil
+    pred = 529.368 + (181.237 * clampz((RecoilForceUp - 263.667) / 113.88)) + (-60.6482 * clampz((RecoilForceBack - 741) / 166.473)) + (-52.1024 * clampz((RecoilDampingHandRotation - 0.841111) / 0.00993808)) + (-33.5678 * clampz((CaliberNumeric - 8.21333) / 0.545364))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 458), 722)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: MaxChamberSpeed
+    pred = 1.14514 + (-0.153303 * clampz((IsMagnified - 0.222222) / 0.41574)) + (0.19876 * clampz((RecoilCamera - 0.0677778) / 0.0198762)) + (0.429645 * clampz((RecoilReturnSpeedHandRotation - 2.44444) / 0.41663)) + (-0.220928 * clampz((Ergonomics - 28.1111) / 8.83735))
+    pred = min(max(pred, 0.73), 1.57)
+    if isinstance(template, dict) and "MaxChamberSpeed" in template:
+        t_val = to_f(template["MaxChamberSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["MaxChamberSpeed"] = r(pred, 3)
+
+    # Target: MinChamberSpeed
+    pred = 0.683323 + (-0.0111558 * clampz((IsMagnified - 0.222222) / 0.41574)) + (-0.0162311 * clampz((CaliberNumeric - 8.21333) / 0.545364)) + (0.00140299 * clampz((IronSightRange - 50) / 35.3553))
+    pred = min(max(pred, 0.59), 0.71)
+    if isinstance(template, dict) and "MinChamberSpeed" in template:
+        t_val = to_f(template["MinChamberSpeed"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["MinChamberSpeed"] = r(pred, 3)
+
+    # Target: OffsetRotation
+    pred = 0.0100859 + (0.00106207 * clampz((RecoilCamera - 0.0677778) / 0.0198762)) + (-0.000335873 * clampz((IsMagnified - 0.222222) / 0.41574)) + (-0.000161588 * clampz((CenterOfImpact - 0.0107222) / 0.0035987)) + (-0.000455266 * clampz((RecoilForceBack - 741) / 166.473))
+    pred = min(max(pred, 0.0099), 0.0111)
+    if isinstance(template, dict) and "OffsetRotation" in template:
+        t_val = to_f(template["OffsetRotation"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["OffsetRotation"] = r(pred, 4)
+
+    # Target: RecoilAngle
+    pred = 87.4449 + (-11.6377 * clampz((RecoilForceUp - 263.667) / 113.88)) + (3.89437 * clampz((RecoilForceBack - 741) / 166.473)) + (3.62671 * clampz((RecoilDampingHandRotation - 0.841111) / 0.00993808)) + (2.57237 * clampz((CaliberNumeric - 8.21333) / 0.545364))
+    pred = min(max(pred, 73.5), 91.5)
+    if isinstance(template, dict) and "RecoilAngle" in template:
+        t_val = to_f(template["RecoilAngle"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilAngle"] = r(pred, 3)
+
+    # Target: RecoilDamping
+    pred = 0.80585 + (0.00674717 * clampz((IsMagnified - 0.222222) / 0.41574)) + (0.00639791 * clampz((RecoilCamera - 0.0677778) / 0.0198762)) + (-0.00369072 * clampz((RecoilForceBack - 741) / 166.473)) + (-0.000732705 * clampz((Velocity - 3.36111) / 1.51676))
+    pred = min(max(pred, 0.797), 0.833)
+    if isinstance(template, dict) and "RecoilDamping" in template:
+        t_val = to_f(template["RecoilDamping"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilDamping"] = r(pred, 3)
+
+    # Target: RecoilHandDamping
+    pred = 0.414639 + (0.102814 * clampz((RecoilCamera - 0.0677778) / 0.0198762)) + (-0.0335031 * clampz((IsMagnified - 0.222222) / 0.41574)) + (-0.0201483 * clampz((CenterOfImpact - 0.0107222) / 0.0035987)) + (-0.0397861 * clampz((RecoilForceBack - 741) / 166.473))
+    pred = min(max(pred, 0.39), 0.51)
+    if isinstance(template, dict) and "RecoilHandDamping" in template:
+        t_val = to_f(template["RecoilHandDamping"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilHandDamping"] = r(pred, 3)
+
+    # Target: RecoilIntensity
+    pred = 0.314041 + (0.0162313 * clampz((CaliberNumeric - 8.21333) / 0.545364)) + (0.00834116 * clampz((bHearDist - 106.667) / 29.8142)) + (-0.000505028 * clampz((IsHeavy - 0.666667) / 0.471405)) + (0.00115991 * clampz((LogWeight - 0.591449) / 0.150115))
+    pred = min(max(pred, 0.295), 0.355)
+    if isinstance(template, dict) and "RecoilIntensity" in template:
+        t_val = to_f(template["RecoilIntensity"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["RecoilIntensity"] = r(pred, 3)
+
+    # Target: VerticalRecoil
+    pred = 161.004 + (53.4124 * clampz((RecoilCamera - 0.0677778) / 0.0198762)) + (40.2227 * clampz((RecoilForceBack - 741) / 166.473)) + (-49.6042 * clampz((RecoilDampingHandRotation - 0.841111) / 0.00993808)) + (13.8026 * clampz((LogWeight - 0.591449) / 0.150115))
+    explicit_val = explicit_override_value(base_data, ['VerticalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, 72), 288)
+    if isinstance(template, dict) and "VerticalRecoil" in template:
+        t_val = to_f(template["VerticalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["VerticalRecoil"] = r_half(pred)
+
+    # Target: VisualMulti
+    pred = 1.8349 + (-0.162311 * clampz((CaliberNumeric - 8.21333) / 0.545364)) + (-0.166575 * clampz((bHearDist - 106.667) / 29.8142)) + (0.0295776 * clampz((RecoilCamera - 0.0677778) / 0.0198762)) + (0.0526755 * clampz((AimPlane - 0.296667) / 0.0329983))
+    pred = min(max(pred, 1.296), 2.064)
+    if isinstance(template, dict) and "VisualMulti" in template:
+        t_val = to_f(template["VisualMulti"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["VisualMulti"] = r(pred, 3)
+
+    # Target: WeaponAllowADS
+    pred = 0
+    pred = min(max(pred, 0), 0)
+    if isinstance(template, dict) and "WeaponAllowADS" in template:
+        item_entry["WeaponAllowADS"] = bool(template.get("WeaponAllowADS", False))
+    else:
+        item_entry["WeaponAllowADS"] = True if pred >= 0.5 else False
+
+    # Target: Weight
+    pred = 1.11746 + (2.29846 * clampz((LogWeight - 0.591449) / 0.150115)) + (-0.0154385 * clampz((AimPlane - 0.296667) / 0.0329983)) + (-0.818095 * clampz((IsHeavy - 0.666667) / 0.471405)) + (-1.35938 * clampz((Width - 1.44444) / 0.955814))
+    pred = min(max(pred, 0.383), 2.387)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    # ShotgunDispersion (fixed value — not ML-calculated)
+    if isinstance(template, dict) and "ShotgunDispersion" in template:
+        item_entry["ShotgunDispersion"] = int(to_f(template.get("ShotgunDispersion", 0)))
+    else:
+        item_entry["ShotgunDispersion"] = 0
+
+    return item_entry
+
+# --- Stock (Mod) Formulas ---
+def apply_stock_mod_formulas(item_entry, base_data, template=None, context=None):
+    props = base_data.get("_props", base_data)
+    _ov = base_data.get("overrideProperties")
+    if isinstance(_ov, dict):
+        props = {**props, **{_k: _v for _k, _v in _ov.items() if isinstance(_v, (int, float, str, bool))}}
+    eng = engineer_features_from_item(base_data, template)
+    Ergonomics = to_f(props.get("Ergonomics", 0.0))
+    ExtraSizeDown = to_f(props.get("ExtraSizeDown", 0.0))
+    ExtraSizeLeft = to_f(props.get("ExtraSizeLeft", 0.0))
+    Recoil = to_f(props.get("Recoil", 0.0))
+    SizeReduceRight = to_f(props.get("SizeReduceRight", 0.0))
+    Weight = to_f(props.get("Weight", 0.0))
+    Width = to_f(props.get("Width", 0.0))
+    CaliberNumeric = eng.get("CaliberNumeric", 0.0)
+    IsHeavy = eng.get("IsHeavy", 0.0)
+    IsLight = eng.get("IsLight", 0.0)
+    IsShort = eng.get("IsShort", 0.0)
+    LogErgo = eng.get("LogErgo", 0.0)
+    LogWeight = eng.get("LogWeight", 0.0)
+    WeaponFootprint = eng.get("WeaponFootprint", 0.0)
+
+    # Target: Ergonomics
+    pred = 8.22282 + (4.03451 * clampz((Width - 2.13636) / 0.756514)) + (1.44231 * clampz((Weight - 0.555426) / 0.453254)) + (-2.55355 * clampz((WeaponFootprint - 2.86932) / 1.23857)) + (-0.774232 * clampz((IsHeavy - 0.329545) / 0.470048)) + (-0.687277 * clampz((IsLight - 0.0852273) / 0.27922)) + (0.143723 * clampz((ExtraSizeDown - 0.0738636) / 0.261549)) + (-1.51513 * clampz((IsShort - 0.00568182) / 0.0751634))
+    pred += (-0.6 * IsHeavy) + (0.6 * IsLight)
+    pred = min(max(pred, -13.8), 31.8)
+    if isinstance(template, dict) and "Ergonomics" in template:
+        t_val = to_f(template["Ergonomics"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Ergonomics"] = r_half(pred)
+
+    # Target: HasShoulderContact
+    pred = 1
+    pred += (0.5 * IsHeavy)
+    pred = min(max(pred, 1), 1)
+    if isinstance(template, dict) and "HasShoulderContact" in template:
+        item_entry["HasShoulderContact"] = bool(template.get("HasShoulderContact", False))
+    else:
+        item_entry["HasShoulderContact"] = True if pred >= 0.5 else False
+
+    # Target: HorizontalRecoil
+    pred = -8.206 + (4.55907 * clampz((Recoil - -15.6452) / 10.0008)) + (-0.633863 * clampz((LogWeight - 0.390536) / 0.266383)) + (-0.40924 * clampz((IsHeavy - 0.306452) / 0.46102)) + (-1.6147 * clampz((Width - 2.0914) / 0.794627)) + (-0.303138 * clampz((IsLight - 0.129032) / 0.335236)) + (1.71753 * clampz((WeaponFootprint - 2.86022) / 1.43003)) + (-0.115237 * clampz((ExtraSizeDown - 0.0645161) / 0.24567)) + (-1.42066 * clampz((CaliberNumeric - 5.4821) / 6.26961))
+    explicit_val = explicit_override_value(base_data, ['HorizontalRecoil'])
+    if explicit_val is not None:
+        pred = (0.40 * pred) + (0.60 * float(explicit_val))
+    pred = min(max(pred, -44.9), 25.9)
+    if isinstance(template, dict) and "HorizontalRecoil" in template:
+        t_val = to_f(template["HorizontalRecoil"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["HorizontalRecoil"] = r_half(pred)
+
+    # Target: StockAllowADS
+    pred = 0.0368852 + (0.0313233 * clampz((CaliberNumeric - 5.77254) / 6.06896)) + (-0.0263526 * clampz((IsHeavy - 0.258197) / 0.437643))
+    pred = min(max(pred, -0.1), 1.1)
+    if isinstance(template, dict) and "StockAllowADS" in template:
+        item_entry["StockAllowADS"] = bool(template.get("StockAllowADS", False))
+    else:
+        item_entry["StockAllowADS"] = True if pred >= 0.5 else False
+
+    # Target: Weight
+    pred = 0.496213 + (0.357833 * clampz((Weight - 0.484656) / 0.445899)) + (0.0444209 * clampz((WeaponFootprint - 2.78689) / 1.35035)) + (-0.00379101 * clampz((IsHeavy - 0.258197) / 0.437643)) + (0.00588467 * clampz((Width - 2.02869) / 0.748767)) + (0.0171612 * clampz((ExtraSizeLeft - 0.122951) / 0.513392)) + (0.0847129 * clampz((Ergonomics - 7.28689) / 7.28149)) + (-0.0433486 * clampz((LogErgo - 1.70479) / 1.02647)) + (-0.00821138 * clampz((SizeReduceRight - 0.254098) / 0.551622))
+    pred += (0.12 * IsHeavy) - (0.08 * IsLight)
+    pred = min(max(pred, 0), 2.9219)
+    explicit_weight = explicit_override_value(base_data, ['Weight'])
+    if explicit_weight is not None:
+        pred = float(explicit_weight)
+    if isinstance(template, dict) and "Weight" in template:
+        t_val = to_f(template["Weight"])
+        if abs(t_val) < 1e-5:
+            pass  # template value is 0/unset -> keep ML prediction
+        else:
+            # Wide slack: cloned templates (often vanilla items) can differ a lot.
+            # 25% was pulling predictions to wrong defaults for guns/mods.
+            slack = max(abs(t_val) * 0.75 + 0.5, abs(pred) * 0.5 + 0.5)
+            pred = min(max(pred, t_val - slack), t_val + slack)
+    item_entry["Weight"] = r(pred, 3)
+
+    return item_entry
+
+
+
+gun_formula_map = {    "AssaultCarbines": apply_assaultcarbines_gun_formulas,    "AssaultRifles": apply_assaultrifles_gun_formulas,    "MachineGuns": apply_machineguns_gun_formulas,    "MarksmanRifles": apply_marksmanrifles_gun_formulas,    "Pistol": apply_pistol_gun_formulas,    "Shotguns": apply_shotguns_gun_formulas,    "SMGs": apply_smgs_gun_formulas,    "SniperRifles": apply_sniperrifles_gun_formulas}
+mod_formula_map = {    "FunctionalMods": apply_functionalmods_mod_formulas,    "Bipods": apply_bipods_mod_formulas,    "BarrelPistol": apply_barrelpistol_mod_formulas,    "Barrel": apply_barrel_mod_formulas,    "ChargingHandleAmbi": apply_charginghandleambi_mod_formulas,    "ChargingHandle": apply_charginghandle_mod_formulas,    "ChargingHandleExtended": apply_charginghandleextended_mod_formulas,    "CombTactDevice": apply_combtactdevice_mod_formulas,    "HandguardPistol": apply_handguardpistol_mod_formulas,    "HandguardFreeFloat": apply_handguardfreefloat_mod_formulas,    "Handguard": apply_handguard_mod_formulas,    "Foregrip": apply_foregrip_mod_formulas,    "Gasblock": apply_gasblock_mod_formulas,    "Sights": apply_sights_mod_formulas,    "MagazinesPistolFlush": apply_magazinespistolflush_mod_formulas,    "MagazinesPistol": apply_magazinespistol_mod_formulas,    "Magazines": apply_magazines_mod_formulas,    "MagazinesFlush": apply_magazinesflush_mod_formulas,    "Mounts": apply_mounts_mod_formulas,    "SuppressorsPistol": apply_suppressorspistol_mod_formulas,    "Suppressors": apply_suppressors_mod_formulas,    "MuzzleBrakes": apply_muzzlebrakes_mod_formulas,    "MuzzleBrakesFactory": apply_muzzlebrakesfactory_mod_formulas,    "Compensators": apply_compensators_mod_formulas,    "MuzzleCombos": apply_muzzlecombos_mod_formulas,    "FlashHiders": apply_flashhiders_mod_formulas,    "MuzzleAdapters": apply_muzzleadapters_mod_formulas,    "PistolGripPistol": apply_pistolgrippistol_mod_formulas,    "PistolGrip": apply_pistolgrip_mod_formulas,    "Receiver": apply_receiver_mod_formulas,    "Stock": apply_stock_mod_formulas}
+gear_formula_map = {    "TacticalRigs": apply_tacticalrigs_mod_formulas,    "GearComponents": apply_gearcomponents_mod_formulas,    "Visor": apply_visor_mod_formulas,    "ArmorVests": apply_armorvests_mod_formulas,    "Backpacks": apply_backpacks_mod_formulas,    "Headwear": apply_headwear_mod_formulas,    "Headset": apply_headset_mod_formulas}
+ammo_formula_map = {    "Rounds": apply_rounds_mod_formulas}
+
+# Category aliases: maps a class name with no formula to its nearest equivalent.
+# Built at emit time based on which classes successfully trained.
+_all_formula_keys = set(gun_formula_map.keys()) | set(mod_formula_map.keys()) | set(gear_formula_map.keys()) | set(ammo_formula_map.keys())
+_ALIAS_CANDIDATES = [
+    ('ReceiversSlides', 'Receiver'), ('Receiver', 'ReceiversSlides'),
+    ('Barrels', 'Barrel'),
+    # If a pistol-host half was too small to fit, fall back to the pooled class.
+    ('BarrelPistol', 'Barrel'), ('SuppressorsPistol', 'Suppressors'),
+    ('SuppressorsWipe', 'Suppressors'),
+    ('Compensators', 'MuzzleBrakes'), ('MuzzleCombos', 'MuzzleBrakes'),
+    ('MuzzleBrakesFactory', 'MuzzleBrakes'),
+    ('CompensatorsPistol', 'Compensators'), ('MuzzleCombosPistol', 'MuzzleCombos'),
+    ('MagazinesFlush', 'Magazines'), ('MagazinesExtended', 'Magazines'),
+    ('ChargingHandleAmbi', 'ChargingHandle'),
+    ('HandguardFreeFloat', 'Handguard'),
+    ('HandguardPistolFreeFloat', 'HandguardPistol'),
+    ('ChargingHandleExtended', 'ChargingHandle'),
+    ('MagazinesPistolFlush', 'MagazinesPistol'),
+    ('MagazinesPistolExtended', 'MagazinesPistol'),
+    ('SuppressorsPistolWipe', 'SuppressorsPistol'),
+    ('MuzzleBrakesPistol', 'MuzzleBrakes'), ('HandguardPistol', 'Handguard'),
+    ('MagazinesPistol', 'Magazines'), ('PistolGripPistol', 'PistolGrip'), ('Barrel', 'Barrels'),
+    ('GasBlocks', 'Gasblock'), ('Gasblock', 'GasBlocks'),
+    ('ForeGrips', 'Foregrip'), ('Foregrip', 'ForeGrips'),
+    ('PistolGrips', 'PistolGrip'), ('PistolGrip', 'PistolGrips'),
+    ('ChargingHandles', 'ChargingHandle'), ('ChargingHandle', 'ChargingHandles'),
+    ('StocksChassis', 'Stock'), ('Stock', 'StocksChassis'),
+    ('Handguards', 'Handguard'), ('Handguard', 'Handguards'),
+    ('IronSights', 'Sights'), ('Sights', 'IronSights'),
+    ('Visors', 'Visor'), ('Visor', 'Visors'),
+    ('Headsets', 'Headset'), ('Headset', 'Headsets'),
+    ('AssaultCarbines', 'AssaultRifles'), ('AssaultRifles', 'AssaultCarbines'),
+    ('Launchers', 'GrenadeLaunchers'), ('GrenadeLaunchers', 'Launchers'),
+    ('AmmoBoxes', 'Ammo'), ('Rounds', 'Ammo'),
+    ('TacticalComboDevices', 'CombTactDevice'), ('CombTactDevice', 'TacticalComboDevices'),
+    ('Flashlights', 'CombTactDevice'), ('LightLasers', 'CombTactDevice'),
+    ('FlashHiders', 'MuzzleBrakes'), ('MuzzleAdapters', 'MuzzleBrakes'),
+    ('Muzzle', 'MuzzleBrakes'),
+    ('Pistols', 'Pistol'), ('Pistol', 'Pistols'),
+    ('BoltActionRifles', 'SniperRifles'),
+    ('ArmorPlates', 'ArmorVests'), ('ArmorMasks', 'Headwear'),
+    ('TacticalRigs', 'ArmorVests'),
+    ('Optics', 'Sights'), ('Collimators', 'Sights'),
+    ('AssaultScopes', 'Sights'), ('CompactCollimators', 'Sights'),
+    ('Stocks', 'Stock'),
+]
+CATEGORY_ALIASES = {k: v for k, v in _ALIAS_CANDIDATES if k not in _all_formula_keys and v in _all_formula_keys}
+
+
+
+def get_formula_func(category: str):
+    # CATEGORY_ALIASES was built above but never consulted here, so a class that
+    # legitimately routes to a neighbour's model (Rounds -> Ammo, FlashHiders ->
+    # MuzzleBrakes, Barrels -> Barrel) resolved to None and the caller had to
+    # patch around it. Try the exact name first, then its alias.
+    for cat in (category, CATEGORY_ALIASES.get(category)):
+        if not cat: continue
+        if cat in gun_formula_map: return gun_formula_map[cat]
+        if cat in mod_formula_map: return mod_formula_map[cat]
+        if cat in gear_formula_map: return gear_formula_map[cat]
+        if cat in ammo_formula_map: return ammo_formula_map[cat]
+    return None
